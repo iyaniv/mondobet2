@@ -2,12 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Prevent iOS font size inflation */
-html {
-  -webkit-text-size-adjust: 100%;
+html { -webkit-text-size-adjust: 100%; }
+* { -webkit-tap-highlight-color: transparent; }
+
+/* ── Light theme (Notion-like) — default ─────────────────────────────────── */
+:root {
+  --c-bg:     #ffffff;
+  --c-panel:  #f7f7f5;
+  --c-panel2: #ebebea;
+  --c-border: #e9e9e7;
+  --c-text:   #37352f;
+  --c-muted:  #9b9a97;
+  --c-amber:  #d97706;
+  --c-green:  #059669;
+  --c-red:    #dc2626;
+  --c-indigo: #4f46e5;
 }
 
-/* Smooth tap highlights on mobile */
-* {
-  -webkit-tap-highlight-color: transparent;
+/* ── Dark theme ──────────────────────────────────────────────────────────── */
+.dark {
+  --c-bg:     #0b1020;
+  --c-panel:  #141c34;
+  --c-panel2: #1a2547;
+  --c-border: #2a3658;
+  --c-text:   #e7ecf3;
+  --c-muted:  #94a3b8;
+  --c-amber:  #f59e0b;
+  --c-green:  #10b981;
+  --c-red:    #ef4444;
+  --c-indigo: #6366f1;
 }
