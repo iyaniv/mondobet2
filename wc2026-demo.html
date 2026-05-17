@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚽ World Cup 2026 Predictions — Demo</title>
+<style>
+  :root {
+    --bg:#0b1020; --panel:#141c34; --panel2:#1a2547; --border:#2a3658;
+    --text:#e7ecf3; --muted:#94a3b8; --amber:#f59e0b; --amber-d:#d97706;
+    --green:#10b981; --red:#ef4444; --indigo:#6366f1;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; font-family:-apple-system,"Segoe UI",Arial,sans-serif;
+       background:var(--bg); color:var(--text); min-height:100vh;}
+  .container{max-width:1100px; margin:0 auto; padding:16px;}
+  nav{background:var(--panel); border-bottom:1px solid var(--border); padding:12px 0;}
+  nav .row{max-width:1100px; margin:0 auto; padding:0 16px;
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:space-between;}
+  .brand{font-weight:800; color:var(--amber); font-size:18px;}
+  .brand small{color:var(--muted); font-weight:400; font-size:12px; margin-left:6px;}
+  .tabs{display:flex; gap:4px; flex-wrap:wrap;}
+  .tab{background:transparent; border:1px solid var(--border); color:var(--text);
+    padding:6px 12px; border-radius:6px; cursor:pointer; font-size:13px;}
+  .tab:hover{border-color:var(--amber);}
+  .tab.active{background:var(--amber); color:#0b1020; border-color:var(--amber); font-weight:700;}
+  .tab.admin{color:#fda4af;}
+  .tab.admin.active{background:var(--red); color:white; border-color:var(--red);}
+  .userbar{display:flex; gap:8px; align-items:center; font-size:13px; flex-wrap:wrap;}
+  .userbar select, .userbar input{
+    background:var(--panel2); color:var(--text); border:1px solid var(--border);
+    border-radius:6px; padding:6px 10px;}
+  h1{color:var(--amber); margin:0 0 12px; font-size:22px;}
+  h2{color:#fde68a; margin:24px 0 8px; font-size:17px;}
+  .card{background:var(--panel); border:1px solid var(--border);
+    border-radius:8px; padding:14px; margin-bottom:12px;}
+  .btn{background:var(--amber); color:#0b1020; border:0; padding:8px 14px;
+    border-radius:6px; cursor:pointer; font-weight:700;}
+  .btn:hover{background:var(--amber-d);}
+  .btn.sm{padding:4px 10px; font-size:12px;}
+  .btn.red{background:var(--red); color:white;}
+  .btn.red:hover{background:#dc2626;}
+  .btn.green{background:var(--green); color:white;}
+  .btn.green:hover{background:#059669;}
+  .btn.ghost{background:transparent; border:1px solid var(--border); color:var(--text);}
+  .btn:disabled{opacity:0.5; cursor:not-allowed;}
+  .badge{display:inline-block; padding:1px 6px; border-radius:4px; font-size:11px;
+    background:var(--indigo); color:white; margin-left:4px;}
+  .badge.green{background:var(--green);}
+  .badge.red{background:var(--red);}
+  .badge.warn{background:var(--amber); color:#0b1020;}
+
+  .stats{display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px; margin-bottom:14px;}
+  .stat-card{background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:14px;}
+  .stat-card .label{color:var(--muted); font-size:12px; margin-bottom:4px;}
+  .stat-card .value{font-size:24px; font-weight:800; color:var(--amber); font-family:monospace;}
+  .stat-card.green .value{color:var(--green);}
+  .stat-card.red .value{color:var(--red);}
+  .stat-card.indigo .value{color:#c7d2fe;}
+
+  .round-pill{display:inline-block; padding:4px 12px; border-radius:999px;
+    font-size:13px; font-weight:600;}
+  .round-pill.open{background:rgba(16,185,129,0.18); color:#6ee7b7; border:1px solid #047857;}
+  .round-pill.closed{background:rgba(239,68,68,0.18); color:#fca5a5; border:1px solid #991b1b;}
+  .round-pill.idle{background:rgba(148,163,184,0.15); color:#cbd5e1; border:1px solid var(--border);}
+
+  /* Editable / interactive match row */
+  .match-row{display:grid; grid-template-columns:36px 28px 1fr 50px 14px 50px 1fr 100px 90px;
+    align-items:center; gap:6px; padding:6px 8px; border-radius:6px;
+    background:var(--panel2); border:1px solid var(--border);
+    margin-bottom:4px; font-size:13px;}
+  .match-row.locked{background:#0e1429;}
+  .match-row .num{color:var(--muted); font-size:11px;}
+  .match-row .grp{background:var(--border); color:#cbd5e1; padding:2px 6px; border-radius:4px; font-size:11px; text-align:center;}
+  .match-row .team{text-align:left;}
+  .match-row .team.b{text-align:right;}
+  .match-row .time{color:var(--muted); font-size:11px; text-align:right;}
+  .match-row .status{font-size:11px; text-align:right;}
+  .match-row input[type=number]{width:100%; background:#0b1020; border:1px solid var(--border);
+    color:var(--text); border-radius:4px; padding:4px; text-align:center; font-size:14px;}
+  .match-row input:disabled{opacity:0.5; cursor:not-allowed;}
+  .match-row .colon{text-align:center; color:var(--muted);}
+  .match-row .real{background:#14532d; color:#d1fae5; padding:2px 6px; border-radius:4px;
+    font-weight:700; font-family:monospace; font-size:12px;}
+  .match-row .my-pts{display:inline-block; padding:2px 6px; border-radius:4px;
+    font-weight:700; font-family:monospace; font-size:12px;}
+  .my-pts.p0{background:#3f3f46; color:#a1a1aa;}
+  .my-pts.p1{background:#3f2718; color:#fbbf24;}
+  .my-pts.p5{background:#3a1e44; color:#e9d5ff;}
+  .my-pts.p6{background:#1e3a44; color:#a5f3fc;}
+  .my-pts.p8{background:#052e16; color:#86efac;}
+
+  /* Read-only "by user" view: plain score text instead of inputs */
+  .pred-text{display:flex; align-items:center; justify-content:center; gap:6px;
+    font-family:monospace; font-size:16px; font-weight:700; color:#e7ecf3;
+    background:#0b1020; border:1px solid var(--border); border-radius:4px;
+    padding:5px 0; grid-column:span 3;}
+  .pred-text.empty{color:var(--muted); font-weight:400; font-size:12px;}
+
+  table{width:100%; border-collapse:collapse; font-size:14px;}
+  th, td{padding:8px; text-align:left; border-bottom:1px solid var(--border);}
+  th{background:var(--panel2); color:var(--muted); font-weight:600;}
+  tr.top1 td{background:rgba(245,158,11,0.15);}
+  tr.top2 td{background:rgba(245,158,11,0.08);}
+  tr.top3 td{background:rgba(245,158,11,0.04);}
+  tr.me td{box-shadow:inset 3px 0 0 var(--amber);}
+  .center{text-align:center;}
+  .num-pts{font-family:monospace; color:var(--amber); font-weight:700;}
+
+  .winner-pick{background:var(--panel2); border:1px solid var(--border); border-radius:8px;
+    padding:12px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:16px;}
+  .winner-pick select{background:var(--bg); color:var(--text); border:1px solid var(--border);
+    border-radius:6px; padding:6px 10px; min-width:180px;}
+
+  .toast{position:fixed; top:16px; left:50%; transform:translateX(-50%);
+    background:var(--green); color:white; padding:8px 16px; border-radius:6px;
+    font-size:14px; z-index:100; box-shadow:0 4px 12px rgba(0,0,0,0.3);}
+
+  .stage-header{background:var(--panel2); padding:8px 12px; border-radius:6px;
+    margin:16px 0 6px; font-weight:600; color:#c7d2fe; font-size:14px;}
+  .info-block{background:rgba(99,102,241,0.1); border-left:3px solid var(--indigo);
+    padding:10px 14px; border-radius:4px; margin-bottom:16px; font-size:13px;
+    color:#cbd5e1; line-height:1.5;}
+  .info-block b{color:#c7d2fe;}
+  .warn-block{background:rgba(239,68,68,0.1); border-left:3px solid var(--red);
+    padding:10px 14px; border-radius:4px; margin-bottom:16px; font-size:13px; color:#fecaca;}
+  .ok-block{background:rgba(16,185,129,0.1); border-left:3px solid var(--green);
+    padding:10px 14px; border-radius:4px; margin-bottom:16px; font-size:13px; color:#a7f3d0;}
+  .empty-state{text-align:center; padding:40px 20px; color:var(--muted);}
+  .auth-form{max-width:380px; margin:30px auto;}
+  .auth-form input{display:block; width:100%; margin-bottom:10px;
+    background:var(--panel2); color:var(--text); border:1px solid var(--border);
+    border-radius:6px; padding:10px; text-align:left;}
+  .auth-tabs{display:flex; gap:8px; margin-bottom:14px; justify-content:center;}
+  .total-line{text-align:right; padding:10px 14px; background:var(--panel2);
+    border-radius:6px; margin-top:8px; font-size:14px;}
+  .total-line .num-pts{font-size:18px;}
+
+  .userpicker{display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap;}
+  .userpicker select{background:var(--panel2); color:var(--text); border:1px solid var(--border);
+    border-radius:6px; padding:8px 12px; min-width:220px; font-size:14px;}
+
+  @media (max-width:700px){
+    .match-row{grid-template-columns:30px 24px 1fr 40px 10px 40px 1fr;}
+    .match-row .time, .match-row .status{display:none;}
+    .pred-text{grid-column:span 3;}
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="row">
+    <div class="brand">⚽ World Cup 2026 Predictions <small>Demo</small></div>
+    <div class="tabs" id="tabs"></div>
+    <div class="userbar" id="userbar"></div>
+  </div>
+</nav>
+
+<div class="container" id="main"></div>
+
+<div id="toast" class="toast" style="display:none"></div>
+
+<script>
+// ============================================================================
+// CONFIG
+// ============================================================================
+const STORAGE_KEY = "wc2026_demo_v5";
+
+// ============================================================================
+// MATCHES (72 group-stage matches, extracted from the 2026 schedule)
+// ============================================================================
+const MATCHES = [
+  {n:1,g:"A",t:"2026-06-11T08:00:00Z",a:"Mexico",b:"South Africa"},
+  {n:2,g:"A",t:"2026-06-11T15:00:00Z",a:"Korea Republic",b:"Czech Republic"},
+  {n:3,g:"B",t:"2026-06-12T08:00:00Z",a:"Canada",b:"Bosnia and Herzegovina"},
+  {n:4,g:"D",t:"2026-06-12T14:00:00Z",a:"United States",b:"Paraguay"},
+  {n:5,g:"C",t:"2026-06-13T14:00:00Z",a:"Haiti",b:"Scotland"},
+  {n:6,g:"D",t:"2026-06-13T17:00:00Z",a:"Australia",b:"Turkey"},
+  {n:7,g:"C",t:"2026-06-13T11:00:00Z",a:"Brazil",b:"Morocco"},
+  {n:8,g:"B",t:"2026-06-13T08:00:00Z",a:"Qatar",b:"Switzerland"},
+  {n:9,g:"E",t:"2026-06-14T12:00:00Z",a:"Ivory Coast",b:"Ecuador"},
+  {n:10,g:"E",t:"2026-06-14T06:00:00Z",a:"Germany",b:"Curaçao"},
+  {n:11,g:"F",t:"2026-06-14T09:00:00Z",a:"Netherlands",b:"Japan"},
+  {n:12,g:"F",t:"2026-06-14T15:00:00Z",a:"Sweden",b:"Tunisia"},
+  {n:13,g:"H",t:"2026-06-15T11:00:00Z",a:"Saudi Arabia",b:"Uruguay"},
+  {n:14,g:"H",t:"2026-06-15T05:00:00Z",a:"Spain",b:"Cape Verde"},
+  {n:15,g:"G",t:"2026-06-15T14:00:00Z",a:"Iran",b:"New Zealand"},
+  {n:16,g:"G",t:"2026-06-15T08:00:00Z",a:"Belgium",b:"Egypt"},
+  {n:17,g:"I",t:"2026-06-16T08:00:00Z",a:"France",b:"Senegal"},
+  {n:18,g:"I",t:"2026-06-16T11:00:00Z",a:"Iraq",b:"Norway"},
+  {n:19,g:"J",t:"2026-06-16T14:00:00Z",a:"Argentina",b:"Algeria"},
+  {n:20,g:"J",t:"2026-06-16T17:00:00Z",a:"Austria",b:"Jordan"},
+  {n:21,g:"L",t:"2026-06-17T12:00:00Z",a:"Ghana",b:"Panama"},
+  {n:22,g:"L",t:"2026-06-17T09:00:00Z",a:"England",b:"Croatia"},
+  {n:23,g:"K",t:"2026-06-17T06:00:00Z",a:"Portugal",b:"DR Congo"},
+  {n:24,g:"K",t:"2026-06-17T15:00:00Z",a:"Uzbekistan",b:"Colombia"},
+  {n:25,g:"A",t:"2026-06-18T05:00:00Z",a:"Czech Republic",b:"South Africa"},
+  {n:26,g:"B",t:"2026-06-18T08:00:00Z",a:"Switzerland",b:"Bosnia and Herzegovina"},
+  {n:27,g:"B",t:"2026-06-18T11:00:00Z",a:"Canada",b:"Qatar"},
+  {n:28,g:"A",t:"2026-06-18T14:00:00Z",a:"Mexico",b:"Korea Republic"},
+  {n:29,g:"C",t:"2026-06-19T13:30:00Z",a:"Brazil",b:"Haiti"},
+  {n:30,g:"C",t:"2026-06-19T11:00:00Z",a:"Scotland",b:"Morocco"},
+  {n:31,g:"D",t:"2026-06-19T16:00:00Z",a:"United States",b:"Australia"},
+  {n:32,g:"D",t:"2026-06-19T08:00:00Z",a:"Turkey",b:"Paraguay"},
+  {n:33,g:"E",t:"2026-06-20T09:00:00Z",a:"Germany",b:"Ivory Coast"},
+  {n:34,g:"E",t:"2026-06-20T13:00:00Z",a:"Ecuador",b:"Curaçao"},
+  {n:35,g:"F",t:"2026-06-20T06:00:00Z",a:"Netherlands",b:"Sweden"},
+  {n:36,g:"F",t:"2026-06-20T17:00:00Z",a:"Tunisia",b:"Japan"},
+  {n:37,g:"H",t:"2026-06-21T11:00:00Z",a:"Uruguay",b:"Cape Verde"},
+  {n:38,g:"H",t:"2026-06-21T05:00:00Z",a:"Spain",b:"Saudi Arabia"},
+  {n:39,g:"G",t:"2026-06-21T08:00:00Z",a:"Belgium",b:"Iran"},
+  {n:40,g:"G",t:"2026-06-21T14:00:00Z",a:"New Zealand",b:"Egypt"},
+  {n:41,g:"I",t:"2026-06-22T13:00:00Z",a:"Norway",b:"Senegal"},
+  {n:42,g:"I",t:"2026-06-22T09:00:00Z",a:"France",b:"Iraq"},
+  {n:43,g:"J",t:"2026-06-22T06:00:00Z",a:"Argentina",b:"Austria"},
+  {n:44,g:"J",t:"2026-06-22T16:00:00Z",a:"Jordan",b:"Algeria"},
+  {n:45,g:"L",t:"2026-06-23T09:00:00Z",a:"England",b:"Ghana"},
+  {n:46,g:"L",t:"2026-06-23T12:00:00Z",a:"Panama",b:"Croatia"},
+  {n:47,g:"K",t:"2026-06-23T06:00:00Z",a:"Portugal",b:"Uzbekistan"},
+  {n:48,g:"K",t:"2026-06-23T15:00:00Z",a:"Colombia",b:"DR Congo"},
+  {n:49,g:"C",t:"2026-06-24T11:00:00Z",a:"Scotland",b:"Brazil"},
+  {n:50,g:"C",t:"2026-06-24T11:00:00Z",a:"Morocco",b:"Haiti"},
+  {n:51,g:"B",t:"2026-06-24T08:00:00Z",a:"Switzerland",b:"Canada"},
+  {n:52,g:"B",t:"2026-06-24T08:00:00Z",a:"Bosnia and Herzegovina",b:"Qatar"},
+  {n:53,g:"A",t:"2026-06-24T14:00:00Z",a:"Czech Republic",b:"Mexico"},
+  {n:54,g:"A",t:"2026-06-24T14:00:00Z",a:"South Africa",b:"Korea Republic"},
+  {n:55,g:"E",t:"2026-06-25T09:00:00Z",a:"Curaçao",b:"Ivory Coast"},
+  {n:56,g:"E",t:"2026-06-25T09:00:00Z",a:"Ecuador",b:"Germany"},
+  {n:57,g:"F",t:"2026-06-25T12:00:00Z",a:"Japan",b:"Sweden"},
+  {n:58,g:"F",t:"2026-06-25T12:00:00Z",a:"Tunisia",b:"Netherlands"},
+  {n:59,g:"D",t:"2026-06-25T15:00:00Z",a:"Turkey",b:"United States"},
+  {n:60,g:"D",t:"2026-06-25T15:00:00Z",a:"Paraguay",b:"Australia"},
+  {n:61,g:"I",t:"2026-06-26T08:00:00Z",a:"Norway",b:"France"},
+  {n:62,g:"I",t:"2026-06-26T08:00:00Z",a:"Senegal",b:"Iraq"},
+  {n:63,g:"G",t:"2026-06-26T16:00:00Z",a:"Egypt",b:"Iran"},
+  {n:64,g:"G",t:"2026-06-26T16:00:00Z",a:"New Zealand",b:"Belgium"},
+  {n:65,g:"H",t:"2026-06-26T13:00:00Z",a:"Cape Verde",b:"Saudi Arabia"},
+  {n:66,g:"H",t:"2026-06-26T13:00:00Z",a:"Uruguay",b:"Spain"},
+  {n:67,g:"L",t:"2026-06-27T10:00:00Z",a:"Panama",b:"England"},
+  {n:68,g:"L",t:"2026-06-27T10:00:00Z",a:"Croatia",b:"Ghana"},
+  {n:69,g:"J",t:"2026-06-27T15:00:00Z",a:"Algeria",b:"Austria"},
+  {n:70,g:"J",t:"2026-06-27T15:00:00Z",a:"Jordan",b:"Argentina"},
+  {n:71,g:"K",t:"2026-06-27T12:30:00Z",a:"Colombia",b:"Portugal"},
+  {n:72,g:"K",t:"2026-06-27T12:30:00Z",a:"DR Congo",b:"Uzbekistan"},
+];
+const TEAMS = [...new Set(MATCHES.flatMap(m => [m.a, m.b]))].sort();
+
+// ============================================================================
+// STATE
+// ============================================================================
+function emptyState() {
+  return {
+    users: [
+      { id:"admin", name:"Admin", email:"admin", password:"Admin", isAdmin:true, hasPaid:false },
+    ],
+    activeUserId: null,
+    authMode: "signup",
+    activeTab: null,
+    roundState: "idle",          // "idle" | "open" | "closed"
+    results: {},                 // { match_no: [s1, s2] }
+    preds: {},                   // { user_id: { match_no: [p1, p2] } }
+    winners: {},                 // { user_id: team_name }
+    tournamentWinner: null,
+    selectedUserView: null,
+  };
+}
+let state = load() || emptyState();
+function load(){ try{ const r=localStorage.getItem(STORAGE_KEY); return r?JSON.parse(r):null; }catch{return null;} }
+function save(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch{} }
+function resetAll(){ state = emptyState(); save(); render(); toast("Demo reset to initial state"); }
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+const el = h => { const t=document.createElement("template"); t.innerHTML=h.trim(); return t.content.firstChild; };
+const fmtDate = iso => new Date(iso).toLocaleString("en-GB",{dateStyle:"short",timeStyle:"short"});
+function toast(msg, kind="ok"){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.style.background = kind === "err" ? "var(--red)" : kind === "warn" ? "var(--amber)" : "var(--green)";
+  t.style.color = kind === "warn" ? "#0b1020" : "white";
+  t.style.display = "block";
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(() => { t.style.display = "none"; }, 2500);
+}
+const activeUser = () => state.users.find(u => u.id === state.activeUserId) || null;
+const isAdmin = () => activeUser()?.isAdmin === true;
+const participants = () => state.users.filter(u => !u.isAdmin);
+const submittedFullCount = uid => Object.values(state.preds[uid] || {}).filter(p => p && p[0]!=null && p[1]!=null).length;
+const hasSubmittedAny = uid => submittedFullCount(uid) > 0 || !!state.winners[uid];
+
+// ============================================================================
+// SCORING
+// ============================================================================
+function matchScore(pred, real){
+  if (!pred || !real || pred[0]==null || pred[1]==null || real[0]==null || real[1]==null)
+    return { dir:0, exact:0, total:0 };
+  const [p1,p2]=pred, [r1,r2]=real;
+  const dir = Math.sign(p1-p2) === Math.sign(r1-r2) ? 5 : 0;
+  let exact = 0;
+  if (p1===r1 && p2===r2) exact = 3;
+  else if (p1===r1 || p2===r2) exact = 1;
+  return { dir, exact, total: dir+exact };
+}
+function userTotals(uid){
+  let total=0, exact=0, correctDir=0, scoredMatches=0;
+  for (const m of MATCHES){
+    const real = state.results[m.n];
+    const pred = state.preds[uid]?.[m.n];
+    if (!real || !pred) continue;
+    const s = matchScore(pred, real);
+    total += s.total;
+    if (s.exact===3) exact++;
+    if (s.dir===5) correctDir++;
+    scoredMatches++;
+  }
+  const winnerPick = state.winners[uid] || null;
+  const winnerBonus = (state.tournamentWinner && winnerPick === state.tournamentWinner) ? 10 : 0;
+  return { total: total + winnerBonus, exact, correctDir, scoredMatches, winnerPick, winnerBonus };
+}
+
+// ============================================================================
+// NAV
+// ============================================================================
+function renderNav(){
+  const tabs = [];
+  if (!state.activeUserId){
+    tabs.push({ id:"auth", label:"Sign up / Log in" });
+  } else if (isAdmin()){
+    tabs.push({ id:"dashboard",   label:"Dashboard", admin:true });
+    tabs.push({ id:"results",     label:"Results", admin:true });
+    tabs.push({ id:"leaderboard", label:"Leaderboard" });
+    tabs.push({ id:"byuser",      label:"Bets by participant" });
+  } else {
+    tabs.push({ id:"predictions", label:"My predictions" });
+    tabs.push({ id:"leaderboard", label:"Leaderboard" });
+    if (state.roundState === "closed")
+      tabs.push({ id:"byuser", label:"Bets by participant" });
+  }
+
+  if (!tabs.find(t => t.id === state.activeTab)) state.activeTab = tabs[0].id;
+
+  const tabsEl = document.getElementById("tabs");
+  tabsEl.innerHTML = "";
+  tabs.forEach(t => {
+    const b = el(`<button class="tab ${t.admin?'admin':''} ${state.activeTab===t.id?'active':''}">${t.label}</button>`);
+    b.onclick = () => { state.activeTab = t.id; save(); render(); };
+    tabsEl.appendChild(b);
+  });
+
+  const ub = document.getElementById("userbar");
+  ub.innerHTML = "";
+  if (state.activeUserId){
+    const u = activeUser();
+    ub.appendChild(el(`<span>Hi <b style="color:#fde68a">${u.name}</b>${u.isAdmin?' 👑':''}</span>`));
+    const out = el(`<button class="btn sm ghost">Log out</button>`);
+    out.onclick = () => { state.activeUserId = null; state.activeTab="auth"; save(); render(); };
+    ub.appendChild(out);
+  } else {
+    ub.appendChild(el(`<span style="color:var(--muted)">Not signed in</span>`));
+  }
+  const reset = el(`<button class="btn sm ghost" title="Reset demo">Reset</button>`);
+  reset.onclick = () => { if (confirm("Reset everything? All users, predictions and results will be deleted.")) resetAll(); };
+  ub.appendChild(reset);
+}
+
+// ============================================================================
+// ROUND PILL
+// ============================================================================
+function roundPillHtml(){
+  if (state.roundState === "open")
+    return `<span class="round-pill open">🟢 Betting round is OPEN</span>`;
+  if (state.roundState === "closed")
+    return `<span class="round-pill closed">🔒 Betting round is CLOSED — view-only mode</span>`;
+  return `<span class="round-pill idle">⏸️ No betting round has been opened yet</span>`;
+}
+
+// ============================================================================
+// AUTH
+// ============================================================================
+function renderAuth(){
+  const main = document.getElementById("main");
+  main.innerHTML = "";
+  main.appendChild(el(`<div style="text-align:center;margin-bottom:14px">${roundPillHtml()}</div>`));
+
+  const regCount = participants().length;
+  main.appendChild(el(`<div class="info-block">
+    <b>Welcome!</b><br>
+    Regular participants sign up here with a name, email and password.<br>
+    The admin user is pre-created — log in as <code>Admin</code> with password <code>Admin</code>.
+    ${regCount > 0 ? `<br>${regCount} participants registered so far.` : ""}
+  </div>`));
+
+  const card = el(`<div class="card auth-form"></div>`);
+  const tabs = el(`<div class="auth-tabs">
+    <button class="btn sm ${state.authMode==='signup'?'':'ghost'}" id="aSignup">Sign up</button>
+    <button class="btn sm ${state.authMode==='login'?'':'ghost'}" id="aLogin">Log in</button>
+  </div>`);
+  tabs.querySelector("#aSignup").onclick = () => { state.authMode="signup"; save(); render(); };
+  tabs.querySelector("#aLogin").onclick  = () => { state.authMode="login";  save(); render(); };
+  card.appendChild(tabs);
+
+  if (state.authMode === "signup"){
+    const form = el(`<form>
+      <input id="suName" required placeholder="Full name">
+      <input id="suEmail" type="email" required placeholder="Email">
+      <input id="suPass" type="password" required minlength="4" placeholder="Password (4+ chars)">
+      <button class="btn" type="submit" style="width:100%">Create account and log in</button>
+    </form>`);
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const name = form.querySelector("#suName").value.trim();
+      const email = form.querySelector("#suEmail").value.trim().toLowerCase();
+      const pass = form.querySelector("#suPass").value;
+      if (!name || !email || !pass) return;
+      if (state.users.find(u => u.email === email)){
+        toast("This email is already registered", "err"); return;
+      }
+      const user = {
+        id: "u_" + Math.random().toString(36).slice(2,8),
+        name, email, password:pass, isAdmin:false, hasPaid:false,
+      };
+      state.users.push(user);
+      state.activeUserId = user.id;
+      state.activeTab = "predictions";
+      save(); render();
+      toast(`Welcome, ${name}!`);
+    };
+    card.appendChild(form);
+  } else {
+    const form = el(`<form>
+      <input id="liEmail" required placeholder="Email (for admin: Admin)">
+      <input id="liPass" type="password" required placeholder="Password">
+      <button class="btn" type="submit" style="width:100%">Log in</button>
+    </form>`);
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const email = form.querySelector("#liEmail").value.trim().toLowerCase();
+      const pass = form.querySelector("#liPass").value;
+      const u = state.users.find(u => u.email === email && u.password === pass);
+      if (!u){ toast("Wrong email or password", "err"); return; }
+      state.activeUserId = u.id;
+      state.activeTab = u.isAdmin ? "dashboard" : "predictions";
+      save(); render();
+      toast(`Logged in as ${u.name}`);
+    };
+    card.appendChild(form);
+  }
+  main.appendChild(card);
+}
+
+// ============================================================================
+// PARTICIPANT VIEW: MY PREDICTIONS
+// ============================================================================
+function renderMyPredictions(){
+  const u = activeUser();
+  const main = document.getElementById("main");
+  main.innerHTML = "";
+  main.appendChild(el(`<div style="margin-bottom:14px">${roundPillHtml()}</div>`));
+  main.appendChild(el(`<h1>${u.name}'s predictions</h1>`));
+
+  const totals = userTotals(u.id);
+
+  if (state.roundState === "idle"){
+    main.appendChild(el(`<div class="warn-block">
+      ⏸️ <b>No betting round is open yet.</b> Wait for the admin to open a new round — then you'll be able to enter your predictions here.
+    </div>`));
+  } else if (state.roundState === "open"){
+    main.appendChild(el(`<div class="ok-block">
+      ✏️ <b>The round is open.</b> Your predictions are private — no other participant can see them. Auto-saves as you type.<br>
+      <b>Scoring:</b> 5 pts for the correct direction (winner / draw) • +3 for exact score • +1 for partial (one team's score correct) • 10 pts for the World Cup winner pick.
+    </div>`));
+  } else {
+    main.appendChild(el(`<div class="info-block">
+      🔒 <b>The round is closed.</b> No more editing. Your points per match appear next to the result as soon as the admin enters it.
+    </div>`));
+  }
+
+  if (totals.scoredMatches > 0 || totals.winnerBonus > 0){
+    main.appendChild(el(`<div class="total-line">
+      <b>Your summary:</b>
+      total points: <span class="num-pts">${totals.total}</span>
+      &nbsp;|&nbsp; matches scored: <b>${totals.scoredMatches} / ${MATCHES.length}</b>
+      ${totals.winnerBonus ? ` &nbsp;|&nbsp; 🏆 winner bonus: +10` : ""}
+    </div>`));
+  }
+
+  const editable = state.roundState === "open";
+  const myWinner = state.winners[u.id] || "";
+  const wp = el(`<div class="winner-pick">
+    <label>🏆 Pick the World Cup winner (+10 pts):</label>
+    <select id="winnerSel" ${editable?'':'disabled'}>
+      <option value="">— choose a team —</option>
+      ${TEAMS.map(t => `<option value="${t}" ${t===myWinner?"selected":""}>${t}</option>`).join("")}
+    </select>
+    ${state.tournamentWinner ? `<span style="color:var(--muted)">🏆 actual winner: <b style="color:var(--amber)">${state.tournamentWinner}</b></span>` : ""}
+  </div>`);
+  wp.querySelector("#winnerSel").onchange = e => {
+    state.winners[u.id] = e.target.value || null;
+    save(); toast("Winner pick saved ✓"); render();
+  };
+  main.appendChild(wp);
+
+  main.appendChild(el(`<div class="stage-header">Group stage — 72 matches</div>`));
+
+  const card = el(`<div class="card"></div>`);
+  for (const m of MATCHES){
+    const pred = state.preds[u.id]?.[m.n] || [null,null];
+    const real = state.results[m.n];
+    let myPtsHtml = "";
+    if (real){
+      const s = matchScore(pred, real);
+      const cls = s.total===8?"p8":s.total===6?"p6":s.total===5?"p5":s.total===1?"p1":"p0";
+      myPtsHtml = `<span class="my-pts ${cls}">+${s.total}</span>`;
+    } else if (state.roundState === "closed"){
+      myPtsHtml = `<span style="color:var(--muted);font-size:11px">awaiting result</span>`;
+    }
+    const row = el(`<div class="match-row ${!editable?"locked":""}">
+      <div class="num">#${m.n}</div>
+      <div class="grp">${m.g}</div>
+      <div class="team">${m.a}</div>
+      <input type="number" min="0" max="20" value="${pred[0] ?? ""}" ${editable?"":"disabled"} data-mn="${m.n}" data-side="0">
+      <div class="colon">:</div>
+      <input type="number" min="0" max="20" value="${pred[1] ?? ""}" ${editable?"":"disabled"} data-mn="${m.n}" data-side="1">
+      <div class="team b">${m.b}</div>
+      <div class="time">${fmtDate(m.t)}</div>
+      <div class="status">${real ? `<span class="real">${real[0]}:${real[1]}</span> ` : ""}${myPtsHtml}</div>
+    </div>`);
+    card.appendChild(row);
+  }
+  main.appendChild(card);
+
+  if (editable){
+    card.querySelectorAll("input").forEach(inp => {
+      inp.oninput = (e) => {
+        const mn = parseInt(e.target.dataset.mn);
+        const side = parseInt(e.target.dataset.side);
+        const v = e.target.value === "" ? null : Math.max(0, Math.min(99, parseInt(e.target.value)));
+        state.preds[u.id] = state.preds[u.id] || {};
+        const cur = state.preds[u.id][mn] || [null,null];
+        cur[side] = v;
+        state.preds[u.id][mn] = cur;
+        save();
+      };
+      inp.onblur = () => toast("Saved ✓");
+    });
+  }
+}
+
+// ============================================================================
+// LEADERBOARD
+// ============================================================================
+function renderLeaderboard(){
+  const main = document.getElementById("main");
+  main.innerHTML = "";
+  main.appendChild(el(`<div style="margin-bottom:14px">${roundPillHtml()}</div>`));
+  main.appendChild(el(`<h1>🏆 Leaderboard</h1>`));
+
+  const rows = participants().map(u => ({ ...u, ...userTotals(u.id) }));
+  rows.sort((a,b) => b.total - a.total || a.name.localeCompare(b.name));
+
+  if (rows.length === 0){
+    main.appendChild(el(`<div class="empty-state">No participants registered yet.</div>`));
+    return;
+  }
+
+  const anyResult = Object.keys(state.results).length > 0 || state.tournamentWinner;
+  main.appendChild(el(`<div class="info-block">
+    ${anyResult
+      ? "The ranking updates automatically every time the admin enters a result. Top 3 are highlighted."
+      : "No results have been entered yet. Once the admin enters scores, points will appear here."}
+    ${state.tournamentWinner ? `<br>🏆 Actual World Cup winner: <b style="color:var(--amber)">${state.tournamentWinner}</b>` : ""}
+  </div>`));
+
+  const winnerKnown = state.tournamentWinner != null;
+  const me = activeUser();
+  const card = el(`<div class="card" style="padding:0;overflow-x:auto"></div>`);
+  const tbl = el(`<table>
+    <thead><tr>
+      <th>#</th>
+      <th>Name</th>
+      <th class="center">Total points</th>
+      <th>Winner pick</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>`);
+  const tb = tbl.querySelector("tbody");
+  rows.forEach((r,i) => {
+    const cls = [i===0?"top1":i===1?"top2":i===2?"top3":"", r.id===me?.id?"me":""].filter(Boolean).join(" ");
+    let winnerCell;
+    if (winnerKnown){
+      winnerCell = r.winnerPick
+        ? `${r.winnerPick}${r.winnerBonus ? ` <span style="color:#10b981">+10</span>` : ""}`
+        : "—";
+    } else if (isAdmin() || state.roundState === "closed"){
+      winnerCell = r.winnerPick || `<span style="color:var(--muted)">—</span>`;
+    } else if (r.id === me?.id){
+      winnerCell = r.winnerPick ? r.winnerPick : `<span style="color:var(--muted)">—</span>`;
+    } else {
+      winnerCell = `<span style="color:var(--muted)">🔒</span>`;
+    }
+    tb.appendChild(el(`<tr class="${cls}">
+      <td><b>${i+1}</b></td>
+      <td>${r.name}${r.id===me?.id?' <span class="badge">you</span>':''}</td>
+      <td class="center num-pts">${r.total}</td>
+      <td>${winnerCell}</td>
+    </tr>`));
+  });
+  card.appendChild(tbl);
+  main.appendChild(card);
+}
+
+// ============================================================================
+// BY-USER VIEW
+// ============================================================================
+function renderByUser(){
+  const main = document.getElementById("main");
+  main.innerHTML = "";
+  main.appendChild(el(`<div style="margin-bottom:14px">${roundPillHtml()}</div>`));
+  main.appendChild(el(`<h1>Bets by participant</h1>`));
+
+  if (!isAdmin() && state.roundState !== "closed"){
+    main.appendChild(el(`<div class="warn-block">
+      Other participants' bets are hidden until the admin closes the betting round.
+    </div>`));
+    return;
+  }
+
+  const ppl = participants();
+  if (ppl.length === 0){
+    main.appendChild(el(`<div class="empty-state">No participants yet.</div>`));
+    return;
+  }
+
+  if (!state.selectedUserView || !ppl.find(u => u.id === state.selectedUserView))
+    state.selectedUserView = ppl[0].id;
+
+  const picker = el(`<div class="userpicker">
+    <label>Choose a participant:</label>
+    <select id="picker">
+      ${ppl.map(u => `<option value="${u.id}" ${u.id===state.selectedUserView?"selected":""}>${u.name}</option>`).join("")}
+    </select>
+  </div>`);
+  picker.querySelector("#picker").onchange = e => {
+    state.selectedUserView = e.target.value; save(); render();
+  };
+  main.appendChild(picker);
+
+  const u = ppl.find(x => x.id === state.selectedUserView);
+  const totals = userTotals(u.id);
+  main.appendChild(el(`<div class="total-line">
+    <b>${u.name}:</b>
+    total points: <span class="num-pts">${totals.total}</span>
+    &nbsp;|&nbsp; winner pick: <b>${totals.winnerPick || "—"}</b>
+    ${totals.winnerBonus ? ` <span style="color:#10b981">+10</span>` : ""}
+    &nbsp;|&nbsp; matches scored: <b>${totals.scoredMatches} / ${MATCHES.length}</b>
+  </div>`));
+
+  main.appendChild(el(`<div class="stage-header">${u.name}'s predictions — group stage</div>`));
+  const card = el(`<div class="card"></div>`);
+  for (const m of MATCHES){
+    const pred = state.preds[u.id]?.[m.n] || [null,null];
+    const real = state.results[m.n];
+    let myPtsHtml = "";
+    if (real && pred[0]!=null && pred[1]!=null){
+      const s = matchScore(pred, real);
+      const cls = s.total===8?"p8":s.total===6?"p6":s.total===5?"p5":s.total===1?"p1":"p0";
+      myPtsHtml = `<span class="my-pts ${cls}">+${s.total}</span>`;
+    }
+    const predText = (pred[0]!=null && pred[1]!=null)
+      ? `<div class="pred-text">${pred[0]} : ${pred[1]}</div>`
+      : `<div class="pred-text empty">no bet</div>`;
+    const row = el(`<div class="match-row locked">
+      <div class="num">#${m.n}</div>
+      <div class="grp">${m.g}</div>
+      <div class="team">${m.a}</div>
+      ${predText}
+      <div class="team b">${m.b}</div>
+      <div class="time">${fmtDate(m.t)}</div>
+      <div class="status">${real ? `<span class="real">${real[0]}:${real[1]}</span> ` : ""}${myPtsHtml}</div>
+    </div>`);
+    card.appendChild(row);
+  }
+  main.appendChild(card);
+}
+
+// ============================================================================
+// ADMIN: DASHBOARD
+// ============================================================================
+function renderAdminDashboard(){
+  const main = document.getElementById("main");
+  main.innerHTML = "";
+  main.appendChild(el(`<div style="margin-bottom:14px">${roundPillHtml()}</div>`));
+  main.appendChild(el(`<h1>⚙️ Admin dashboard</h1>`));
+
+  const ppl = participants();
+  const paidCount = ppl.filter(u => u.hasPaid).length;
+  const submittedCount = ppl.filter(u => hasSubmittedAny(u.id)).length;
+  const fullCount = ppl.filter(u => submittedFullCount(u.id) === MATCHES.length).length;
+  const resultsCount = Object.keys(state.results).length;
+
+  main.appendChild(el(`<div class="stats">
+    <div class="stat-card"><div class="label">Registered participants</div><div class="value">${ppl.length}</div></div>
+    <div class="stat-card green"><div class="label">Paid</div><div class="value">${paidCount} / ${ppl.length}</div></div>
+    <div class="stat-card indigo"><div class="label">Submitted any bets</div><div class="value">${submittedCount} / ${ppl.length}</div></div>
+    <div class="stat-card"><div class="label">Completed all 72</div><div class="value">${fullCount} / ${ppl.length}</div></div>
+    <div class="stat-card ${resultsCount===MATCHES.length?'green':''}"><div class="label">Results entered</div><div class="value">${resultsCount} / ${MATCHES.length}</div></div>
+  </div>`));
+
+  main.appendChild(el(`<h2>Round control</h2>`));
+  const rc = el(`<div class="card" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap"></div>`);
+  if (state.roundState === "idle"){
+    rc.appendChild(el(`<div style="flex:1">
+      <div style="font-weight:600;margin-bottom:4px">⏸️ Round is closed.</div>
+      <div style="color:var(--muted);font-size:12px">Participants can't bet yet. Open a round to start collecting predictions.</div>
+    </div>`));
+    const b = el(`<button class="btn green">🟢 Open betting round</button>`);
+    b.onclick = () => {
+      state.roundState = "open"; save(); render();
+      toast("Round opened — participants can now submit bets");
+    };
+    rc.appendChild(b);
+  } else if (state.roundState === "open"){
+    rc.appendChild(el(`<div style="flex:1">
+      <div style="color:#6ee7b7;font-weight:600;margin-bottom:4px">🟢 Round is OPEN.</div>
+      <div style="color:var(--muted);font-size:12px">${submittedCount} of ${ppl.length} participants have submitted at least one bet. Close the round to enter view-only mode.</div>
+    </div>`));
+    const b = el(`<button class="btn red">🔒 Close round (switch to view-only)</button>`);
+    b.onclick = () => {
+      if (!confirm("Close the round? Participants will move to read-only mode and their bets will be revealed to everyone.")) return;
+      state.roundState = "closed"; save(); render();
+      toast("Round closed. Participants are now in read-only mode.");
+    };
+    rc.appendChild(b);
+  } else {
+    rc.appendChild(el(`<div style="flex:1">
+      <div style="color:#fca5a5;font-weight:600;margin-bottom:4px">🔒 Round is CLOSED.</div>
+      <div style="color:var(--muted);font-size:12px">Participants are in read-only mode. Enter results in the "Results" tab.</div>
+    </div>`));
+    const b = el(`<button class="btn ghost">Reopen round</button>`);
+    b.onclick = () => {
+      if (!confirm("Reopen the round? Participants will be able to edit again and their bets will be hidden from each other.")) return;
+      state.roundState = "open"; save(); render();
+    };
+    rc.appendChild(b);
+  }
+  main.appendChild(rc);
+
+  main.appendChild(el(`<h2>🏆 World Cup winner</h2>`));
+  const wbox = el(`<div class="card" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <select id="tWin">
+      <option value="">— none —</option>
+      ${TEAMS.map(t => `<option value="${t}" ${state.tournamentWinner===t?"selected":""}>${t}</option>`).join("")}
+    </select>
+    <button class="btn sm" id="saveWinner">Set winner</button>
+    <span style="color:var(--muted);font-size:12px">Awards +10 pts to everyone who picked correctly and reveals all winner picks.</span>
+  </div>`);
+  wbox.querySelector("#saveWinner").onclick = () => {
+    state.tournamentWinner = wbox.querySelector("#tWin").value || null;
+    save(); render();
+    toast("World Cup winner updated");
+  };
+  main.appendChild(wbox);
+
+  main.appendChild(el(`<h2>Participants (${ppl.length})</h2>`));
+  const ucard = el(`<div class="card" style="padding:0;overflow-x:auto"></div>`);
+  const utbl = el(`<table>
+    <thead><tr>
+      <th>Name</th><th>Email</th>
+      <th class="center">Submission status</th>
+      <th class="center">Winner pick</th>
+      <th class="center">Total pts</th>
+      <th class="center">Paid</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>`);
+  const utb = utbl.querySelector("tbody");
+  if (ppl.length === 0){
+    utb.appendChild(el(`<tr><td colspan="6" class="center" style="color:var(--muted);padding:24px">No participants registered yet</td></tr>`));
+  } else {
+    ppl.forEach(u => {
+      const pcount = submittedFullCount(u.id);
+      const totals = userTotals(u.id);
+      let status;
+      if (pcount === MATCHES.length) status = `<span class="badge green">complete</span>`;
+      else if (pcount > 0) status = `<span class="badge warn">partial ${pcount}/${MATCHES.length}</span>`;
+      else status = `<span class="badge red">not submitted</span>`;
+      utb.appendChild(el(`<tr>
+        <td>${u.name}</td>
+        <td><code style="color:var(--muted)">${u.email}</code></td>
+        <td class="center">${status}</td>
+        <td class="center">${state.winners[u.id] || "—"}</td>
+        <td class="center num-pts">${totals.total}</td>
+        <td class="center">
+          <input type="checkbox" ${u.hasPaid?"checked":""} data-uid="${u.id}">
+        </td>
+      </tr>`));
+    });
+  }
+  ucard.appendChild(utbl);
+  main.appendChild(ucard);
+  ucard.querySelectorAll("input[type=checkbox]").forEach(cb => {
+    cb.onchange = e => {
+      const u = state.users.find(x => x.id === e.target.dataset.uid);
+      u.hasPaid = e.target.checked;
+      save(); render();
+      toast(u.hasPaid ? `Marked paid: ${u.name}` : `Unmarked payment: ${u.name}`);
+    };
+  });
+}
+
+// ============================================================================
+// ADMIN: RESULTS ENTRY
+// ============================================================================
+function renderAdminResults(){
+  const main = document.getElementById("main");
+  main.innerHTML = "";
+  main.appendChild(el(`<div style="margin-bottom:14px">${roundPillHtml()}</div>`));
+  main.appendChild(el(`<h1>Enter results</h1>`));
+
+  if (state.roundState === "open"){
+    main.appendChild(el(`<div class="warn-block">
+      💡 The round is still open. It's better to close the round before entering results
+      (so participants can't edit their bets after seeing the score).
+      <br>Go to the Dashboard and close the round.
+    </div>`));
+  } else {
+    main.appendChild(el(`<div class="info-block">
+      Enter the score of each match. All participants' points are recalculated automatically with every keystroke.
+    </div>`));
+  }
+
+  const card = el(`<div class="card"></div>`);
+  for (const m of MATCHES){
+    const real = state.results[m.n] || [null,null];
+    const row = el(`<div class="match-row">
+      <div class="num">#${m.n}</div>
+      <div class="grp">${m.g}</div>
+      <div class="team">${m.a}</div>
+      <input type="number" min="0" max="20" value="${real[0] ?? ""}" data-mn="${m.n}" data-side="0">
+      <div class="colon">:</div>
+      <input type="number" min="0" max="20" value="${real[1] ?? ""}" data-mn="${m.n}" data-side="1">
+      <div class="team b">${m.b}</div>
+      <div class="time">${fmtDate(m.t)}</div>
+      <div class="status">${real[0]!=null&&real[1]!=null?'<span class="real">recorded</span>':""}</div>
+    </div>`);
+    card.appendChild(row);
+  }
+  main.appendChild(card);
+
+  card.querySelectorAll("input").forEach(inp => {
+    inp.oninput = (e) => {
+      const mn = parseInt(e.target.dataset.mn);
+      const side = parseInt(e.target.dataset.side);
+      const v = e.target.value === "" ? null : Math.max(0, Math.min(99, parseInt(e.target.value)));
+      const cur = state.results[mn] || [null,null];
+      cur[side] = v;
+      if (cur[0]==null && cur[1]==null) delete state.results[mn];
+      else state.results[mn] = cur;
+      save();
+    };
+    inp.onblur = () => toast("Result saved ✓");
+  });
+}
+
+// ============================================================================
+// ROUTER
+// ============================================================================
+function render(){
+  renderNav();
+  if (!state.activeUserId){ renderAuth(); return; }
+  switch (state.activeTab){
+    case "dashboard":   if (isAdmin())  return renderAdminDashboard(); break;
+    case "results":     if (isAdmin())  return renderAdminResults(); break;
+    case "predictions": if (!isAdmin()) return renderMyPredictions(); break;
+    case "leaderboard": return renderLeaderboard();
+    case "byuser":      return renderByUser();
+  }
+  state.activeTab = isAdmin() ? "dashboard" : "predictions";
+  render();
+}
+
+render();
+</script>
+</body>
+</html>

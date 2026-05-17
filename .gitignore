@@ -1,0 +1,24 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Sensitive — never commit this
+.env
+
+# JS / Node
+node_modules/
+dist/
+.cache/
+
+# macOS
+.DS_Store
+
+# Vercel
+.vercel/
+
+# Alembic compiled
+alembic/__pycache__/

@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Prevent iOS font size inflation */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Smooth tap highlights on mobile */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
