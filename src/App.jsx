@@ -381,6 +381,119 @@ function AuthView({ roundState, onSuccess }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ADMIN DASHBOARD — outside App so TeamPicker never remounts on App re-renders
+// ─────────────────────────────────────────────────────────────────────────────
+function AdminDashboard({ config, setConfig, matches, teams, results, participants, setParticipants, leaderboard, showToast, refreshLb }) {
+
+  async function setRoundState(state) {
+    try {
+      const cfg = await api.updateConfig({round_state: state});
+      setConfig(cfg);
+      showToast(state==="open" ? "Round opened!" : state==="closed" ? "Round closed." : "Round reset.");
+      refreshLb();
+    } catch(e) { showToast(e.message, "err"); }
+  }
+
+  async function setWinner(team) {
+    // Show feedback immediately; update state only after the API confirms.
+    // No optimistic setConfig — that would trigger App re-render → this
+    // component would re-render and TeamPicker would lose its open state.
+    showToast(team ? "Winner set! 🏆" : "Winner removed");
+    try {
+      // Pass tournament_winner explicitly (null = clear, string = set).
+      // The backend uses model_fields_set so null is properly handled.
+      const cfg = await api.updateConfig({ tournament_winner: team ?? null });
+      setConfig(cfg);
+      refreshLb();
+    } catch(e) { showToast(e.message, "err"); }
+  }
+
+  async function togglePaid(uid, val) {
+    try {
+      await api.patchUser(uid, {has_paid: val});
+      setParticipants(p => p.map(u => u.id===uid ? {...u, has_paid: val} : u));
+    } catch(e) { showToast(e.message, "err"); }
+  }
+
+  const pill = {
+    open:   {text:"🟢 Betting round is OPEN",   bg:"rgba(16,185,129,0.1)",  color:C.green, border:`1px solid ${C.green}`},
+    closed: {text:"🔒 Betting round is CLOSED", bg:"rgba(239,68,68,0.1)",   color:C.red,   border:`1px solid ${C.red}`},
+    idle:   {text:"⏸️ No betting round yet",    bg:"rgba(148,163,184,0.1)", color:C.muted, border:`1px solid ${C.border}`},
+  }[config.round_state] || {};
+
+  return (
+    <div>
+      <div style={{marginBottom:14}}>
+        <span style={{display:"inline-block",padding:"4px 14px",borderRadius:999,fontSize:13,fontWeight:600,background:pill.bg,color:pill.color,border:pill.border}}>{pill.text}</span>
+      </div>
+      <h1 style={{color:C.amber,fontSize:20,marginBottom:12}}>⚙️ Admin dashboard</h1>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginBottom:20}}>
+        {[
+          {label:"Participants",    value:participants.length,                                          color:C.amber},
+          {label:"Paid",            value:`${participants.filter(u=>u.has_paid).length} / ${participants.length}`, color:C.green},
+          {label:"Results entered", value:`${Object.keys(results).length} / ${matches.length}`,         color:C.amber},
+        ].map(s=>(
+          <div key={s.label} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14}}>
+            <div style={{color:C.muted,fontSize:12,marginBottom:4}}>{s.label}</div>
+            <div style={{fontSize:22,fontWeight:800,color:s.color,fontFamily:"monospace"}}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <h2 style={{color:C.amber,fontSize:16,margin:"0 0 8px"}}>Round control</h2>
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:20}}>
+        {config.round_state==="idle"&&<>
+          <div style={{flex:1}}><div style={{fontWeight:600,marginBottom:4,color:C.text}}>⏸️ Round is idle.</div><div style={{color:C.muted,fontSize:12}}>Open to start collecting predictions.</div></div>
+          <Btn green onClick={()=>setRoundState("open")}>🟢 Open round</Btn>
+        </>}
+        {config.round_state==="open"&&<>
+          <div style={{flex:1}}><div style={{color:C.green,fontWeight:600,marginBottom:4}}>🟢 Round is OPEN.</div><div style={{color:C.muted,fontSize:12}}>Close to lock bets and reveal them.</div></div>
+          <Btn red onClick={()=>confirm("Close the round?")&&setRoundState("closed")}>🔒 Close round</Btn>
+        </>}
+        {config.round_state==="closed"&&<>
+          <div style={{flex:1}}><div style={{color:C.red,fontWeight:600,marginBottom:4}}>🔒 Round is CLOSED.</div><div style={{color:C.muted,fontSize:12}}>Enter results in the Results tab.</div></div>
+          <Btn ghost onClick={()=>confirm("Reopen? Bets will be hidden again.")&&setRoundState("open")}>Reopen</Btn>
+        </>}
+      </div>
+
+      <h2 style={{color:C.amber,fontSize:16,margin:"0 0 8px"}}>🏆 Tournament winner</h2>
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap",marginBottom:20,position:"relative",zIndex:10}}>
+        <TeamPicker value={config.tournament_winner||null} onChange={setWinner} teams={teams} clearable placeholder="— no winner set —"/>
+        <span style={{color:C.muted,fontSize:12,alignSelf:"center"}}>Awards +10 pts to everyone who picked correctly.</span>
+      </div>
+
+      <h2 style={{color:C.amber,fontSize:16,margin:"0 0 8px"}}>Participants ({participants.length})</h2>
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+          <thead><tr style={{background:C.panel2}}>
+            {["Name","Email","Points","Winner pick","Paid"].map(h=>(
+              <th key={h} style={{padding:"8px 10px",textAlign:"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>
+            ))}
+          </tr></thead>
+          <tbody>
+            {participants.length===0
+              ? <tr><td colSpan={5} style={{padding:24,textAlign:"center",color:C.muted}}>No participants yet</td></tr>
+              : participants.map(u => {
+                const entry=leaderboard.find(e=>e.user_id===u.id);
+                return (
+                  <tr key={u.id}>
+                    <td style={td}>{u.name}</td>
+                    <td style={{...td,color:C.muted,fontFamily:"monospace",fontSize:12}}>{u.email}</td>
+                    <td style={{...td,color:C.amber,fontWeight:700,fontFamily:"monospace"}}>{entry?.total??0}</td>
+                    <td style={td}>{entry?.winner_pick?withFlag(entry.winner_pick):"—"}</td>
+                    <td style={td}><input type="checkbox" checked={u.has_paid} onChange={e=>togglePaid(u.id,e.target.checked)}/></td>
+                  </tr>
+                );
+              })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // MAIN APP
 // ─────────────────────────────────────────────────────────────────────────────
 export default function App() {
@@ -572,80 +685,6 @@ export default function App() {
     );
   }
 
-  // ── Admin Dashboard ───────────────────────────────────────────────────────
-  function AdminDashboard(){
-    // Drive TeamPicker from App-level config — no local winnerSel state that
-    // resets when AdminDashboard remounts on App re-renders.
-    async function setRoundState(state){
-      try{const cfg=await api.updateConfig({round_state:state});setConfig(cfg);showToast(state==="open"?"Round opened!":"Round closed.");refreshLb();}
-      catch(e){showToast(e.message,"err");}
-    }
-    async function setWinner(team){
-      // Optimistic update — reflect change instantly, don't wait for refreshLb
-      setConfig(c=>({...c,tournament_winner:team||null}));
-      showToast(team?"Winner set! 🏆":"Winner removed");
-      try{
-        const cfg=await api.updateConfig({tournament_winner:team||null});
-        setConfig(cfg);
-        refreshLb(); // fire-and-forget — leaderboard updates in background
-      }catch(e){
-        // Revert
-        setConfig(c=>({...c,tournament_winner:config.tournament_winner}));
-        showToast(e.message,"err");
-      }
-    }
-    async function togglePaid(uid,val){try{await api.patchUser(uid,{has_paid:val});setParticipants(p=>p.map(u=>u.id===uid?{...u,has_paid:val}:u));}catch(e){showToast(e.message,"err");}}
-    return (
-      <div>
-        <div style={{marginBottom:14}}><RoundPill/></div>
-        <h1 style={{color:C.amber,fontSize:20,marginBottom:12}}>⚙️ Admin dashboard</h1>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginBottom:20}}>
-          {[{label:"Participants",value:participants.length,color:C.amber},{label:"Paid",value:`${participants.filter(u=>u.has_paid).length} / ${participants.length}`,color:C.green},{label:"Results entered",value:`${Object.keys(results).length} / ${matches.length}`,color:C.amber}].map(s=>(
-            <div key={s.label} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14}}>
-              <div style={{color:C.muted,fontSize:12,marginBottom:4}}>{s.label}</div>
-              <div style={{fontSize:22,fontWeight:800,color:s.color,fontFamily:"monospace"}}>{s.value}</div>
-            </div>
-          ))}
-        </div>
-        <h2 style={{color:C.amber,fontSize:16,margin:"0 0 8px"}}>Round control</h2>
-        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:20}}>
-          {config.round_state==="idle"&&<><div style={{flex:1}}><div style={{fontWeight:600,marginBottom:4,color:C.text}}>⏸️ Round is idle.</div><div style={{color:C.muted,fontSize:12}}>Open to start collecting predictions.</div></div><Btn green onClick={()=>setRoundState("open")}>🟢 Open round</Btn></>}
-          {config.round_state==="open"&&<><div style={{flex:1}}><div style={{color:C.green,fontWeight:600,marginBottom:4}}>🟢 Round is OPEN.</div><div style={{color:C.muted,fontSize:12}}>Close to lock bets and reveal them.</div></div><Btn red onClick={()=>confirm("Close the round?")&&setRoundState("closed")}>🔒 Close round</Btn></>}
-          {config.round_state==="closed"&&<><div style={{flex:1}}><div style={{color:C.red,fontWeight:600,marginBottom:4}}>🔒 Round is CLOSED.</div><div style={{color:C.muted,fontSize:12}}>Enter results in the Results tab.</div></div><Btn ghost onClick={()=>confirm("Reopen? Bets will be hidden again.")&&setRoundState("open")}>Reopen</Btn></>}
-        </div>
-        <h2 style={{color:C.amber,fontSize:16,margin:"0 0 8px"}}>🏆 Tournament winner</h2>
-        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap",marginBottom:20,position:"relative",zIndex:10}}>
-          <TeamPicker value={config.tournament_winner||null} onChange={setWinner} teams={teams} clearable placeholder="— no winner set —"/>
-          <span style={{color:C.muted,fontSize:12,alignSelf:"center"}}>Awards +10 pts to everyone who picked correctly.</span>
-        </div>
-        <h2 style={{color:C.amber,fontSize:16,margin:"0 0 8px"}}>Participants ({participants.length})</h2>
-        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-            <thead><tr style={{background:C.panel2}}>
-              {["Name","Email","Points","Winner pick","Paid"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}
-            </tr></thead>
-            <tbody>
-              {participants.length===0
-                ?<tr><td colSpan={5} style={{padding:24,textAlign:"center",color:C.muted}}>No participants yet</td></tr>
-                :participants.map(u=>{
-                  const entry=leaderboard.find(e=>e.user_id===u.id);
-                  return(
-                    <tr key={u.id}>
-                      <td style={td}>{u.name}</td>
-                      <td style={{...td,color:C.muted,fontFamily:"monospace",fontSize:12}}>{u.email}</td>
-                      <td style={{...td,color:C.amber,fontWeight:700,fontFamily:"monospace"}}>{entry?.total??0}</td>
-                      <td style={td}>{entry?.winner_pick?withFlag(entry.winner_pick):"—"}</td>
-                      <td style={td}><input type="checkbox" checked={u.has_paid} onChange={e=>togglePaid(u.id,e.target.checked)}/></td>
-                    </tr>
-                  );
-                })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  }
-
   // ── Admin Results ─────────────────────────────────────────────────────────
   function AdminResults(){
     async function saveResult(matchN,data){
@@ -702,7 +741,15 @@ export default function App() {
         {user&&tab==="predictions"&&<MyPredictions/>}
         {user&&tab==="leaderboard"&&<LeaderboardView/>}
         {user&&tab==="byuser"&&<ByUser/>}
-        {user&&tab==="dashboard"&&<AdminDashboard/>}
+        {user&&tab==="dashboard"&&(
+          <AdminDashboard
+            config={config} setConfig={setConfig}
+            matches={matches} teams={teams} results={results}
+            participants={participants} setParticipants={setParticipants}
+            leaderboard={leaderboard}
+            showToast={showToast} refreshLb={refreshLb}
+          />
+        )}
         {user&&tab==="results"&&<AdminResults/>}
       </div>
       {toast&&(

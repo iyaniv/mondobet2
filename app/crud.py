@@ -54,12 +54,19 @@ async def get_config(db: AsyncSession) -> GameConfig:
     return cfg
 
 
-async def update_config(db: AsyncSession, round_state: Optional[str], tournament_winner: Optional[str]) -> GameConfig:
+_UNSET = object()  # sentinel — distinguishes "not provided" from "explicitly None"
+
+async def update_config(
+    db: AsyncSession,
+    round_state: Optional[str] = None,
+    tournament_winner: object = _UNSET,
+) -> GameConfig:
     cfg = await get_config(db)
     if round_state is not None:
         cfg.round_state = RoundStateEnum(round_state)
-    if tournament_winner is not None:
-        cfg.tournament_winner = tournament_winner or None
+    if tournament_winner is not _UNSET:
+        # None = explicitly cleared, str = new winner
+        cfg.tournament_winner = tournament_winner if tournament_winner else None
     await db.commit()
     await db.refresh(cfg)
     return cfg
