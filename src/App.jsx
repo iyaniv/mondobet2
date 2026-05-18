@@ -67,7 +67,12 @@ function TeamPicker({ value, onChange, teams, disabled, clearable=false, placeho
 
   const filtered = teams.filter(t => t.toLowerCase().includes(search.toLowerCase()));
 
-  function select(team) { onChange(team); setOpen(false); }
+  // Clicking a selected team again deselects it (when clearable)
+  function select(team) {
+    if (clearable && value === team) { onChange(null); }
+    else { onChange(team); }
+    setOpen(false);
+  }
 
   return (
     <div ref={wrapRef} style={{ position:"relative", minWidth:240 }}>
@@ -81,13 +86,6 @@ function TeamPicker({ value, onChange, teams, disabled, clearable=false, placeho
       }}>
         <span style={{ fontSize:20, lineHeight:1, flexShrink:0 }}>{value ? flag(value) : "🏆"}</span>
         <span style={{ flex:1, fontSize:14, color:value?C.text:C.muted }}>{value || placeholder}</span>
-        {clearable && value && (
-          <span
-            onClick={(e) => { e.stopPropagation(); onChange(null); setOpen(false); }}
-            title="Remove winner"
-            style={{ fontSize:14, color:C.muted, padding:"0 4px", cursor:"pointer", lineHeight:1 }}
-          >×</span>
-        )}
         <span style={{ fontSize:10, color:C.muted, transition:"transform .2s", transform:open?"rotate(180deg)":"none" }}>▼</span>
       </button>
 
@@ -129,7 +127,11 @@ function TeamPicker({ value, onChange, teams, disabled, clearable=false, placeho
                     }}>
                     <span style={{ fontSize:18, lineHeight:1, width:24, textAlign:"center", flexShrink:0 }}>{flag(t)}</span>
                     <span style={{ flex:1, fontWeight:selected?600:400 }}>{t}</span>
-                    {selected && <span style={{ fontSize:11, color:C.amber }}>✓</span>}
+                    {selected && (
+                      <span style={{ fontSize:11, color:C.amber, opacity:0.8 }}>
+                        {clearable ? "tap to remove ✓" : "✓"}
+                      </span>
+                    )}
                   </div>
                 );
               })
