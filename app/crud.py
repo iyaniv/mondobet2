@@ -6,7 +6,7 @@ from typing import Optional
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import GameConfig, Prediction, Result, RoundStateEnum, User, WinnerPick
+from app.models import GameConfig, LiveMatch, Prediction, Result, RoundStateEnum, User, WinnerPick
 from app.auth import hash_password
 from app.scoring import match_score, user_totals
 from app.schemas import LeaderboardEntry
@@ -190,3 +190,42 @@ async def get_leaderboard(db: AsyncSession) -> list[LeaderboardEntry]:
         ))
 
     return sorted(entries, key=lambda e: e.total, reverse=True)
+
+
+# ── Live matches ──────────────────────────────────────────────────────────────
+
+async def get_live_matches(db: AsyncSession) -> dict[int, dict]:
+    r = await db.execute(select(LiveMatch))
+    return {m.match_n: {"score_a": m.score_a, "score_b": m.score_b, "minute": m.minute}
+            for m in r.scalars().all()}
+
+
+async def upsert_live_match(db: AsyncSession, match_n: int, score_a: int, score_b: int, minute: int) -> LiveMatch:
+    lm = await db.get(LiveMatch, match_n)
+    if lm:
+        lm.score_a = score_a; lm.score_b = score_b; lm.minute = minute
+    else:
+        lm = LiveMatch(match_n=match_n, score_a=score_a, score_b=score_b, minute=minute)
+        db.add(lm)
+    await db.commit()
+    await db.refresh(lm)
+    return lm
+
+
+async def remove_live_match(db: AsyncSession, match_n: int) -> bool:
+    lm = await db.get(LiveMatch, match_n)
+    if not lm:
+        return False
+    await db.delete(lm)
+    await db.commit()
+    return True
+
+
+async def finalize_live_match(db: AsyncSession, match_n: int) -> Optional[Result]:
+    lm = await db.get(LiveMatch, match_n)
+    if not lm:
+        return None
+    result = await upsert_result(db, match_n, lm.score_a, lm.score_b)
+    await db.delete(lm)
+    await db.commit()
+    return result

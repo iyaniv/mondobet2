@@ -95,3 +95,18 @@ class LeaderboardEntry(BaseModel):
     winner_bonus: int
     has_paid: bool
     submitted_count: int
+
+
+# ── Live matches ──────────────────────────────────────────────────────────────
+
+class LiveMatchIn(BaseModel):
+    score_a: int = Field(0, ge=0, le=99)
+    score_b: int = Field(0, ge=0, le=99)
+    minute: int = Field(0, ge=0, le=120)
+
+
+class LiveMatchOut(BaseModel):
+    match_n: int
+    score_a: int
+    score_b: int
+    minute: int

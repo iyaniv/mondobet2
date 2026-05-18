@@ -84,3 +84,16 @@ class GameConfig(Base):
         nullable=False,
     )
     tournament_winner: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+
+class LiveMatch(Base):
+    """In-play match — score and minute, cleared when admin clicks FINAL."""
+    __tablename__ = "live_matches"
+
+    match_n: Mapped[int] = mapped_column(Integer, primary_key=True)
+    score_a: Mapped[int] = mapped_column(SmallInteger, default=0, nullable=False)
+    score_b: Mapped[int] = mapped_column(SmallInteger, default=0, nullable=False)
+    minute: Mapped[int] = mapped_column(SmallInteger, default=0, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )

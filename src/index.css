@@ -41,3 +41,16 @@ html { -webkit-text-size-adjust: 100%; }
   --c-red:          #dc2626;
   --c-indigo:       #4f46e5;
 }
+
+/* ── Live match pulsing dot ──────────────────────────────────────────────── */
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+.live-dot {
+  display: inline-block;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--c-red);
+  animation: pulse-red 1.1s ease-in-out infinite;
+  vertical-align: middle;
+}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { api, setToken, getToken } from "./api";
+import { api, liveApi, setToken, getToken } from "./api";
 
 const C = {
   bg:"var(--c-bg)", panel:"var(--c-panel)", panel2:"var(--c-panel2)",
@@ -525,14 +525,16 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
 
 const GROUPS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
 
-function computeGroupStandings(groupLetter, allMatches, results, simPreds={}) {
+function computeGroupStandings(groupLetter, allMatches, results, simPreds={}, liveMatches={}) {
   const gm = allMatches.filter(m => m.g === groupLetter);
   const teams = [...new Set(gm.flatMap(m => [m.a, m.b]))];
   const s = {};
   teams.forEach(t => { s[t]={P:0,W:0,D:0,L:0,GF:0,GA:0,GD:0,Pts:0}; });
   for (const m of gm) {
-    const r = results[m.n] ??
-      (simPreds[m.n]?.[0]!=null && simPreds[m.n]?.[1]!=null ? simPreds[m.n] : null);
+    const ld=liveMatches[m.n];
+    const r = results[m.n]
+      ?? (ld ? [ld.score_a, ld.score_b] : null)
+      ?? (simPreds[m.n]?.[0]!=null && simPreds[m.n]?.[1]!=null ? simPreds[m.n] : null);
     if (!r) continue;
     const [ga,gb]=[Number(r[0]),Number(r[1])];
     const a=s[m.a], b=s[m.b];
@@ -547,9 +549,9 @@ function computeGroupStandings(groupLetter, allMatches, results, simPreds={}) {
     .sort((a,b)=>b.Pts-a.Pts||b.GD-a.GD||b.GF-a.GF||a.name.localeCompare(b.name));
 }
 
-function GroupCard({ group, allMatches, results, simPreds }) {
+function GroupCard({ group, allMatches, results, simPreds, liveMatches={} }) {
   const gm = allMatches.filter(m => m.g === group);
-  const standings = computeGroupStandings(group, allMatches, results, simPreds);
+  const standings = computeGroupStandings(group, allMatches, results, simPreds, liveMatches);
   const played = gm.filter(m => results[m.n]).length;
 
   return (
@@ -605,6 +607,7 @@ function GroupCard({ group, allMatches, results, simPreds }) {
         {gm.map(m=>{
           const res = results[m.n];
           const sim = !res && simPreds[m.n]?.[0]!=null ? simPreds[m.n] : null;
+          const isMatchLive = !!liveMatches[m.n];
           const eff = res||sim;
           const isSim = !res&&!!sim;
           const winA = eff ? (eff[0]>eff[1]?true:eff[1]>eff[0]?false:null) : null;
@@ -619,9 +622,9 @@ function GroupCard({ group, allMatches, results, simPreds }) {
                 {m.a} {flag(m.a)}
               </span>
               <span style={{fontSize:11,fontFamily:"monospace",fontWeight:700,textAlign:"center",
-                color:eff?C.green:C.muted,
-                background:eff?"rgba(16,185,129,0.10)":"transparent",
-                border:eff?"1px solid rgba(16,185,129,0.25)":"1px solid transparent",
+                color:isMatchLive?C.red:eff?C.green:C.muted,
+                background:isMatchLive?"rgba(239,68,68,0.10)":eff?"rgba(16,185,129,0.10)":"transparent",
+                border:isMatchLive?"1px solid rgba(239,68,68,0.3)":eff?"1px solid rgba(16,185,129,0.25)":"1px solid transparent",
                 padding:"1px 4px",borderRadius:4,
               }}>
                 {eff ? `${isSim?"~":""}${eff[0]}:${eff[1]}` : "vs"}
@@ -638,7 +641,7 @@ function GroupCard({ group, allMatches, results, simPreds }) {
   );
 }
 
-function Tournament({ matches, results, myPreds, config, user }) {
+function Tournament({ matches, results, liveMatches={}, myPreds, config, user }) {
   const useSim = config.round_state==="open" && !user?.is_admin;
   const simPreds = useSim ? myPreds : {};
   const played = Object.keys(results).length;
@@ -677,8 +680,144 @@ function Tournament({ matches, results, myPreds, config, user }) {
       {/* 12 group cards */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14}}>
         {GROUPS.map(g=>(
-          <GroupCard key={g} group={g} allMatches={matches} results={results} simPreds={simPreds}/>
+          <GroupCard key={g} group={g} allMatches={matches} results={results} simPreds={simPreds} liveMatches={liveMatches}/>
         ))}
+      </div>
+    </div>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN MATCH ROW — handles pending / live / final states; outside App
+// ─────────────────────────────────────────────────────────────────────────────
+function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpdateLive, onFinalize }) {
+  const isLive  = !!liveData;
+  const isFinal = !!result;
+
+  const [resA, setResA] = useState(isLive ? String(liveData.score_a) : isFinal ? String(result[0]) : "");
+  const [resB, setResB] = useState(isLive ? String(liveData.score_b) : isFinal ? String(result[1]) : "");
+  const [min,  setMin]  = useState(isLive ? String(liveData.minute)  : "");
+
+  useEffect(() => {
+    if (liveData) { setResA(String(liveData.score_a)); setResB(String(liveData.score_b)); setMin(String(liveData.minute)); }
+    else if (result) { setResA(String(result[0])); setResB(String(result[1])); setMin(""); }
+    else { setResA(""); setResB(""); setMin(""); }
+  }, [liveData?.score_a, liveData?.score_b, liveData?.minute, result?.[0], result?.[1]]);
+
+  async function handleBlur(side, val) {
+    const a = side===0 ? val : resA, b = side===1 ? val : resB;
+    if (a===""&&b==="") return;
+    const sa=Number(a)||0, sb=Number(b)||0;
+    if (isLive) await onUpdateLive(match.n, {score_a:sa, score_b:sb, minute:Number(min)||0});
+    else        await onSaveResult(match.n, {score_a:a===""?null:sa, score_b:b===""?null:sb});
+  }
+  async function handleMinBlur(val) {
+    if (!isLive) return;
+    await onUpdateLive(match.n, {score_a:Number(resA)||0, score_b:Number(resB)||0, minute:Number(val)||0});
+  }
+
+  const effA = Number(resA||0), effB = Number(resB||0);
+  const winA = (isLive||isFinal) ? (effA>effB?true:effB>effA?false:null) : null;
+  const rowBg    = isLive?"rgba(239,68,68,0.06)":isFinal?"rgba(16,185,129,0.04)":C.panel2;
+  const rowBorder= `1px solid ${isLive?"rgba(239,68,68,0.35)":isFinal?"rgba(16,185,129,0.25)":C.border}`;
+
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"28px 26px 1fr 44px 12px 44px 1fr auto",
+      alignItems:"center",gap:5,padding:"5px 8px",borderRadius:6,
+      background:rowBg,border:rowBorder,marginBottom:3,fontSize:13}}>
+      <span style={{color:C.muted,fontSize:11}}>#{match.n}</span>
+      <span style={{background:C.border,color:C.text,padding:"1px 5px",borderRadius:4,fontSize:11,textAlign:"center"}}>{match.g}</span>
+      <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12,
+        color:winA===true?C.accent:winA===false?C.muted:C.text,fontWeight:winA===true?700:400}}>
+        {flag(match.a)} {match.a}
+      </span>
+      {isFinal ? (
+        <span style={{gridColumn:"span 3",textAlign:"center",fontFamily:"monospace",fontWeight:700,fontSize:14,
+          background:"rgba(16,185,129,0.10)",border:"1px solid rgba(16,185,129,0.3)",borderRadius:4,padding:"3px 0",color:C.green}}>
+          ✓ {result[0]}:{result[1]}
+        </span>
+      ) : (
+        <>
+          <input type="number" inputMode="numeric" min={0} max={20} value={resA}
+            onChange={e=>setResA(e.target.value)} onBlur={e=>handleBlur(0,e.target.value)}
+            style={{...numInput,border:`1px solid ${isLive?"rgba(239,68,68,0.5)":C.border}`}}/>
+          <span style={{textAlign:"center",color:C.muted}}>:</span>
+          <input type="number" inputMode="numeric" min={0} max={20} value={resB}
+            onChange={e=>setResB(e.target.value)} onBlur={e=>handleBlur(1,e.target.value)}
+            style={{...numInput,border:`1px solid ${isLive?"rgba(239,68,68,0.5)":C.border}`}}/>
+        </>
+      )}
+      <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:"right",fontSize:12,
+        color:winA===false?C.accent:winA===true?C.muted:C.text,fontWeight:winA===false?700:400}}>
+        {match.b} {flag(match.b)}
+      </span>
+      <div style={{display:"flex",gap:4,alignItems:"center",justifyContent:"flex-end",minWidth:110}}>
+        {isLive && <>
+          <input type="number" inputMode="numeric" min={0} max={120} value={min} placeholder="0"
+            onChange={e=>setMin(e.target.value)} onBlur={e=>handleMinBlur(e.target.value)}
+            style={{...numInput,width:34,border:"1px solid rgba(239,68,68,0.4)"}}/>
+          <span style={{fontSize:10,color:C.red}}>′</span>
+          <button onClick={()=>onFinalize(match.n)} style={{
+            background:C.green,color:"white",border:0,padding:"2px 8px",
+            borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>
+            ✓ FINAL
+          </button>
+        </>}
+        {!isLive && !isFinal && (
+          <button onClick={()=>onGoLive(match.n)} style={{
+            background:"transparent",border:`1px solid ${C.red}`,color:C.red,
+            padding:"2px 8px",borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
+            <span className="live-dot" style={{marginRight:4}}/> LIVE
+          </button>
+        )}
+        {!isLive && isFinal && (
+          <span style={{width:8,height:8,borderRadius:"50%",background:C.green,display:"inline-block"}}/>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// LiveNowSection — shown at the top of the Leaderboard when matches are in play
+function LiveNowSection({ liveMatches, matches }) {
+  const live = Object.entries(liveMatches);
+  if (live.length === 0) return null;
+  return (
+    <div style={{marginBottom:20}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+        <span className="live-dot"/>
+        <span style={{fontFamily:"var(--c-font-display)",fontSize:18,color:C.red,letterSpacing:1}}>LIVE NOW</span>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:10}}>
+        {live.map(([mn,ld])=>{
+          const m=matches.find(x=>x.n===Number(mn));
+          if(!m) return null;
+          const winA=ld.score_a>ld.score_b?true:ld.score_b>ld.score_a?false:null;
+          return (
+            <div key={mn} style={{background:C.panel,border:`1px solid ${C.red}`,borderRadius:8,padding:"10px 14px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:6,fontSize:10}}>
+                <span style={{color:C.red,fontWeight:700,display:"flex",alignItems:"center",gap:4}}>
+                  <span className="live-dot"/> LIVE {ld.minute}'
+                </span>
+                <span style={{color:C.muted}}>Group {m.g}</span>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",alignItems:"center",gap:6}}>
+                <span style={{fontSize:12,textAlign:"right",
+                  color:winA===true?C.accent:winA===false?C.muted:C.text,fontWeight:winA===true?700:400}}>
+                  {flag(m.a)} {m.a}
+                </span>
+                <span style={{fontSize:20,fontFamily:"monospace",fontWeight:700,color:C.text,padding:"0 6px"}}>
+                  {ld.score_a}:{ld.score_b}
+                </span>
+                <span style={{fontSize:12,textAlign:"left",
+                  color:winA===false?C.accent:winA===true?C.muted:C.text,fontWeight:winA===false?700:400}}>
+                  {flag(m.b)} {m.b}
+                </span>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -745,6 +884,28 @@ export default function App() {
   }
   function doLogout(){setToken(null);setUser(null);setTab("auth");setMyPreds({});setMyWinner(null);setLeaderboard([]);setParticipants([]);}
 
+  async function refreshLive() {
+    try {
+      const list = await liveApi.getAll();
+      const m={}; for(const x of list) m[x.match_n]={score_a:x.score_a,score_b:x.score_b,minute:x.minute};
+      setLiveMatches(m);
+      localStorage.setItem("mb_live_sync", Date.now().toString());
+    } catch(e) { console.error("refreshLive:", e); }
+  }
+
+  // Cross-tab sync — when admin updates live score in one tab, other tabs reload
+  useEffect(() => {
+    function onStorage(e) {
+      if (e.key !== "mb_live_sync") return;
+      liveApi.getAll().then(list => {
+        const m={}; for(const x of list) m[x.match_n]={score_a:x.score_a,score_b:x.score_b,minute:x.minute};
+        setLiveMatches(m);
+      }).catch(()=>{});
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   async function refreshLb(){
     const lb=await api.getLeaderboard();setLeaderboard(lb);
     if(user&&!user.is_admin){const e=lb.find(e=>e.user_id===user.id);if(e)setMyWinner(e.winner_pick||null);}
@@ -804,6 +965,7 @@ export default function App() {
     const winnerKnown=!!config.tournament_winner;
     return (
       <div>
+        <LiveNowSection liveMatches={liveMatches} matches={matches}/>
         <div style={{marginBottom:14}}><RoundPill/></div>
         <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>🏆 Leaderboard</h1>
         {leaderboard.length===0
@@ -885,15 +1047,53 @@ export default function App() {
       await api.setResult(matchN,data);
       if(data.score_a!=null&&data.score_b!=null)setResults(r=>({...r,[matchN]:[data.score_a,data.score_b]}));
       else setResults(r=>{const n={...r};delete n[matchN];return n;});
-      showToast("Result saved ✓");await refreshLb();
+      showToast("Result saved ✓");refreshLb();
+    }
+    async function goLive(matchN){
+      try{
+        await liveApi.set(matchN,{score_a:0,score_b:0,minute:0});
+        await refreshLive();
+        showToast("Match is now LIVE");
+      }catch(e){showToast(e.message,"err");}
+    }
+    async function updateLive(matchN,data){
+      try{
+        await liveApi.set(matchN,data);
+        await refreshLive();
+      }catch(e){showToast(e.message,"err");}
+    }
+    async function finalizeLive(matchN){
+      try{
+        const res=await liveApi.finalize(matchN);
+        setResults(r=>({...r,[matchN]:[res.score_a,res.score_b]}));
+        await refreshLive();
+        showToast("Match finalized ✓");refreshLb();
+      }catch(e){showToast(e.message,"err");}
     }
     return (
       <div>
         <div style={{marginBottom:14}}><RoundPill/></div>
         <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>Enter results</h1>
         {config.round_state==="open"&&<InfoBlock warn>💡 Round is still open. Close it first so participants can't edit after seeing scores.</InfoBlock>}
+        {Object.keys(liveMatches).length>0&&(
+          <div style={{background:"rgba(239,68,68,0.06)",border:"1px solid rgba(239,68,68,0.25)",
+            borderRadius:6,padding:"7px 14px",marginBottom:14,fontSize:13,color:C.red,
+            display:"flex",alignItems:"center",gap:8}}>
+            <span className="live-dot"/><b>{Object.keys(liveMatches).length}</b> match{Object.keys(liveMatches).length>1?"es":""} currently LIVE
+          </div>
+        )}
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10}}>
-          {matches.map(m=><MatchRow key={m.n} match={m} pred={null} result={results[m.n]??null} editable={false} adminResult={true} roundState={config.round_state} onSave={()=>{}} onResultSave={saveResult}/>)}
+          {matches.map(m=>(
+            <AdminMatchRow key={m.n}
+              match={m}
+              result={results[m.n]??null}
+              liveData={liveMatches[m.n]??null}
+              onSaveResult={saveResult}
+              onGoLive={goLive}
+              onUpdateLive={updateLive}
+              onFinalize={finalizeLive}
+            />
+          ))}
         </div>
       </div>
     );
@@ -945,7 +1145,7 @@ export default function App() {
           />
         )}
         {user&&tab==="results"&&<AdminResults/>}
-        {user&&tab==="tournament"&&<Tournament matches={matches} results={results} myPreds={myPreds} config={config} user={user}/>}
+        {user&&tab==="tournament"&&<Tournament matches={matches} results={results} liveMatches={liveMatches} myPreds={myPreds} config={config} user={user}/>}
       </div>
       {toast&&(
         <div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",background:toast.kind==="err"?C.red:toast.kind==="warn"?C.accent:C.green,color:toast.kind==="warn"?"#1a1a1a":"white",padding:"8px 16px",borderRadius:6,fontSize:14,zIndex:100,boxShadow:"0 4px 12px rgba(0,0,0,0.2)",whiteSpace:"nowrap"}}>

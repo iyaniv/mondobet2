@@ -61,3 +61,10 @@ export const api = {
   getUsers:      ()              => request("/api/users/"),
   patchUser:     (uid, d)        => request(`/api/users/${uid}`,     { method: "PATCH", body: d }),
 };
+
+export const liveApi = {
+  getAll:    ()      => request("/api/live/"),
+  set:       (n, d)  => request(`/api/live/${n}`,          { method: "PUT",    body: d }),
+  remove:    (n)     => request(`/api/live/${n}`,          { method: "DELETE" }),
+  finalize:  (n)     => request(`/api/live/${n}/finalize`, { method: "POST" }),
+};

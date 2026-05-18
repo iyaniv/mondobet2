@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import Base, engine, AsyncSessionLocal
-from app.routers import auth, config, leaderboard, matches, predictions, results, users
+from app.routers import auth, config, leaderboard, live, matches, predictions, results, users
 
 
 async def _bootstrap():
@@ -67,7 +67,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for router in [auth, config, leaderboard, matches, predictions, results, users]:
+for router in [auth, config, leaderboard, live, matches, predictions, results, users]:
     app.include_router(router.router, prefix="/api")
 
 
