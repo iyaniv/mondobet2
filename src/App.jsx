@@ -994,6 +994,7 @@ export default function App() {
   const [viewUserId,setViewUserId]=useState(null);
   const [viewUserPreds,setViewUserPreds]=useState({});
   const [viewUserWinner,setViewUserWinner]=useState(null);
+  const [liveMatches,setLiveMatches]=useState({});
   const [toast,setToast]=useState(null);
   const [globalErr,setGlobalErr]=useState("");
   const toastTimer=useRef(null);
