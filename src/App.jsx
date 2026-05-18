@@ -4,7 +4,7 @@ import { api, setToken, getToken } from "./api";
 const C = {
   bg:"var(--c-bg)", panel:"var(--c-panel)", panel2:"var(--c-panel2)",
   border:"var(--c-border)", text:"var(--c-text)", muted:"var(--c-muted)",
-  amber:"var(--c-amber)", green:"var(--c-green)", red:"var(--c-red)", indigo:"var(--c-indigo)",
+  accent:"var(--c-accent)", accentDk:"var(--c-accent-dk)", accentSoft:"var(--c-accent-soft)", green:"var(--c-green)", red:"var(--c-red)", indigo:"var(--c-indigo)",
 };
 
 const FLAGS = {
@@ -80,7 +80,7 @@ function TeamPicker({ value, onChange, teams, disabled, clearable=false, placeho
       <button type="button" onClick={() => !disabled && setOpen(o => !o)} style={{
         width:"100%", display:"flex", alignItems:"center", gap:10,
         padding:"10px 14px", borderRadius:8, cursor:disabled?"not-allowed":"pointer",
-        background:C.panel2, border:`1px solid ${open ? C.amber : C.border}`,
+        background:C.panel2, border:`1px solid ${open ? C.accent : C.border}`,
         color:C.text, opacity:disabled?0.6:1, outline:"none",
         transition:"border-color .15s", textAlign:"left",
       }}>
@@ -121,14 +121,14 @@ function TeamPicker({ value, onChange, teams, disabled, clearable=false, placeho
                     style={{
                       display:"flex", alignItems:"center", gap:10,
                       padding:"8px 14px", cursor:"pointer", fontSize:13,
-                      background: selected ? "rgba(245,158,11,0.1)" : isHov ? C.panel2 : "transparent",
-                      color: selected ? C.amber : C.text,
+                      background: selected ? "var(--c-accent-soft)" : isHov ? C.panel2 : "transparent",
+                      color: selected ? C.accent : C.text,
                       transition:"background .1s",
                     }}>
                     <span style={{ fontSize:18, lineHeight:1, width:24, textAlign:"center", flexShrink:0 }}>{flag(t)}</span>
                     <span style={{ flex:1, fontWeight:selected?600:400 }}>{t}</span>
                     {selected && (
-                      <span style={{ fontSize:11, color:C.amber, opacity:0.8 }}>
+                      <span style={{ fontSize:11, color:C.accent, opacity:0.8 }}>
                         {clearable ? "tap to remove ✓" : "✓"}
                       </span>
                     )}
@@ -146,7 +146,7 @@ function TeamPicker({ value, onChange, teams, disabled, clearable=false, placeho
 // Single participant row — own component so hover state doesn't re-render the whole list
 function ParticipantItem({ entry, rank, selected, onClick }) {
   const [hov, setHov] = useState(false);
-  const bg = selected ? "rgba(245,158,11,0.08)" : hov ? C.panel2 : "transparent";
+  const bg = selected ? "var(--c-accent-soft)" : hov ? C.panel2 : "transparent";
   const rankIcon = rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":null;
 
   return (
@@ -167,20 +167,20 @@ function ParticipantItem({ entry, rank, selected, onClick }) {
         width:30, height:30, borderRadius:"50%", flexShrink:0,
         display:"flex", alignItems:"center", justifyContent:"center",
         fontSize:11, fontWeight:700,
-        background: selected ? C.amber : C.panel2,
+        background: selected ? C.accent : C.panel2,
         color: selected ? "#1a1a1a" : C.text,
       }}>
         {initials(entry.name)}
       </div>
       {/* Name */}
-      <span style={{ flex:1, fontSize:13, color:selected?C.amber:C.text, fontWeight:selected?600:400 }}>
+      <span style={{ flex:1, fontSize:13, color:selected?C.accent:C.text, fontWeight:selected?600:400 }}>
         {entry.name}
       </span>
       {/* Points */}
-      <span style={{ fontSize:12, fontFamily:"monospace", fontWeight:700, color:C.amber, flexShrink:0 }}>
+      <span style={{ fontSize:12, fontFamily:"monospace", fontWeight:700, color:C.accent, flexShrink:0 }}>
         {entry.total} pts
       </span>
-      {selected && <span style={{ fontSize:11, color:C.amber, marginLeft:4 }}>✓</span>}
+      {selected && <span style={{ fontSize:11, color:C.accent, marginLeft:4 }}>✓</span>}
     </div>
   );
 }
@@ -244,7 +244,7 @@ function SectionHeader({ children }) {
 }
 
 function Btn({ children, onClick, green, red, ghost, disabled }) {
-  const bg = green?C.green:red?C.red:ghost?"transparent":C.amber;
+  const bg = green?C.green:red?C.red:ghost?"transparent":C.accent;
   const fg = ghost?C.text:(green||red)?"white":"#1a1a1a";
   return (
     <button onClick={onClick} disabled={disabled} style={{
@@ -361,7 +361,7 @@ function AuthView({ roundState, onSuccess }) {
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:20}}>
         <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:16}}>
           {["signup","login"].map(m=>(
-            <button key={m} onClick={()=>setMode(m)} style={{background:mode===m?C.amber:"transparent",color:mode===m?"#1a1a1a":C.text,border:`1px solid ${mode===m?C.amber:C.border}`,padding:"6px 16px",borderRadius:6,cursor:"pointer",fontWeight:700}}>
+            <button key={m} onClick={()=>setMode(m)} style={{background:mode===m?C.accent:"transparent",color:mode===m?"#1a1a1a":C.text,border:`1px solid ${mode===m?C.accent:C.border}`,padding:"6px 16px",borderRadius:6,cursor:"pointer",fontWeight:700}}>
               {m==="signup"?"Sign up":"Log in"}
             </button>
           ))}
@@ -371,7 +371,7 @@ function AuthView({ roundState, onSuccess }) {
           <input value={email} onChange={e=>setEmail(e.target.value)} placeholder={mode==="login"?"Email  (admin: admin)":"Email"} required style={inputStyle}/>
           <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" required minLength={4} style={inputStyle}/>
           {err&&<p style={{color:C.red,fontSize:13,marginBottom:8}}>{err}</p>}
-          <button type="submit" disabled={loading} style={{width:"100%",background:C.amber,color:"#1a1a1a",border:0,padding:"10px 0",borderRadius:6,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.6:1}}>
+          <button type="submit" disabled={loading} style={{width:"100%",background:C.accent,color:"#1a1a1a",border:0,padding:"10px 0",borderRadius:6,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.6:1}}>
             {loading?"…":mode==="signup"?"Create account":"Log in"}
           </button>
         </form>
@@ -426,13 +426,13 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
       <div style={{marginBottom:14}}>
         <span style={{display:"inline-block",padding:"4px 14px",borderRadius:999,fontSize:13,fontWeight:600,background:pill.bg,color:pill.color,border:pill.border}}>{pill.text}</span>
       </div>
-      <h1 style={{color:C.amber,fontSize:20,marginBottom:12}}>⚙️ Admin dashboard</h1>
+      <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>⚙️ Admin dashboard</h1>
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginBottom:20}}>
         {[
-          {label:"Participants",    value:participants.length,                                          color:C.amber},
+          {label:"Participants",    value:participants.length,                                          color:C.accent},
           {label:"Paid",            value:`${participants.filter(u=>u.has_paid).length} / ${participants.length}`, color:C.green},
-          {label:"Results entered", value:`${Object.keys(results).length} / ${matches.length}`,         color:C.amber},
+          {label:"Results entered", value:`${Object.keys(results).length} / ${matches.length}`,         color:C.accent},
         ].map(s=>(
           <div key={s.label} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14}}>
             <div style={{color:C.muted,fontSize:12,marginBottom:4}}>{s.label}</div>
@@ -441,7 +441,7 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
         ))}
       </div>
 
-      <h2 style={{color:C.amber,fontSize:16,margin:"0 0 8px"}}>Round control</h2>
+      <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>Round control</h2>
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:20}}>
         {config.round_state==="idle"&&<>
           <div style={{flex:1}}><div style={{fontWeight:600,marginBottom:4,color:C.text}}>⏸️ Round is idle.</div><div style={{color:C.muted,fontSize:12}}>Open to start collecting predictions.</div></div>
@@ -457,13 +457,13 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
         </>}
       </div>
 
-      <h2 style={{color:C.amber,fontSize:16,margin:"0 0 8px"}}>🏆 Tournament winner</h2>
+      <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>🏆 Tournament winner</h2>
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap",marginBottom:20,position:"relative",zIndex:10}}>
         <TeamPicker value={config.tournament_winner||null} onChange={setWinner} teams={teams} clearable placeholder="— no winner set —"/>
         <span style={{color:C.muted,fontSize:12,alignSelf:"center"}}>Awards +10 pts to everyone who picked correctly.</span>
       </div>
 
-      <h2 style={{color:C.amber,fontSize:16,margin:"0 0 8px"}}>Participants ({participants.length})</h2>
+      <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>Participants ({participants.length})</h2>
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead><tr style={{background:C.panel2}}>
@@ -480,7 +480,7 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
                   <tr key={u.id}>
                     <td style={td}>{u.name}</td>
                     <td style={{...td,color:C.muted,fontFamily:"monospace",fontSize:12}}>{u.email}</td>
-                    <td style={{...td,color:C.amber,fontWeight:700,fontFamily:"monospace"}}>{entry?.total??0}</td>
+                    <td style={{...td,color:C.accent,fontWeight:700,fontFamily:"monospace"}}>{entry?.total??0}</td>
                     <td style={td}>{entry?.winner_pick?withFlag(entry.winner_pick):"—"}</td>
                     <td style={td}><input type="checkbox" checked={u.has_paid} onChange={e=>togglePaid(u.id,e.target.checked)}/></td>
                   </tr>
@@ -583,13 +583,13 @@ export default function App() {
     return (
       <div>
         <div style={{marginBottom:14}}><RoundPill/></div>
-        <h1 style={{color:C.amber,fontSize:20,marginBottom:12}}>{user?.name}'s predictions</h1>
+        <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>{user?.name}'s predictions</h1>
         {config.round_state==="idle"&&<InfoBlock warn>⏸️ <b>No betting round is open yet.</b> The admin needs to open a round before you can enter predictions.</InfoBlock>}
         {config.round_state==="open"&&<InfoBlock>✏️ <b>Round is open.</b> Predictions save automatically when you leave each field.<br/><b>Scoring:</b> 5 pts correct direction · +3 exact · +1 partial · 10 pts tournament winner.</InfoBlock>}
         {config.round_state==="closed"&&<InfoBlock>🔒 <b>Round closed.</b> Points appear once the admin enters results.</InfoBlock>}
         {myEntry&&(
           <div style={{textAlign:"right",padding:"8px 12px",background:C.panel2,borderRadius:6,marginBottom:16,fontSize:14,color:C.text}}>
-            Total: <span style={{color:C.amber,fontWeight:700,fontFamily:"monospace",fontSize:18}}>{myEntry.total}</span>
+            Total: <span style={{color:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:18}}>{myEntry.total}</span>
             &nbsp;·&nbsp;{myEntry.scored_matches}/{matches.length} scored
             {myEntry.winner_bonus>0&&<>&nbsp;·&nbsp;🏆 +10 winner bonus</>}
           </div>
@@ -598,7 +598,7 @@ export default function App() {
         <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:12,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:16,position:"relative",zIndex:10}}>
           <label style={{color:C.text,fontSize:14,flexShrink:0}}>🏆 Tournament winner pick (+10 pts):</label>
           <TeamPicker value={myWinner} onChange={saveWinner} teams={teams} disabled={!editable} placeholder="Choose a team…"/>
-          {config.tournament_winner&&<span style={{color:C.muted,fontSize:13}}>🏆 actual: <b style={{color:C.amber}}>{withFlag(config.tournament_winner)}</b></span>}
+          {config.tournament_winner&&<span style={{color:C.muted,fontSize:13}}>🏆 actual: <b style={{color:C.accent}}>{withFlag(config.tournament_winner)}</b></span>}
         </div>
         <SectionHeader>Group stage — {matches.length} matches</SectionHeader>
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10}}>
@@ -614,7 +614,7 @@ export default function App() {
     return (
       <div>
         <div style={{marginBottom:14}}><RoundPill/></div>
-        <h1 style={{color:C.amber,fontSize:20,marginBottom:12}}>🏆 Leaderboard</h1>
+        <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>🏆 Leaderboard</h1>
         {leaderboard.length===0
           ?<div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>No participants yet.</div>
           :(
@@ -626,16 +626,16 @@ export default function App() {
                 <tbody>
                   {leaderboard.map((row,i)=>{
                     const isMe=row.user_id===user?.id;
-                    const rowBg=i===0?"rgba(245,158,11,0.12)":i===1?"rgba(245,158,11,0.07)":i===2?"rgba(245,158,11,0.03)":"transparent";
+                    const rowBg=i===0?"rgba(163,230,53,0.12)":i===1?"rgba(163,230,53,0.07)":i===2?"rgba(163,230,53,0.03)":"transparent";
                     let winnerCell;
                     if(winnerKnown)winnerCell=row.winner_pick?<>{withFlag(row.winner_pick)}{row.winner_bonus>0&&<span style={{color:C.green}}> +10</span>}</>:"—";
                     else if(user?.is_admin||config.round_state==="closed"||isMe)winnerCell=row.winner_pick?withFlag(row.winner_pick):"—";
                     else winnerCell=<span style={{color:C.muted}}>🔒</span>;
                     return (
-                      <tr key={row.user_id} style={{background:rowBg,boxShadow:isMe?`inset 3px 0 0 ${C.amber}`:"none"}}>
+                      <tr key={row.user_id} style={{background:rowBg,boxShadow:isMe?`inset 3px 0 0 ${C.accent}`:"none"}}>
                         <td style={td}><b>{i+1}</b></td>
                         <td style={td}>{row.name}{isMe&&<span style={{background:C.indigo,color:"white",fontSize:10,padding:"1px 5px",borderRadius:4,marginLeft:6}}>you</span>}</td>
-                        <td style={{...td,textAlign:"center",color:C.amber,fontWeight:700,fontFamily:"monospace"}}>{row.total}</td>
+                        <td style={{...td,textAlign:"center",color:C.accent,fontWeight:700,fontFamily:"monospace"}}>{row.total}</td>
                         <td style={td}>{winnerCell}</td>
                       </tr>
                     );
@@ -667,14 +667,14 @@ export default function App() {
     return (
       <div>
         <div style={{marginBottom:14}}><RoundPill/></div>
-        <h1 style={{color:C.amber,fontSize:20,marginBottom:12}}>Bets by participant</h1>
+        <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>Bets by participant</h1>
         {/* ParticipantPicker */}
         <div style={{marginBottom:16}}>
           <ParticipantPicker entries={leaderboard} value={viewUserId} onChange={setViewUserId}/>
         </div>
         {selected&&(
           <div style={{textAlign:"right",padding:"8px 12px",background:C.panel2,borderRadius:6,marginBottom:12,fontSize:14,color:C.text}}>
-            <b>{selected.name}:</b> <span style={{color:C.amber,fontWeight:700,fontFamily:"monospace"}}>{selected.total}</span> pts
+            <b>{selected.name}:</b> <span style={{color:C.accent,fontWeight:700,fontFamily:"monospace"}}>{selected.total}</span> pts
             &nbsp;·&nbsp;winner: <b>{viewUserWinner?withFlag(viewUserWinner):"—"}</b>
           </div>
         )}
@@ -696,7 +696,7 @@ export default function App() {
     return (
       <div>
         <div style={{marginBottom:14}}><RoundPill/></div>
-        <h1 style={{color:C.amber,fontSize:20,marginBottom:12}}>Enter results</h1>
+        <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>Enter results</h1>
         {config.round_state==="open"&&<InfoBlock warn>💡 Round is still open. Close it first so participants can't edit after seeing scores.</InfoBlock>}
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10}}>
           {matches.map(m=><MatchRow key={m.n} match={m} pred={null} result={results[m.n]??null} editable={false} adminResult={true} roundState={config.round_state} onSave={()=>{}} onResultSave={saveResult}/>)}
@@ -707,22 +707,22 @@ export default function App() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   if(authLoading){
-    return <div className={isDark?"dark":""} style={{background:C.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:C.muted}}>Loading…</div>;
+    return <div data-theme={isDark?"dark":"light"} style={{background:C.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:C.muted}}>Loading…</div>;
   }
   return (
-    <div className={isDark?"dark":""} style={{background:C.bg,minHeight:"100vh",color:C.text,fontFamily:'-apple-system,"Segoe UI",Arial,sans-serif'}}>
+    <div data-theme={isDark?"dark":"light"} style={{background:C.bg,minHeight:"100vh",color:C.text,fontFamily:'var(--c-font-ui)'}}>
       <nav style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 0"}}>
         <div style={{maxWidth:1100,margin:"0 auto",padding:"0 16px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",justifyContent:"space-between"}}>
-          <div style={{fontWeight:800,color:C.amber,fontSize:17}}>⚽ WC 2026 Predictions</div>
+          <div style={{fontFamily:'var(--c-font-display)',fontWeight:400,color:C.accent,fontSize:24,letterSpacing:1}}>MondoBet</div>
           <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
             {tabs.map(t=>(
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{background:tab===t.id?(t.admin?C.red:C.amber):"transparent",color:tab===t.id?"white":(t.admin?C.red:C.text),border:`1px solid ${tab===t.id?(t.admin?C.red:C.amber):C.border}`,padding:"6px 12px",borderRadius:6,cursor:"pointer",fontSize:13,fontWeight:tab===t.id?700:400}}>
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{background:tab===t.id?(t.admin?C.red:C.accent):"transparent",color:tab===t.id?"white":(t.admin?C.red:C.text),border:`1px solid ${tab===t.id?(t.admin?C.red:C.accent):C.border}`,padding:"6px 12px",borderRadius:6,cursor:"pointer",fontSize:13,fontWeight:tab===t.id?700:400}}>
                 {t.label}
               </button>
             ))}
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center",fontSize:13}}>
-            {user&&<span style={{color:C.text}}>Hi <b style={{color:C.amber}}>{user.name}</b>{user.is_admin?" 👑":""}</span>}
+            {user&&<span style={{color:C.text}}>Hi <b style={{color:C.accent}}>{user.name}</b>{user.is_admin?" 👑":""}</span>}
             <button onClick={toggleTheme} title={isDark?"Switch to light mode":"Switch to dark mode"} style={{background:"transparent",border:`1px solid ${C.border}`,color:C.text,padding:"5px 9px",borderRadius:6,cursor:"pointer",fontSize:15,lineHeight:1}}>
               {isDark?"☀️":"🌙"}
             </button>
@@ -753,7 +753,7 @@ export default function App() {
         {user&&tab==="results"&&<AdminResults/>}
       </div>
       {toast&&(
-        <div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",background:toast.kind==="err"?C.red:toast.kind==="warn"?C.amber:C.green,color:toast.kind==="warn"?"#1a1a1a":"white",padding:"8px 16px",borderRadius:6,fontSize:14,zIndex:100,boxShadow:"0 4px 12px rgba(0,0,0,0.2)",whiteSpace:"nowrap"}}>
+        <div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",background:toast.kind==="err"?C.red:toast.kind==="warn"?C.accent:C.green,color:toast.kind==="warn"?"#1a1a1a":"white",padding:"8px 16px",borderRadius:6,fontSize:14,zIndex:100,boxShadow:"0 4px 12px rgba(0,0,0,0.2)",whiteSpace:"nowrap"}}>
           {toast.msg}
         </div>
       )}
