@@ -1063,8 +1063,8 @@ export default function App() {
   }
 
   const tabs=!user?[]:user.is_admin
-    ?[{id:"dashboard",label:"Dashboard",admin:true},{id:"results",label:"Results",admin:true},{id:"leaderboard",label:"Leaderboard"},{id:"byuser",label:"By participant"}]
-    :[{id:"predictions",label:"My predictions"},{id:"leaderboard",label:"Leaderboard"},...(config.round_state==="closed"?[{id:"byuser",label:"Bets by participant"}]:[])];
+    ?[{id:"dashboard",label:"Dashboard",admin:true},{id:"results",label:"Results",admin:true},{id:"leaderboard",label:"Leaderboard"},{id:"byuser",label:"By participant"},{id:"tournament",label:"🏟 Tournament"},{id:"settings",label:"⚙ Settings"}]
+    :[{id:"predictions",label:"My predictions"},{id:"leaderboard",label:"Leaderboard"},...(config.round_state==="closed"?[{id:"byuser",label:"Bets by participant"}]:[]),{id:"tournament",label:"🏟 Tournament"},{id:"settings",label:"⚙ Settings"}];
 
   function RoundPill(){
     const map={
