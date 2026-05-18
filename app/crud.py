@@ -229,3 +229,14 @@ async def finalize_live_match(db: AsyncSession, match_n: int) -> Optional[Result
     await db.delete(lm)
     await db.commit()
     return result
+
+
+async def update_user_profile(db: AsyncSession, user_id: int, name: str) -> Optional[User]:
+    user = await db.get(User, user_id)
+    if not user:
+        return None
+    if name:
+        user.name = name.strip()
+    await db.commit()
+    await db.refresh(user)
+    return user

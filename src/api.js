@@ -60,6 +60,7 @@ export const api = {
   setResult:     (n, d)          => request(`/api/results/${n}`,     { method: "PUT",   body: d }),
   getUsers:      ()              => request("/api/users/"),
   patchUser:     (uid, d)        => request(`/api/users/${uid}`,     { method: "PATCH", body: d }),
+  updateMe:      (d)             => request("/api/users/me",           { method: "PATCH", body: d }),
 };
 
 export const liveApi = {

@@ -110,3 +110,9 @@ class LiveMatchOut(BaseModel):
     score_a: int
     score_b: int
     minute: int
+
+
+# ── User profile update ───────────────────────────────────────────────────────
+
+class UserProfileUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)

@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import crud
 from app.auth import get_current_user, require_admin
 from app.database import get_db
-from app.schemas import UserOut, UserPatch
+from app.schemas import UserOut, UserPatch, UserProfileUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -27,3 +27,16 @@ async def patch_user(
     if not user:
         raise HTTPException(404, "User not found.")
     return user
+
+
+@router.get("/me", response_model=UserOut)
+async def get_me(user=Depends(get_current_user)):
+    return user
+
+
+@router.patch("/me", response_model=UserOut)
+async def update_me(data: UserProfileUpdate, user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    updated = await crud.update_user_profile(db, user.id, data.name)
+    if not updated:
+        raise HTTPException(404, "User not found.")
+    return updated

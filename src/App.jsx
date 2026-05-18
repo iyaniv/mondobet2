@@ -823,6 +823,156 @@ function LiveNowSection({ liveMatches, matches }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SETTINGS VIEW — outside App so form inputs survive App re-renders
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TIMEZONES = [
+  { label:"Auto (browser)", value:"auto" },
+  { label:"UTC",            value:"UTC" },
+  { label:"Israel",         value:"Asia/Jerusalem" },
+  { label:"UK",             value:"Europe/London" },
+  { label:"Paris",          value:"Europe/Paris" },
+  { label:"Athens",         value:"Europe/Athens" },
+  { label:"USA — Eastern",  value:"America/New_York" },
+  { label:"USA — Central",  value:"America/Chicago" },
+  { label:"USA — Mountain", value:"America/Denver" },
+  { label:"USA — Pacific",  value:"America/Los_Angeles" },
+  { label:"Mexico",         value:"America/Mexico_City" },
+  { label:"Toronto",        value:"America/Toronto" },
+  { label:"São Paulo",      value:"America/Sao_Paulo" },
+  { label:"Sydney",         value:"Australia/Sydney" },
+  { label:"Tokyo",          value:"Asia/Tokyo" },
+];
+
+function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast }) {
+  // Profile
+  const [name,    setName]    = useState(user?.name || "");
+  const [saving,  setSaving]  = useState(false);
+
+  // Timezone (localStorage)
+  const [tz, setTz] = useState(() => localStorage.getItem("mb_timezone") || "auto");
+
+  // Rivals (localStorage — array of user IDs)
+  const [rivals, setRivals] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("mb_rivals") || "[]"); }
+    catch { return []; }
+  });
+
+  const participants = leaderboard.filter(e => e.user_id !== user?.id);
+
+  function saveTz(val) {
+    setTz(val);
+    localStorage.setItem("mb_timezone", val);
+    showToast("Timezone saved");
+  }
+
+  function toggleRival(uid) {
+    const next = rivals.includes(uid) ? rivals.filter(r=>r!==uid) : [...rivals, uid];
+    setRivals(next);
+    localStorage.setItem("mb_rivals", JSON.stringify(next));
+  }
+
+  async function saveName(e) {
+    e.preventDefault();
+    if (!name.trim() || name.trim() === user?.name) return;
+    setSaving(true);
+    try {
+      const updated = await api.updateMe({ name: name.trim() });
+      onNameUpdate(updated);
+      showToast("Name updated ✓");
+    } catch(err) { showToast(err.message, "err"); }
+    finally { setSaving(false); }
+  }
+
+  const sectionStyle = {
+    background:C.panel, border:`1px solid ${C.border}`, borderRadius:10,
+    padding:"16px 20px", marginBottom:16,
+  };
+  const labelStyle = { fontSize:12, color:C.muted, fontWeight:600, marginBottom:6, display:"block", textTransform:"uppercase", letterSpacing:"0.05em" };
+
+  return (
+    <div style={{maxWidth:520}}>
+      <h1 style={{fontFamily:"var(--c-font-display)",fontSize:26,color:C.accent,letterSpacing:1,marginBottom:20}}>
+        Settings
+      </h1>
+
+      {/* Profile */}
+      <div style={sectionStyle}>
+        <h2 style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:14}}>Profile</h2>
+        <form onSubmit={saveName}>
+          <label style={labelStyle}>Display name</label>
+          <div style={{display:"flex",gap:8,marginBottom:12}}>
+            <input value={name} onChange={e=>setName(e.target.value)}
+              style={{...inputStyle,marginBottom:0,flex:1}}
+              placeholder="Your name"/>
+            <Btn disabled={saving||!name.trim()||name.trim()===user?.name}>
+              {saving?"…":"Save"}
+            </Btn>
+          </div>
+        </form>
+        <label style={labelStyle}>Email</label>
+        <div style={{fontSize:14,color:C.muted,padding:"8px 10px",background:C.panel2,borderRadius:6}}>
+          {user?.email}
+        </div>
+      </div>
+
+      {/* Timezone */}
+      <div style={sectionStyle}>
+        <h2 style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:14}}>Timezone</h2>
+        <label style={labelStyle}>Match times shown in</label>
+        <select value={tz} onChange={e=>saveTz(e.target.value)}
+          style={{...inputStyle,marginBottom:0,cursor:"pointer"}}>
+          {TIMEZONES.map(t=>(
+            <option key={t.value} value={t.value}>{t.label}</option>
+          ))}
+        </select>
+        <p style={{fontSize:12,color:C.muted,marginTop:8}}>
+          Affects kickoff times in the Tournament tab.
+        </p>
+      </div>
+
+      {/* Rivals — participants only */}
+      {!user?.is_admin && (
+        <div style={sectionStyle}>
+          <h2 style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:4}}>My rivals</h2>
+          <p style={{fontSize:13,color:C.muted,marginBottom:12}}>
+            Rivals are highlighted with a ★ badge in the leaderboard.
+          </p>
+          {participants.length === 0
+            ? <p style={{fontSize:13,color:C.muted}}>No other participants yet.</p>
+            : participants.map(p => {
+              const isRival = rivals.includes(p.user_id);
+              return (
+                <div key={p.user_id} onClick={()=>toggleRival(p.user_id)}
+                  style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",
+                    borderRadius:8,cursor:"pointer",marginBottom:4,
+                    background:isRival?"rgba(163,230,53,0.07)":C.panel2,
+                    border:`1px solid ${isRival?C.accent:C.border}`,
+                    transition:"all .15s"}}>
+                  <span style={{fontSize:16}}>{isRival?"★":"☆"}</span>
+                  <div style={{flex:1}}>
+                    <span style={{fontSize:13,color:C.text,fontWeight:isRival?600:400}}>{p.name}</span>
+                    <span style={{fontSize:11,color:C.muted,marginLeft:8}}>{p.total} pts</span>
+                  </div>
+                  {isRival&&<span style={{fontSize:11,color:C.accent,fontWeight:600}}>RIVAL</span>}
+                </div>
+              );
+            })
+          }
+        </div>
+      )}
+
+      {/* Account */}
+      <div style={sectionStyle}>
+        <h2 style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:14}}>Account</h2>
+        <Btn red onClick={onLogout}>Log out</Btn>
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN APP
 // ─────────────────────────────────────────────────────────────────────────────
@@ -963,6 +1113,7 @@ export default function App() {
   // ── Leaderboard ───────────────────────────────────────────────────────────
   function LeaderboardView(){
     const winnerKnown=!!config.tournament_winner;
+    const myRivals = (() => { try { return JSON.parse(localStorage.getItem("mb_rivals")||"[]"); } catch { return []; } })();
     return (
       <div>
         <LiveNowSection liveMatches={liveMatches} matches={matches}/>
@@ -979,7 +1130,8 @@ export default function App() {
                 <tbody>
                   {leaderboard.map((row,i)=>{
                     const isMe=row.user_id===user?.id;
-                    const rowBg=i===0?"rgba(163,230,53,0.12)":i===1?"rgba(163,230,53,0.07)":i===2?"rgba(163,230,53,0.03)":"transparent";
+                    const isRival=!isMe&&myRivals.includes(row.user_id);
+                    const rowBg=i===0?"rgba(163,230,53,0.12)":i===1?"rgba(163,230,53,0.07)":i===2?"rgba(163,230,53,0.03)":isRival?"rgba(163,230,53,0.05)":"transparent";
                     // Everyone sees all winner picks — no lock
                     let winnerCell;
                     if(winnerKnown)winnerCell=row.winner_pick?<>{withFlag(row.winner_pick)}{row.winner_bonus>0&&<span style={{color:C.green}}> +10</span>}</>:"—";
@@ -987,10 +1139,13 @@ export default function App() {
                     return (
                       <tr key={row.user_id} style={{
                         background:rowBg,
-                        borderLeft: isMe ? `3px solid ${C.accent}` : "3px solid transparent",
+                        borderLeft: isMe ? `3px solid ${C.accent}` : isRival ? `3px solid ${C.accent}` : "3px solid transparent",
                       }}>
                         <td style={td}><b>{i+1}</b></td>
-                        <td style={td}>{row.name}{isMe&&<span style={{background:C.indigo,color:"white",fontSize:10,padding:"1px 5px",borderRadius:4,marginLeft:6}}>you</span>}</td>
+                        <td style={td}>{row.name}
+                          {isMe&&<span style={{background:C.indigo,color:"white",fontSize:10,padding:"1px 5px",borderRadius:4,marginLeft:6}}>YOU</span>}
+                          {isRival&&!isMe&&<span style={{background:"transparent",border:`1px solid ${C.accent}`,color:C.accent,fontSize:10,padding:"1px 5px",borderRadius:4,marginLeft:6}}>★ RIVAL</span>}
+                        </td>
                         <td style={{...td,textAlign:"center",color:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:17}}>{row.total}</td>
                         <td style={td}>{winnerCell}</td>
                       </tr>
@@ -1146,6 +1301,7 @@ export default function App() {
         )}
         {user&&tab==="results"&&<AdminResults/>}
         {user&&tab==="tournament"&&<Tournament matches={matches} results={results} liveMatches={liveMatches} myPreds={myPreds} config={config} user={user}/>}
+        {user&&tab==="settings"&&<SettingsView user={user} leaderboard={leaderboard} onLogout={doLogout} onNameUpdate={u=>{setUser(u);showToast("Name updated ✓");}} showToast={showToast}/>}
       </div>
       {toast&&(
         <div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",background:toast.kind==="err"?C.red:toast.kind==="warn"?C.accent:C.green,color:toast.kind==="warn"?"#1a1a1a":"white",padding:"8px 16px",borderRadius:6,fontSize:14,zIndex:100,boxShadow:"0 4px 12px rgba(0,0,0,0.2)",whiteSpace:"nowrap"}}>
