@@ -294,12 +294,23 @@ function MatchRow({ match, pred, result, editable, adminResult, roundState, onSa
     ptsEl=<span style={{color:C.muted,fontSize:11}}>awaiting</span>;
   }
 
+  // Winner / loser highlight — used for team name colours
+  let winnerSide = null; // 0 = A wins, 1 = B wins, null = draw or no result
+  if (result) {
+    if (result[0] > result[1]) winnerSide = 0;
+    else if (result[1] > result[0]) winnerSide = 1;
+  }
   const rowBg=(!editable&&!adminResult)?C.panel:C.panel2;
   return (
     <div style={{display:"grid",gridTemplateColumns:"28px 26px 1fr 44px 12px 44px 1fr auto",alignItems:"center",gap:5,padding:"5px 8px",borderRadius:6,background:rowBg,border:`1px solid ${C.border}`,marginBottom:3,fontSize:13}}>
       <span style={{color:C.muted,fontSize:11}}>#{match.n}</span>
       <span style={{background:C.border,color:C.text,padding:"1px 5px",borderRadius:4,fontSize:11,textAlign:"center"}}>{match.g}</span>
-      <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12}}>{flag(match.a)} {match.a}</span>
+      <span style={{
+        overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12,
+        color: winnerSide===0?C.accent:winnerSide===1?C.muted:C.text,
+        fontWeight: winnerSide===0?700:400,
+        transition:"color .2s",
+      }}>{flag(match.a)} {match.a}</span>
       {editable?(
         <>
           <input type="number" inputMode="numeric" min={0} max={20} value={localA} onChange={e=>setLocalA(e.target.value)} onBlur={e=>savePred(0,e.target.value)} style={numInput}/>
@@ -317,9 +328,23 @@ function MatchRow({ match, pred, result, editable, adminResult, roundState, onSa
           {pred?.[0]!=null?`${pred[0]} : ${pred[1]}`:"—"}
         </span>
       )}
-      <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:"right",fontSize:12}}>{match.b} {flag(match.b)}</span>
-      <div style={{display:"flex",gap:4,alignItems:"center",justifyContent:"flex-end",minWidth:80}}>
-        {result!=null&&<span style={{background:"#14532d",color:"#d1fae5",padding:"1px 6px",borderRadius:4,fontWeight:700,fontFamily:"monospace",fontSize:12}}>{result[0]}:{result[1]}</span>}
+      <span style={{
+        overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:"right",fontSize:12,
+        color: winnerSide===1?C.accent:winnerSide===0?C.muted:C.text,
+        fontWeight: winnerSide===1?700:400,
+        transition:"color .2s",
+      }}>{match.b} {flag(match.b)}</span>
+      <div style={{display:"flex",gap:4,alignItems:"center",justifyContent:"flex-end",minWidth:96}}>
+        {result!=null
+          ? <span style={{
+              background:"rgba(16,185,129,0.12)",color:C.green,
+              border:"1px solid rgba(16,185,129,0.35)",
+              padding:"1px 7px",borderRadius:4,
+              fontWeight:700,fontFamily:"monospace",fontSize:11,whiteSpace:"nowrap",
+            }}>✓ {result[0]}:{result[1]}</span>
+          : (!editable&&!adminResult&&
+              <span style={{color:C.muted,fontSize:11,fontFamily:"monospace"}}>vs</span>)
+        }
         {ptsEl}
       </div>
     </div>
@@ -493,6 +518,172 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT TAB — group standings + match list (outside App, never remounts)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const GROUPS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+
+function computeGroupStandings(groupLetter, allMatches, results, simPreds={}) {
+  const gm = allMatches.filter(m => m.g === groupLetter);
+  const teams = [...new Set(gm.flatMap(m => [m.a, m.b]))];
+  const s = {};
+  teams.forEach(t => { s[t]={P:0,W:0,D:0,L:0,GF:0,GA:0,GD:0,Pts:0}; });
+  for (const m of gm) {
+    const r = results[m.n] ??
+      (simPreds[m.n]?.[0]!=null && simPreds[m.n]?.[1]!=null ? simPreds[m.n] : null);
+    if (!r) continue;
+    const [ga,gb]=[Number(r[0]),Number(r[1])];
+    const a=s[m.a], b=s[m.b];
+    a.P++;b.P++;
+    a.GF+=ga;a.GA+=gb;a.GD=a.GF-a.GA;
+    b.GF+=gb;b.GA+=ga;b.GD=b.GF-b.GA;
+    if(ga>gb){a.W++;a.Pts+=3;b.L++;}
+    else if(gb>ga){b.W++;b.Pts+=3;a.L++;}
+    else{a.D++;a.Pts++;b.D++;b.Pts++;}
+  }
+  return teams.map(t=>({name:t,...s[t]}))
+    .sort((a,b)=>b.Pts-a.Pts||b.GD-a.GD||b.GF-a.GF||a.name.localeCompare(b.name));
+}
+
+function GroupCard({ group, allMatches, results, simPreds }) {
+  const gm = allMatches.filter(m => m.g === group);
+  const standings = computeGroupStandings(group, allMatches, results, simPreds);
+  const played = gm.filter(m => results[m.n]).length;
+
+  return (
+    <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
+      {/* Header */}
+      <div style={{background:C.panel2,padding:"8px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={{fontFamily:"var(--c-font-display)",fontSize:20,color:C.text,letterSpacing:1}}>
+          Group {group}
+        </span>
+        <span style={{fontSize:11,color:C.muted}}>{played}/{gm.length} played</span>
+      </div>
+
+      {/* Standings */}
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+        <thead>
+          <tr style={{background:C.panel2}}>
+            {["#","Team","P","W","D","L","GF","GA","GD","Pts"].map(h=>(
+              <th key={h} style={{padding:"3px 5px",color:C.muted,fontWeight:600,
+                textAlign:h==="Team"?"left":"center",borderBottom:`1px solid ${C.border}`}}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {standings.map((t,i)=>{
+            const qual = i<2?"advance":i===2?"maybe":"out";
+            const rowBg = qual==="advance"?"rgba(16,185,129,0.07)":qual==="maybe"?"rgba(163,230,53,0.07)":"transparent";
+            const posClr = qual==="advance"?C.green:qual==="maybe"?C.accent:C.muted;
+            return (
+              <tr key={t.name} style={{background:rowBg}}>
+                <td style={{padding:"4px 5px",textAlign:"center",color:posClr,fontWeight:700,fontSize:11}}>{i+1}</td>
+                <td style={{padding:"4px 5px",color:C.text,fontWeight:i<2?600:400,
+                  overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:130}}>
+                  {flag(t.name)} {t.name}
+                </td>
+                {["P","W","D","L","GF","GA","GD","Pts"].map(col=>(
+                  <td key={col} style={{padding:"4px 5px",textAlign:"center",fontFamily:"monospace",
+                    fontWeight:col==="Pts"?700:400,
+                    color:col==="Pts"?C.accent:col==="GD"&&t.GD>0?C.green:col==="GD"&&t.GD<0?C.red:C.text,
+                  }}>{t[col]}</td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div style={{display:"flex",gap:12,padding:"4px 8px 6px",fontSize:10}}>
+        <span style={{color:C.green}}>● advance</span>
+        <span style={{color:C.accent}}>● may advance</span>
+      </div>
+
+      {/* Match list */}
+      <div style={{borderTop:`1px solid ${C.border}`}}>
+        {gm.map(m=>{
+          const res = results[m.n];
+          const sim = !res && simPreds[m.n]?.[0]!=null ? simPreds[m.n] : null;
+          const eff = res||sim;
+          const isSim = !res&&!!sim;
+          const winA = eff ? (eff[0]>eff[1]?true:eff[1]>eff[0]?false:null) : null;
+          return (
+            <div key={m.n} style={{
+              display:"grid",gridTemplateColumns:"1fr 58px 1fr",
+              alignItems:"center",gap:4,padding:"4px 10px",
+              borderBottom:`1px solid ${C.border}`,opacity:isSim?0.75:1,
+            }}>
+              <span style={{fontSize:11,textAlign:"right",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
+                color:winA===true?C.accent:winA===false?C.muted:C.text,fontWeight:winA===true?700:400}}>
+                {m.a} {flag(m.a)}
+              </span>
+              <span style={{fontSize:11,fontFamily:"monospace",fontWeight:700,textAlign:"center",
+                color:eff?C.green:C.muted,
+                background:eff?"rgba(16,185,129,0.10)":"transparent",
+                border:eff?"1px solid rgba(16,185,129,0.25)":"1px solid transparent",
+                padding:"1px 4px",borderRadius:4,
+              }}>
+                {eff ? `${isSim?"~":""}${eff[0]}:${eff[1]}` : "vs"}
+              </span>
+              <span style={{fontSize:11,textAlign:"left",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
+                color:winA===false?C.accent:winA===true?C.muted:C.text,fontWeight:winA===false?700:400}}>
+                {flag(m.b)} {m.b}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function Tournament({ matches, results, myPreds, config, user }) {
+  const useSim = config.round_state==="open" && !user?.is_admin;
+  const simPreds = useSim ? myPreds : {};
+  const played = Object.keys(results).length;
+  const simFilled = useSim
+    ? Object.keys(myPreds).filter(n=>!results[n]&&myPreds[n]?.[0]!=null&&myPreds[n]?.[1]!=null).length
+    : 0;
+
+  return (
+    <div>
+      {/* Stage banner */}
+      <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,
+        padding:"10px 16px",marginBottom:16,display:"flex",alignItems:"center",
+        justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontFamily:"var(--c-font-display)",fontSize:20,color:C.accent,letterSpacing:1}}>
+            GROUP STAGE
+          </span>
+          <span style={{fontSize:11,padding:"2px 8px",borderRadius:999,fontWeight:600,
+            background:"rgba(16,185,129,0.15)",color:C.green,border:"1px solid rgba(16,185,129,0.3)"}}>
+            LIVE · updates with every result
+          </span>
+        </div>
+        <div style={{fontSize:13,color:C.muted}}>
+          <b style={{color:C.text}}>{played}</b> / {matches.length} played
+          {simFilled>0&&<> · <b style={{color:C.accent}}>{simFilled}</b> from your predictions</>}
+        </div>
+      </div>
+
+      {useSim&&simFilled>0&&(
+        <div style={{background:"var(--c-accent-soft)",border:`1px solid ${C.accent}`,
+          borderRadius:6,padding:"7px 14px",marginBottom:14,fontSize:13,color:C.accent}}>
+          ✨ Standings include your predictions for unplayed matches
+        </div>
+      )}
+
+      {/* 12 group cards */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14}}>
+        {GROUPS.map(g=>(
+          <GroupCard key={g} group={g} allMatches={matches} results={results} simPreds={simPreds}/>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN APP
 // ─────────────────────────────────────────────────────────────────────────────
@@ -627,15 +818,18 @@ export default function App() {
                   {leaderboard.map((row,i)=>{
                     const isMe=row.user_id===user?.id;
                     const rowBg=i===0?"rgba(163,230,53,0.12)":i===1?"rgba(163,230,53,0.07)":i===2?"rgba(163,230,53,0.03)":"transparent";
+                    // Everyone sees all winner picks — no lock
                     let winnerCell;
                     if(winnerKnown)winnerCell=row.winner_pick?<>{withFlag(row.winner_pick)}{row.winner_bonus>0&&<span style={{color:C.green}}> +10</span>}</>:"—";
-                    else if(user?.is_admin||config.round_state==="closed"||isMe)winnerCell=row.winner_pick?withFlag(row.winner_pick):"—";
-                    else winnerCell=<span style={{color:C.muted}}>🔒</span>;
+                    else winnerCell=row.winner_pick?withFlag(row.winner_pick):"—";
                     return (
-                      <tr key={row.user_id} style={{background:rowBg,boxShadow:isMe?`inset 3px 0 0 ${C.accent}`:"none"}}>
+                      <tr key={row.user_id} style={{
+                        background:rowBg,
+                        borderLeft: isMe ? `3px solid ${C.accent}` : "3px solid transparent",
+                      }}>
                         <td style={td}><b>{i+1}</b></td>
                         <td style={td}>{row.name}{isMe&&<span style={{background:C.indigo,color:"white",fontSize:10,padding:"1px 5px",borderRadius:4,marginLeft:6}}>you</span>}</td>
-                        <td style={{...td,textAlign:"center",color:C.accent,fontWeight:700,fontFamily:"monospace"}}>{row.total}</td>
+                        <td style={{...td,textAlign:"center",color:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:17}}>{row.total}</td>
                         <td style={td}>{winnerCell}</td>
                       </tr>
                     );
@@ -751,6 +945,7 @@ export default function App() {
           />
         )}
         {user&&tab==="results"&&<AdminResults/>}
+        {user&&tab==="tournament"&&<Tournament matches={matches} results={results} myPreds={myPreds} config={config} user={user}/>}
       </div>
       {toast&&(
         <div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",background:toast.kind==="err"?C.red:toast.kind==="warn"?C.accent:C.green,color:toast.kind==="warn"?"#1a1a1a":"white",padding:"8px 16px",borderRadius:6,fontSize:14,zIndex:100,boxShadow:"0 4px 12px rgba(0,0,0,0.2)",whiteSpace:"nowrap"}}>
