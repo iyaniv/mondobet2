@@ -47,7 +47,7 @@ const td = { padding:"8px 10px", borderBottom:`1px solid ${C.border}` };
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Searchable team picker with flags
-function TeamPicker({ value, onChange, teams, disabled, placeholder="Choose a team…" }) {
+function TeamPicker({ value, onChange, teams, disabled, clearable=false, placeholder="Choose a team…" }) {
   const [open,   setOpen]   = useState(false);
   const [search, setSearch] = useState("");
   const [hov,    setHov]    = useState(null);
@@ -81,6 +81,13 @@ function TeamPicker({ value, onChange, teams, disabled, placeholder="Choose a te
       }}>
         <span style={{ fontSize:20, lineHeight:1, flexShrink:0 }}>{value ? flag(value) : "🏆"}</span>
         <span style={{ flex:1, fontSize:14, color:value?C.text:C.muted }}>{value || placeholder}</span>
+        {clearable && value && (
+          <span
+            onClick={(e) => { e.stopPropagation(); onChange(null); setOpen(false); }}
+            title="Remove winner"
+            style={{ fontSize:14, color:C.muted, padding:"0 4px", cursor:"pointer", lineHeight:1 }}
+          >×</span>
+        )}
         <span style={{ fontSize:10, color:C.muted, transition:"transform .2s", transform:open?"rotate(180deg)":"none" }}>▼</span>
       </button>
 
@@ -415,6 +422,11 @@ export default function App() {
     } catch(e){setGlobalErr(e.message);}
   },[]);
 
+  // Load public config immediately so the round pill is correct on the auth screen
+  useEffect(()=>{
+    api.getConfig().then(cfg=>setConfig(cfg)).catch(()=>{});
+  },[]);
+
   useEffect(()=>{
     if(!getToken()){setAuthLoading(false);return;}
     api.me().then(async u=>{setUser(u);setTab(u.is_admin?"dashboard":"predictions");await loadGameData(u.is_admin,u.id);}).catch(()=>setToken(null)).finally(()=>setAuthLoading(false));
@@ -584,7 +596,7 @@ export default function App() {
         </div>
         <h2 style={{color:C.amber,fontSize:16,margin:"0 0 8px"}}>🏆 Tournament winner</h2>
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap",marginBottom:20,position:"relative",zIndex:10}}>
-          <TeamPicker value={winnerSel} onChange={setWinner} teams={teams} placeholder="— no winner set —"/>
+          <TeamPicker value={winnerSel} onChange={setWinner} teams={teams} clearable placeholder="— no winner set —"/>
           <span style={{color:C.muted,fontSize:12,alignSelf:"center"}}>Awards +10 pts to everyone who picked correctly.</span>
         </div>
         <h2 style={{color:C.amber,fontSize:16,margin:"0 0 8px"}}>Participants ({participants.length})</h2>

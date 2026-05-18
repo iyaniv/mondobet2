@@ -10,7 +10,7 @@ router = APIRouter(prefix="/config", tags=["config"])
 
 
 @router.get("/", response_model=ConfigOut)
-async def get_config(_=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def get_config(db: AsyncSession = Depends(get_db)):
     cfg = await crud.get_config(db)
     return ConfigOut(round_state=cfg.round_state.value, tournament_winner=cfg.tournament_winner)
 

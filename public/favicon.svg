@@ -1,0 +1,26 @@
+<svg width="512" height="512" viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="bc"><circle cx="340" cy="340" r="271"/></clipPath>
+  </defs>
+  <circle cx="340" cy="340" r="271" fill="#f2f2f2" clip-path="url(#bc)"/>
+  <polygon clip-path="url(#bc)" fill="#111827" stroke="#f2f2f2" stroke-width="9" stroke-linejoin="round" points="523,269 534,164 448,102 351,145 340,250 426,312"/>
+  <polygon clip-path="url(#bc)" fill="#111827" stroke="#f2f2f2" stroke-width="9" stroke-linejoin="round" points="463,492 567,470 599,369 529,290 426,312 393,413"/>
+  <polygon clip-path="url(#bc)" fill="#111827" stroke="#f2f2f2" stroke-width="9" stroke-linejoin="round" points="234,504 287,596 393,596 446,504 393,413 287,413"/>
+  <polygon clip-path="url(#bc)" fill="#111827" stroke="#f2f2f2" stroke-width="9" stroke-linejoin="round" points="151,290 81,369 113,470 217,492 287,413 254,312"/>
+  <polygon clip-path="url(#bc)" fill="#111827" stroke="#f2f2f2" stroke-width="9" stroke-linejoin="round" points="329,145 232,102 146,164 157,269 254,312 340,250"/>
+  <g clip-path="url(#bc)" opacity="0.52">
+    <ellipse cx="352" cy="244" rx="34" ry="26" fill="#c8956b"/>
+    <ellipse cx="360" cy="335" rx="32" ry="55" fill="#c8956b"/>
+    <ellipse cx="258" cy="290" rx="26" ry="60" fill="#c8956b"/>
+    <ellipse cx="263" cy="388" rx="21" ry="43" fill="#c8956b"/>
+    <ellipse cx="432" cy="252" rx="50" ry="32" fill="#c8956b"/>
+    <ellipse cx="455" cy="368" rx="26" ry="18" fill="#c8956b"/>
+    <ellipse cx="284" cy="206" rx="19" ry="14" fill="#c8956b"/>
+  </g>
+  <circle cx="340" cy="340" r="278" fill="none" stroke="#0b1018" stroke-width="16"/>
+  <circle cx="492" cy="492" r="92" fill="#9a6e00"/>
+  <circle cx="492" cy="492" r="79" fill="#f5c518"/>
+  <circle cx="492" cy="492" r="64" fill="none" stroke="#a07010" stroke-width="3"/>
+  <text x="492" y="478" text-anchor="middle" font-family="-apple-system,Arial,sans-serif" font-size="25" font-weight="800" fill="#5a3c00" letter-spacing="4">BET</text>
+  <text x="492" y="508" text-anchor="middle" font-family="-apple-system,Arial,sans-serif" font-size="13" fill="#9a6e00">★ ★ ★</text>
+</svg>
