@@ -574,9 +574,26 @@ export default function App() {
 
   // ── Admin Dashboard ───────────────────────────────────────────────────────
   function AdminDashboard(){
-    const [winnerSel,setWinnerSel]=useState(config.tournament_winner||null);
-    async function setRoundState(state){try{const cfg=await api.updateConfig({round_state:state});setConfig(cfg);showToast(state==="open"?"Round opened!":"Round closed.");await refreshLb();}catch(e){showToast(e.message,"err");}}
-    async function setWinner(team){try{const cfg=await api.updateConfig({tournament_winner:team||null});setConfig(cfg);setWinnerSel(team||null);showToast("Winner set!");await refreshLb();}catch(e){showToast(e.message,"err");}}
+    // Drive TeamPicker from App-level config — no local winnerSel state that
+    // resets when AdminDashboard remounts on App re-renders.
+    async function setRoundState(state){
+      try{const cfg=await api.updateConfig({round_state:state});setConfig(cfg);showToast(state==="open"?"Round opened!":"Round closed.");refreshLb();}
+      catch(e){showToast(e.message,"err");}
+    }
+    async function setWinner(team){
+      // Optimistic update — reflect change instantly, don't wait for refreshLb
+      setConfig(c=>({...c,tournament_winner:team||null}));
+      showToast(team?"Winner set! 🏆":"Winner removed");
+      try{
+        const cfg=await api.updateConfig({tournament_winner:team||null});
+        setConfig(cfg);
+        refreshLb(); // fire-and-forget — leaderboard updates in background
+      }catch(e){
+        // Revert
+        setConfig(c=>({...c,tournament_winner:config.tournament_winner}));
+        showToast(e.message,"err");
+      }
+    }
     async function togglePaid(uid,val){try{await api.patchUser(uid,{has_paid:val});setParticipants(p=>p.map(u=>u.id===uid?{...u,has_paid:val}:u));}catch(e){showToast(e.message,"err");}}
     return (
       <div>
@@ -598,7 +615,7 @@ export default function App() {
         </div>
         <h2 style={{color:C.amber,fontSize:16,margin:"0 0 8px"}}>🏆 Tournament winner</h2>
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap",marginBottom:20,position:"relative",zIndex:10}}>
-          <TeamPicker value={winnerSel} onChange={setWinner} teams={teams} clearable placeholder="— no winner set —"/>
+          <TeamPicker value={config.tournament_winner||null} onChange={setWinner} teams={teams} clearable placeholder="— no winner set —"/>
           <span style={{color:C.muted,fontSize:12,alignSelf:"center"}}>Awards +10 pts to everyone who picked correctly.</span>
         </div>
         <h2 style={{color:C.amber,fontSize:16,margin:"0 0 8px"}}>Participants ({participants.length})</h2>
