@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { api, liveApi, setToken, getToken } from "./api";
+import { api, liveApi, initApi, setToken, getToken } from "./api";
 
 const C = {
   bg:"var(--c-bg)", panel:"var(--c-panel)", panel2:"var(--c-panel2)",
@@ -1003,24 +1003,54 @@ export default function App() {
 
   const loadGameData=useCallback(async(isAdmin,userId=null)=>{
     try {
-      const [matchData,cfg,res,lb]=await Promise.all([api.getMatches(),api.getConfig(),api.getResults(),api.getLeaderboard()]);
-      setMatches(matchData.matches);setTeams(matchData.teams);setConfig(cfg);
-      const resMap={};for(const r of res)resMap[r.match_n]=[r.score_a,r.score_b];
-      setResults(resMap);setLeaderboard(lb);
-      if(!isAdmin&&userId){
-        const myEntry=lb.find(e=>e.user_id===userId);
-        if(myEntry)setMyWinner(myEntry.winner_pick||null);
-        const preds=await api.getMyPredictions();
-        const predMap={};for(const p of preds)predMap[p.match_n]=[p.score_a,p.score_b];
-        setMyPreds(predMap);
+      // Single round-trip: /api/init/ returns everything at once
+      const d = await initApi.load();
+
+      // Matches are static — cache in sessionStorage to skip re-fetch
+      if (d.matches) {
+        setMatches(d.matches);
+        setTeams(d.teams);
+        try { sessionStorage.setItem("mb_matches", JSON.stringify({m:d.matches,t:d.teams})); } catch {}
+      } else {
+        try {
+          const cached = JSON.parse(sessionStorage.getItem("mb_matches")||"null");
+          if (cached) { setMatches(cached.m); setTeams(cached.t); }
+        } catch {}
       }
-      if(isAdmin){const users=await api.getUsers();setParticipants(users);}
+
+      setConfig(d.config);
+      const resMap={};for(const r of d.results)resMap[r.match_n]=[r.score_a,r.score_b];
+      setResults(resMap);
+      setLeaderboard(d.leaderboard);
+
+      // Live matches (may not exist yet if table not created)
+      if (d.live) {
+        const liveMap={};for(const m of d.live)liveMap[m.match_n]={score_a:m.score_a,score_b:m.score_b,minute:m.minute};
+        setLiveMatches(liveMap);
+      }
+
+      if(!isAdmin&&userId){
+        const myEntry=d.leaderboard.find(e=>e.user_id===userId);
+        if(myEntry)setMyWinner(myEntry.winner_pick||null);
+        if(d.my_predictions){
+          const predMap={};for(const p of d.my_predictions)predMap[p.match_n]=[p.score_a,p.score_b];
+          setMyPreds(predMap);
+        }
+      }
+      if(isAdmin&&d.users){
+        setParticipants(d.users);
+      }
     } catch(e){setGlobalErr(e.message);}
   },[]);
 
-  // Load public config immediately so the round pill is correct on the auth screen
+  // Pre-load config + cached matches immediately (before auth check)
   useEffect(()=>{
     api.getConfig().then(cfg=>setConfig(cfg)).catch(()=>{});
+    // Restore static matches from sessionStorage for instant render
+    try {
+      const cached = JSON.parse(sessionStorage.getItem("mb_matches")||"null");
+      if (cached && cached.m?.length) { setMatches(cached.m); setTeams(cached.t); }
+    } catch {}
   },[]);
 
   useEffect(()=>{

@@ -69,3 +69,8 @@ export const liveApi = {
   remove:    (n)     => request(`/api/live/${n}`,          { method: "DELETE" }),
   finalize:  (n)     => request(`/api/live/${n}/finalize`, { method: "POST" }),
 };
+
+// Single bootstrap call — replaces 4+ parallel calls with one request
+export const initApi = {
+  load: () => request("/api/init/"),
+};
