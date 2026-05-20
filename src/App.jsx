@@ -1055,13 +1055,13 @@ export default function App() {
 
   useEffect(()=>{
     if(!getToken()){setAuthLoading(false);return;}
-    api.me().then(async u=>{setUser(u);setTab(u.is_admin?"dashboard":"predictions");await loadGameData(u.is_admin,u.id);}).catch(()=>setToken(null)).finally(()=>setAuthLoading(false));
+    api.me().then(u=>{setUser(u);setTab(u.is_admin?"dashboard":"predictions");setAuthLoading(false);loadGameData(u.is_admin,u.id);}).catch(()=>{setToken(null);setAuthLoading(false);});
   },[loadGameData]);
 
   async function doLogin(userData,token){
     setToken(token);setUser(userData);setTab(userData.is_admin?"dashboard":"predictions");
-    await loadGameData(userData.is_admin,userData.id);
     showToast(`Welcome, ${userData.name}!`);
+    loadGameData(userData.is_admin,userData.id); // background — UI already visible
   }
   function doLogout(){setToken(null);setUser(null);setTab("auth");setMyPreds({});setMyWinner(null);setLeaderboard([]);setParticipants([]);}
 
