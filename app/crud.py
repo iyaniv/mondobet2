@@ -162,22 +162,12 @@ async def upsert_result(db: AsyncSession, match_n: int, score_a: Optional[int], 
 # ── Leaderboard ───────────────────────────────────────────────────────────────
 
 async def get_leaderboard(db: AsyncSession) -> list[LeaderboardEntry]:
-    import asyncio
-    from app.database import AsyncSessionLocal
-    # Run the five bulk reads in parallel using separate sessions
-    async def _participants(): 
-        async with AsyncSessionLocal() as s: return await get_participants(s)
-    async def _preds():
-        async with AsyncSessionLocal() as s: return await get_all_predictions(s)
-    async def _results():
-        async with AsyncSessionLocal() as s: return await get_all_results(s)
-    async def _winners():
-        async with AsyncSessionLocal() as s: return await get_all_winner_picks(s)
-    async def _config():
-        async with AsyncSessionLocal() as s: return await get_config(s)
-    participants, all_preds, all_results, all_winners, cfg = await asyncio.gather(
-        _participants(), _preds(), _results(), _winners(), _config()
-    )
+    # Single session — all 5 queries on one warm connection (fast)
+    participants = await get_participants(db)
+    all_preds    = await get_all_predictions(db)
+    all_results  = await get_all_results(db)
+    all_winners  = await get_all_winner_picks(db)
+    cfg          = await get_config(db)
 
     entries: list[LeaderboardEntry] = []
     for user in participants:

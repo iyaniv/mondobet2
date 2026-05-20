@@ -353,7 +353,7 @@ function MatchRow({ match, pred, result, editable, adminResult, roundState, onSa
 
 // AuthView — outside App so form state survives App re-renders
 function AuthView({ roundState, onSuccess }) {
-  const [mode,setMode]=useState("signup");
+  const [mode,setMode]=useState("login");
   const [name,setName]=useState("");
   const [email,setEmail]=useState("");
   const [password,setPassword]=useState("");
@@ -1111,6 +1111,7 @@ export default function App() {
       if(isAdmin&&d.users){
         setParticipants(d.users);
       }
+      setPredsLoaded(true); // always clear loading state
     } catch(e){setGlobalErr(e.message);}
   },[]);
 
