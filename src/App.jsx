@@ -973,6 +973,76 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast }) 
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BY USER — outside App so ParticipantPicker never remounts on App re-renders
+// ─────────────────────────────────────────────────────────────────────────────
+function ByUser({ config, leaderboard, results, liveMatches, matches, user,
+                  viewUserId, setViewUserId, viewUserPreds, setViewUserPreds,
+                  viewUserWinner, setViewUserWinner, showToast }) {
+  const [predsLoading, setPredsLoading] = useState(false);
+
+  // Select first participant once leaderboard arrives
+  useEffect(() => {
+    if (!viewUserId && leaderboard.length > 0) setViewUserId(leaderboard[0].user_id);
+  }, [leaderboard.length]);
+
+  // Fetch preds when selection changes
+  useEffect(() => {
+    if (!viewUserId) return;
+    setPredsLoading(true);
+    api.getUserPredictions(viewUserId)
+      .then(preds => {
+        const m = {}; for (const p of preds) m[p.match_n] = [p.score_a, p.score_b];
+        setViewUserPreds(m);
+        setViewUserWinner(leaderboard.find(e => e.user_id === viewUserId)?.winner_pick || null);
+      })
+      .catch(e => showToast(e.message, "err"))
+      .finally(() => setPredsLoading(false));
+  }, [viewUserId]);
+
+  const pillMap = {
+    open:   {text:"🟢 Betting round is OPEN",  bg:"rgba(16,185,129,0.1)",  color:C.green, border:`1px solid ${C.green}`},
+    closed: {text:"🔒 Betting round is CLOSED",bg:"rgba(239,68,68,0.1)",   color:C.red,   border:`1px solid ${C.red}`},
+    idle:   {text:"⏸️ No betting round yet",   bg:"rgba(148,163,184,0.1)", color:C.muted, border:`1px solid ${C.border}`},
+  };
+  const pill = pillMap[config.round_state] || pillMap.idle;
+
+  if (!user?.is_admin && config.round_state !== "closed")
+    return <InfoBlock warn>Other participants' bets are hidden until the admin closes the betting round.</InfoBlock>;
+
+  const selected = leaderboard.find(e => e.user_id === viewUserId);
+
+  return (
+    <div>
+      <div style={{marginBottom:14}}>
+        <span style={{display:"inline-block",padding:"4px 14px",borderRadius:999,fontSize:13,fontWeight:600,
+          background:pill.bg,color:pill.color,border:pill.border}}>{pill.text}</span>
+      </div>
+      <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>Bets by participant</h1>
+      <div style={{marginBottom:16}}>
+        <ParticipantPicker entries={leaderboard} value={viewUserId} onChange={setViewUserId}/>
+      </div>
+      {selected&&(
+        <div style={{textAlign:"right",padding:"8px 12px",background:C.panel2,borderRadius:6,marginBottom:12,fontSize:14,color:C.text}}>
+          <b>{selected.name}:</b> <span style={{color:C.accent,fontWeight:700,fontFamily:"monospace"}}>{selected.total}</span> pts
+          &nbsp;·&nbsp;winner: <b>{viewUserWinner?withFlag(viewUserWinner):"—"}</b>
+        </div>
+      )}
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10,
+        opacity:predsLoading?0.5:1,transition:"opacity .25s"}}>
+        {predsLoading&&<div style={{textAlign:"center",padding:16,color:C.muted,fontSize:13}}>Loading predictions…</div>}
+        {matches.map(m=>(
+          <MatchRow key={m.n} match={m}
+            pred={viewUserPreds[m.n]??null} result={results[m.n]??null}
+            editable={false} adminResult={false} roundState={config.round_state}
+            onSave={()=>{}} onResultSave={()=>{}}/>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN APP
 // ─────────────────────────────────────────────────────────────────────────────
@@ -995,6 +1065,7 @@ export default function App() {
   const [viewUserPreds,setViewUserPreds]=useState({});
   const [viewUserWinner,setViewUserWinner]=useState(null);
   const [liveMatches,setLiveMatches]=useState({});
+  const [predsLoaded,setPredsLoaded]=useState(false);
   const [toast,setToast]=useState(null);
   const [globalErr,setGlobalErr]=useState("");
   const toastTimer=useRef(null);
@@ -1134,7 +1205,12 @@ export default function App() {
           {config.tournament_winner&&<span style={{color:C.muted,fontSize:13}}>🏆 actual: <b style={{color:C.accent}}>{withFlag(config.tournament_winner)}</b></span>}
         </div>
         <SectionHeader>Group stage — {matches.length} matches</SectionHeader>
-        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10}}>
+        {!predsLoaded&&config.round_state==="open"&&(
+          <div style={{textAlign:"center",padding:"10px",color:C.muted,fontSize:13,marginBottom:8}}>
+            Loading your predictions…
+          </div>
+        )}
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10,opacity:!predsLoaded&&config.round_state==="open"?0.6:1,transition:"opacity .3s"}}>
           {matches.map(m=><MatchRow key={m.n} match={m} pred={myPreds[m.n]??null} result={results[m.n]??null} editable={editable} adminResult={false} roundState={config.round_state} onSave={savePred} onResultSave={()=>{}}/>)}
         </div>
       </div>
@@ -1191,41 +1267,7 @@ export default function App() {
   }
 
   // ── By User ───────────────────────────────────────────────────────────────
-  function ByUser(){
-    useEffect(()=>{if(!viewUserId&&leaderboard.length>0)setViewUserId(leaderboard[0].user_id);},[]);
-    useEffect(()=>{
-      if(!viewUserId)return;
-      api.getUserPredictions(viewUserId).then(preds=>{
-        const m={};for(const p of preds)m[p.match_n]=[p.score_a,p.score_b];
-        setViewUserPreds(m);
-        setViewUserWinner(leaderboard.find(e=>e.user_id===viewUserId)?.winner_pick||null);
-      }).catch(e=>showToast(e.message,"err"));
-    },[viewUserId]);
-
-    if(!user?.is_admin&&config.round_state!=="closed")
-      return <InfoBlock warn>Other participants' bets are hidden until the admin closes the betting round.</InfoBlock>;
-
-    const selected=leaderboard.find(e=>e.user_id===viewUserId);
-    return (
-      <div>
-        <div style={{marginBottom:14}}><RoundPill/></div>
-        <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>Bets by participant</h1>
-        {/* ParticipantPicker */}
-        <div style={{marginBottom:16}}>
-          <ParticipantPicker entries={leaderboard} value={viewUserId} onChange={setViewUserId}/>
-        </div>
-        {selected&&(
-          <div style={{textAlign:"right",padding:"8px 12px",background:C.panel2,borderRadius:6,marginBottom:12,fontSize:14,color:C.text}}>
-            <b>{selected.name}:</b> <span style={{color:C.accent,fontWeight:700,fontFamily:"monospace"}}>{selected.total}</span> pts
-            &nbsp;·&nbsp;winner: <b>{viewUserWinner?withFlag(viewUserWinner):"—"}</b>
-          </div>
-        )}
-        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10}}>
-          {matches.map(m=><MatchRow key={m.n} match={m} pred={viewUserPreds[m.n]??null} result={results[m.n]??null} editable={false} adminResult={false} roundState={config.round_state} onSave={()=>{}} onResultSave={()=>{}}/>)}
-        </div>
-      </div>
-    );
-  }
+  // ByUser moved outside App — see module-level definition above
 
   // ── Admin Results ─────────────────────────────────────────────────────────
   function AdminResults(){
@@ -1320,7 +1362,16 @@ export default function App() {
         {!user&&<AuthView roundState={config.round_state} onSuccess={doLogin}/>}
         {user&&tab==="predictions"&&<MyPredictions/>}
         {user&&tab==="leaderboard"&&<LeaderboardView/>}
-        {user&&tab==="byuser"&&<ByUser/>}
+        {user&&tab==="byuser"&&(
+          <ByUser
+            config={config} leaderboard={leaderboard} results={results}
+            liveMatches={liveMatches} matches={matches} user={user}
+            viewUserId={viewUserId} setViewUserId={setViewUserId}
+            viewUserPreds={viewUserPreds} setViewUserPreds={setViewUserPreds}
+            viewUserWinner={viewUserWinner} setViewUserWinner={setViewUserWinner}
+            showToast={showToast}
+          />
+        )}
         {user&&tab==="dashboard"&&(
           <AdminDashboard
             config={config} setConfig={setConfig}
