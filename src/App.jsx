@@ -1184,7 +1184,18 @@ export default function App() {
     const editable=config.round_state==="open";
     const myEntry=leaderboard.find(e=>e.user_id===user?.id);
     async function savePred(matchN,data){await api.setPrediction(matchN,data);setMyPreds(p=>({...p,[matchN]:[data.score_a,data.score_b]}));showToast("Saved ✓");}
-    async function saveWinner(team){try{await api.setWinnerPick({team:team||null});setMyWinner(team||null);showToast("Winner pick saved ✓");await refreshLb();}catch(e){showToast(e.message,"err");}}
+    async function saveWinner(team){
+      const prev=myWinner;
+      setMyWinner(team||null);
+      try{
+        await api.setWinnerPick({team:team||null});
+        showToast("Winner pick saved ✓");
+        refreshLb();
+      }catch(e){
+        setMyWinner(prev);
+        showToast(e.message,"err");
+      }
+    }
     return (
       <div>
         <div style={{marginBottom:14}}><RoundPill/></div>
