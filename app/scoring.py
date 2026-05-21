@@ -8,10 +8,12 @@ Scoring logic — direct port of matchScore() and userTotals() from wc2026-demo.
     partial (one side correct)         →  +1 pt
     maximum per match                  →  8 pts
 
-  userTotals:
-    sum of matchScore over all settled matches
+  user_totals:
+    sum of matchScore over all effective results (finals + live in-play)
     +10 if winner pick == tournament winner
+    returns live_points / live_matches_count so the UI can show a LIVE pill
 """
+from typing import Optional
 
 
 def _sign(x: int) -> int:
@@ -19,8 +21,8 @@ def _sign(x: int) -> int:
 
 
 def match_score(
-    pred: list[int | None] | None,
-    real: list[int | None] | None,
+    pred: list,
+    real: list,
 ) -> dict:
     """Return {dir, exact, total} for one match."""
     if (
@@ -44,18 +46,30 @@ def match_score(
 
 
 def user_totals(
-    predictions: dict[int, list[int | None]],   # {match_n: [a, b]}
-    results: dict[int, list[int]],               # {match_n: [a, b]}
-    winner_pick: str | None,
-    tournament_winner: str | None,
+    predictions: dict,                    # {match_n: [a, b]}
+    results: dict,                         # {match_n: [a, b]} — finalized
+    winner_pick: Optional[str],
+    tournament_winner: Optional[str],
+    live_matches: Optional[dict] = None,   # {match_n: {score_a, score_b}} — in-play
 ) -> dict:
-    """Return aggregate scoring stats for one user."""
+    """Return aggregate scoring stats for one entry, live-aware."""
     total = 0
     exact_count = 0
     correct_dir = 0
     scored_matches = 0
+    live_points = 0
+    live_matches_count = 0
 
-    for match_n, real in results.items():
+    # Build effective results: finals take precedence over live
+    effective = {}  # match_n -> ([a, b], is_live)
+    for n, r in results.items():
+        effective[n] = (r, False)
+    if live_matches:
+        for n, ld in live_matches.items():
+            if n not in effective:
+                effective[n] = ([ld["score_a"], ld["score_b"]], True)
+
+    for match_n, (real, is_live) in effective.items():
         pred = predictions.get(match_n)
         s = match_score(pred, real)
         total += s["total"]
@@ -65,6 +79,9 @@ def user_totals(
             correct_dir += 1
         if s["total"] > 0 or (pred and pred[0] is not None):
             scored_matches += 1
+        if is_live:
+            live_points += s["total"]
+            live_matches_count += 1
 
     winner_bonus = 10 if (tournament_winner and winner_pick == tournament_winner) else 0
 
@@ -75,4 +92,6 @@ def user_totals(
         "scored_matches": scored_matches,
         "winner_pick": winner_pick,
         "winner_bonus": winner_bonus,
+        "live_points": live_points,
+        "live_matches_count": live_matches_count,
     }

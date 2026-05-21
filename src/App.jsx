@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { api, liveApi, initApi, setToken, getToken } from "./api";
 
 const C = {
@@ -158,11 +158,9 @@ function ParticipantItem({ entry, rank, selected, onClick }) {
         cursor:"pointer", background:bg, transition:"background .1s",
         borderBottom:`1px solid ${C.border}`,
       }}>
-      {/* Rank */}
       <span style={{ width:20, textAlign:"center", fontSize:rankIcon?15:11, flexShrink:0, color:C.muted }}>
         {rankIcon || rank}
       </span>
-      {/* Avatar */}
       <div style={{
         width:30, height:30, borderRadius:"50%", flexShrink:0,
         display:"flex", alignItems:"center", justifyContent:"center",
@@ -172,11 +170,9 @@ function ParticipantItem({ entry, rank, selected, onClick }) {
       }}>
         {initials(entry.name)}
       </div>
-      {/* Name */}
       <span style={{ flex:1, fontSize:13, color:selected?C.accent:C.text, fontWeight:selected?600:400 }}>
         {entry.name}
       </span>
-      {/* Points */}
       <span style={{ fontSize:12, fontFamily:"monospace", fontWeight:700, color:C.accent, flexShrink:0 }}>
         {entry.total} pts
       </span>
@@ -185,14 +181,13 @@ function ParticipantItem({ entry, rank, selected, onClick }) {
   );
 }
 
-// Searchable participant picker with avatars, ranks, and points
+// Searchable participant picker — keyed by entry_id (one row per submitted entry)
 function ParticipantPicker({ entries, value, onChange }) {
   const [search, setSearch] = useState("");
   const filtered = entries.filter(e => e.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div style={{ border:`1px solid ${C.border}`, borderRadius:10, overflow:"hidden", background:C.panel }}>
-      {/* Search */}
       <div style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", borderBottom:`1px solid ${C.border}` }}>
         <span style={{ color:C.muted, fontSize:13, flexShrink:0 }}>🔍</span>
         <input value={search} onChange={e=>setSearch(e.target.value)}
@@ -202,16 +197,15 @@ function ParticipantPicker({ entries, value, onChange }) {
           <button onClick={()=>setSearch("")} style={{ background:"none", border:0, color:C.muted, cursor:"pointer", fontSize:13, padding:0 }}>✕</button>
         )}
       </div>
-      {/* List */}
       <div style={{ maxHeight:280, overflowY:"auto" }}>
         {filtered.length === 0
           ? <div style={{ padding:16, textAlign:"center", color:C.muted, fontSize:13 }}>No participants found</div>
-          : filtered.map((e, i) => (
-            <ParticipantItem key={e.user_id}
+          : filtered.map((e) => (
+            <ParticipantItem key={e.entry_id}
               entry={e}
               rank={entries.indexOf(e) + 1}
-              selected={value === e.user_id}
-              onClick={()=>onChange(e.user_id)}/>
+              selected={value === e.entry_id}
+              onClick={()=>onChange(e.entry_id)}/>
           ))
         }
       </div>
@@ -408,7 +402,15 @@ function AuthView({ roundState, onSuccess }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // ADMIN DASHBOARD — outside App so TeamPicker never remounts on App re-renders
 // ─────────────────────────────────────────────────────────────────────────────
-function AdminDashboard({ config, setConfig, matches, teams, results, participants, setParticipants, leaderboard, showToast, refreshLb }) {
+function AdminDashboard({ config, setConfig, matches, teams, results, participants, setParticipants, adminParticipants, setAdminParticipants, leaderboard, showToast, refreshLb }) {
+  const [expandedUsers,setExpandedUsers]=useState(new Set());
+
+  function toggleExpand(uid){
+    setExpandedUsers(s=>{const n=new Set(s);if(n.has(uid))n.delete(uid);else n.add(uid);return n;});
+  }
+  const tableData=adminParticipants.length>0?adminParticipants:null;
+  const statData=tableData||participants;
+  const allExpanded=tableData&&tableData.length>0&&expandedUsers.size===tableData.length;
 
   async function setRoundState(state) {
     try {
@@ -437,6 +439,7 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
     try {
       await api.patchUser(uid, {has_paid: val});
       setParticipants(p => p.map(u => u.id===uid ? {...u, has_paid: val} : u));
+      setAdminParticipants(p => p.map(u => u.id===uid ? {...u, has_paid: val} : u));
     } catch(e) { showToast(e.message, "err"); }
   }
 
@@ -455,9 +458,9 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginBottom:20}}>
         {[
-          {label:"Participants",    value:participants.length,                                          color:C.accent},
-          {label:"Paid",            value:`${participants.filter(u=>u.has_paid).length} / ${participants.length}`, color:C.green},
-          {label:"Results entered", value:`${Object.keys(results).length} / ${matches.length}`,         color:C.accent},
+          {label:"Participants",    value:statData.length,                                                       color:C.accent},
+          {label:"Paid",            value:`${statData.filter(u=>u.has_paid).length} / ${statData.length}`,       color:C.green},
+          {label:"Results entered", value:`${Object.keys(results).length} / ${matches.length}`,                  color:C.accent},
         ].map(s=>(
           <div key={s.label} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14}}>
             <div style={{color:C.muted,fontSize:12,marginBottom:4}}>{s.label}</div>
@@ -488,29 +491,82 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
         <span style={{color:C.muted,fontSize:12,alignSelf:"center"}}>Awards +10 pts to everyone who picked correctly.</span>
       </div>
 
-      <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>Participants ({participants.length})</h2>
+      <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>Participants ({statData.length})</h2>
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflowX:"auto"}}>
+        {tableData&&(
+          <div style={{display:"flex",justifyContent:"flex-end",padding:"6px 10px",borderBottom:`1px solid ${C.border}`}}>
+            <button onClick={()=>allExpanded?setExpandedUsers(new Set()):setExpandedUsers(new Set(tableData.map(p=>p.id)))}
+              style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,padding:"3px 10px",borderRadius:4,cursor:"pointer",fontSize:12}}>
+              {allExpanded?"Collapse all":"Expand all"}
+            </button>
+          </div>
+        )}
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead><tr style={{background:C.panel2}}>
-            {["Name","Email","Points","Winner pick","Paid"].map(h=>(
+            {(tableData?["","Name","Email","Best pts","Forms","Paid"]:["Name","Email","Points","Winner pick","Paid"]).map(h=>(
               <th key={h} style={{padding:"8px 10px",textAlign:"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>
             ))}
           </tr></thead>
           <tbody>
-            {participants.length===0
-              ? <tr><td colSpan={5} style={{padding:24,textAlign:"center",color:C.muted}}>No participants yet</td></tr>
-              : participants.map(u => {
-                const entry=leaderboard.find(e=>e.user_id===u.id);
-                return (
-                  <tr key={u.id}>
-                    <td style={td}>{u.name}</td>
-                    <td style={{...td,color:C.muted,fontFamily:"monospace",fontSize:12}}>{u.email}</td>
-                    <td style={{...td,color:C.accent,fontWeight:700,fontFamily:"monospace"}}>{entry?.total??0}</td>
-                    <td style={td}>{entry?.winner_pick?withFlag(entry.winner_pick):"—"}</td>
-                    <td style={td}><input type="checkbox" checked={u.has_paid} onChange={e=>togglePaid(u.id,e.target.checked)}/></td>
-                  </tr>
-                );
-              })}
+            {tableData
+              ? tableData.length===0
+                ? <tr><td colSpan={6} style={{padding:24,textAlign:"center",color:C.muted}}>No participants yet</td></tr>
+                : tableData.map(u=>{
+                  const expanded=expandedUsers.has(u.id);
+                  const uEntries=u.entries||[];
+                  return (
+                    <Fragment key={u.id}>
+                      <tr onClick={()=>uEntries.length>0&&toggleExpand(u.id)} style={{cursor:uEntries.length>0?"pointer":"default"}}>
+                        <td style={{...td,width:28,paddingRight:0}}>
+                          {uEntries.length>0&&<span style={{display:"inline-block",transition:"transform .2s",transform:expanded?"rotate(90deg)":"none",fontSize:10,color:C.muted}}>▶</span>}
+                        </td>
+                        <td style={td}>{u.name}</td>
+                        <td style={{...td,color:C.muted,fontFamily:"monospace",fontSize:12}}>{u.email}</td>
+                        <td style={{...td,color:C.accent,fontWeight:700,fontFamily:"monospace"}}>{u.best_total??0}</td>
+                        <td style={td}>{u.submitted_count} submitted{u.draft_count>0?` · ${u.draft_count} draft`:""}</td>
+                        <td style={td} onClick={e=>e.stopPropagation()}>
+                          <input type="checkbox" checked={u.has_paid} onChange={e=>togglePaid(u.id,e.target.checked)}/>
+                        </td>
+                      </tr>
+                      {expanded&&uEntries.map(entry=>(
+                        <tr key={entry.id} style={{background:C.bg}}>
+                          <td style={td}/>
+                          <td style={{...td,paddingLeft:28}}>
+                            <span style={{display:"inline-block",padding:"1px 8px",borderRadius:4,fontSize:12,fontWeight:600,background:entry.submitted_at?"rgba(16,185,129,0.1)":"rgba(99,102,241,0.08)",color:entry.submitted_at?C.green:C.indigo,border:`1px solid ${entry.submitted_at?"rgba(16,185,129,0.3)":C.indigo}`}}>
+                              {entry.name}{entry.submitted_at?" ✓":" draft"}
+                            </span>
+                          </td>
+                          <td style={td}><span style={{fontSize:12,color:C.muted}}>{entry.filled}/{entry.total_matches} filled</span></td>
+                          <td style={td}>
+                            {entry.points!=null
+                              ?<span style={{display:"inline-flex",alignItems:"center",gap:4,color:C.accent,fontWeight:700,fontFamily:"monospace"}}>
+                                {entry.points}
+                                {entry.live_points>0&&<span style={{background:"rgba(239,68,68,0.12)",color:C.red,border:"1px solid rgba(239,68,68,0.3)",padding:"1px 5px",borderRadius:4,fontSize:10,fontWeight:700}}>+{entry.live_points} LIVE</span>}
+                              </span>
+                              :"—"}
+                          </td>
+                          <td style={td}>{entry.winner_pick?withFlag(entry.winner_pick):"—"}</td>
+                          <td style={td}/>
+                        </tr>
+                      ))}
+                    </Fragment>
+                  );
+                })
+              : participants.length===0
+                ? <tr><td colSpan={5} style={{padding:24,textAlign:"center",color:C.muted}}>No participants yet</td></tr>
+                : participants.map(u=>{
+                  const entry=leaderboard.find(e=>e.user_id===u.id);
+                  return (
+                    <tr key={u.id}>
+                      <td style={td}>{u.name}</td>
+                      <td style={{...td,color:C.muted,fontFamily:"monospace",fontSize:12}}>{u.email}</td>
+                      <td style={{...td,color:C.accent,fontWeight:700,fontFamily:"monospace"}}>{entry?.total??0}</td>
+                      <td style={td}>{entry?.winner_pick?withFlag(entry.winner_pick):"—"}</td>
+                      <td style={td}><input type="checkbox" checked={u.has_paid} onChange={e=>togglePaid(u.id,e.target.checked)}/></td>
+                    </tr>
+                  );
+                })
+            }
           </tbody>
         </table>
       </div>
@@ -860,7 +916,8 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast }) 
     catch { return []; }
   });
 
-  const participants = leaderboard.filter(e => e.user_id !== user?.id);
+  const seen=new Set();
+  const participants=leaderboard.filter(e=>{if(e.user_id===user?.id||seen.has(e.user_id))return false;seen.add(e.user_id);return true;});
 
   function saveTz(val) {
     setTz(val);
@@ -982,20 +1039,22 @@ function ByUser({ config, leaderboard, results, liveMatches, matches, user,
                   viewUserWinner, setViewUserWinner, showToast }) {
   const [predsLoading, setPredsLoading] = useState(false);
 
-  // Select first participant once leaderboard arrives
+  // Select first entry once leaderboard arrives
   useEffect(() => {
-    if (!viewUserId && leaderboard.length > 0) setViewUserId(leaderboard[0].user_id);
+    if (!viewUserId && leaderboard.length > 0) setViewUserId(leaderboard[0].entry_id||leaderboard[0].user_id);
   }, [leaderboard.length]);
 
   // Fetch preds when selection changes
   useEffect(() => {
     if (!viewUserId) return;
+    const lbEntry = leaderboard.find(e => (e.entry_id||e.user_id) === viewUserId);
+    if (!lbEntry) return;
     setPredsLoading(true);
-    api.getUserPredictions(viewUserId)
+    api.getUserPredictions(lbEntry.user_id, lbEntry.entry_id||null)
       .then(preds => {
         const m = {}; for (const p of preds) m[p.match_n] = [p.score_a, p.score_b];
         setViewUserPreds(m);
-        setViewUserWinner(leaderboard.find(e => e.user_id === viewUserId)?.winner_pick || null);
+        setViewUserWinner(lbEntry.winner_pick || null);
       })
       .catch(e => showToast(e.message, "err"))
       .finally(() => setPredsLoading(false));
@@ -1011,7 +1070,7 @@ function ByUser({ config, leaderboard, results, liveMatches, matches, user,
   if (!user?.is_admin && config.round_state !== "closed")
     return <InfoBlock warn>Other participants' bets are hidden until the admin closes the betting round.</InfoBlock>;
 
-  const selected = leaderboard.find(e => e.user_id === viewUserId);
+  const selected = leaderboard.find(e => (e.entry_id||e.user_id) === viewUserId);
 
   return (
     <div>
@@ -1061,7 +1120,11 @@ export default function App() {
   const [results,setResults]=useState({});
   const [leaderboard,setLeaderboard]=useState([]);
   const [participants,setParticipants]=useState([]);
-  const [viewUserId,setViewUserId]=useState(null);
+  const [adminParticipants,setAdminParticipants]=useState([]);
+  const [entries,setEntries]=useState([]);
+  const [activeEntryId,setActiveEntryId]=useState(null);
+  const [lockedWinner,setLockedWinner]=useState(null);
+  const [viewEntryId,setViewEntryId]=useState(null);
   const [viewUserPreds,setViewUserPreds]=useState({});
   const [viewUserWinner,setViewUserWinner]=useState(null);
   const [liveMatches,setLiveMatches]=useState({});
@@ -1101,14 +1164,25 @@ export default function App() {
       }
 
       if(!isAdmin&&userId){
-        const myEntry=d.leaderboard.find(e=>e.user_id===userId);
-        if(myEntry)setMyWinner(myEntry.winner_pick||null);
-        if(d.my_predictions){
+        if(d.entries&&d.entries.length>0){
+          setEntries(d.entries);
+          setActiveEntryId(id=>id||d.entries[0].id);
+          const first=d.entries[0];
+          const predMap={};for(const p of(first.predictions||[]))predMap[p.match_n]=[p.score_a,p.score_b];
+          setMyPreds(predMap);
+          setMyWinner(first.winner_pick||(d.locked_winner??null));
+        }else if(d.my_predictions){
           const predMap={};for(const p of d.my_predictions)predMap[p.match_n]=[p.score_a,p.score_b];
           setMyPreds(predMap);
+          const myEntry=d.leaderboard.find(e=>e.user_id===userId);
+          if(myEntry)setMyWinner(myEntry.winner_pick||null);
         }
+        if(d.locked_winner!==undefined)setLockedWinner(d.locked_winner);
       }
-      if(isAdmin&&d.users){
+      if(isAdmin&&d.participants){
+        setAdminParticipants(d.participants);
+        setParticipants(d.users||d.participants.map(p=>({id:p.id,name:p.name,email:p.email,has_paid:p.has_paid,is_admin:false})));
+      }else if(isAdmin&&d.users){
         setParticipants(d.users);
       }
       setPredsLoaded(true); // always clear loading state
@@ -1135,7 +1209,7 @@ export default function App() {
     showToast(`Welcome, ${userData.name}!`);
     loadGameData(userData.is_admin,userData.id); // background — UI already visible
   }
-  function doLogout(){setToken(null);setUser(null);setTab("auth");setMyPreds({});setMyWinner(null);setLeaderboard([]);setParticipants([]);}
+  function doLogout(){setToken(null);setUser(null);setTab("auth");setMyPreds({});setMyWinner(null);setLeaderboard([]);setParticipants([]);setEntries([]);setActiveEntryId(null);setLockedWinner(null);setAdminParticipants([]);}
 
   async function refreshLive() {
     try {
@@ -1161,8 +1235,11 @@ export default function App() {
 
   async function refreshLb(){
     const lb=await api.getLeaderboard();setLeaderboard(lb);
-    if(user&&!user.is_admin){const e=lb.find(e=>e.user_id===user.id);if(e)setMyWinner(e.winner_pick||null);}
-    if(user?.is_admin){const u=await api.getUsers();setParticipants(u);}
+    if(user&&!user.is_admin){const e=lb.find(e=>e.user_id===user.id);if(e&&!lockedWinner)setMyWinner(e.winner_pick||null);}
+    if(user?.is_admin){
+      const [u,p]=await Promise.all([api.getUsers(),api.getAdminParticipants()]);
+      setParticipants(u);setAdminParticipants(p);
+    }
   }
 
   const tabs=!user?[]:user.is_admin
@@ -1182,40 +1259,168 @@ export default function App() {
   // ── My Predictions ────────────────────────────────────────────────────────
   function MyPredictions(){
     const editable=config.round_state==="open";
-    const myEntry=leaderboard.find(e=>e.user_id===user?.id);
-    async function savePred(matchN,data){await api.setPrediction(matchN,data);setMyPreds(p=>({...p,[matchN]:[data.score_a,data.score_b]}));showToast("Saved ✓");}
+    const activeEntry=entries.find(e=>e.id===activeEntryId)||entries[0]||null;
+    const filledCount=Object.keys(myPreds).filter(n=>myPreds[n]?.[0]!=null&&myPreds[n]?.[1]!=null).length;
+    const canSubmit=filledCount===matches.length&&(myWinner||lockedWinner)!=null&&!activeEntry?.submitted_at;
+    const [submitting,setSubmitting]=useState(false);
+
+    function switchEntry(entryId){
+      setActiveEntryId(entryId);
+      const entry=entries.find(e=>e.id===entryId);
+      if(entry){
+        const m={};for(const p of(entry.predictions||[]))m[p.match_n]=[p.score_a,p.score_b];
+        setMyPreds(m);
+        setMyWinner(entry.winner_pick||(lockedWinner??null));
+      }
+    }
+
+    async function savePred(matchN,data){
+      await api.setPrediction(matchN,data,activeEntryId);
+      setMyPreds(p=>({...p,[matchN]:[data.score_a,data.score_b]}));
+      setEntries(es=>es.map(e=>e.id!==activeEntryId?e:{...e,predictions:[...(e.predictions||[]).filter(p=>p.match_n!==matchN),{match_n:matchN,score_a:data.score_a,score_b:data.score_b}]}));
+      showToast("Saved ✓");
+    }
+
     async function saveWinner(team){
       const prev=myWinner;
       setMyWinner(team||null);
       try{
-        await api.setWinnerPick({team:team||null});
+        await api.setWinnerPick({team:team||null},activeEntryId);
+        setEntries(es=>es.map(e=>e.id===activeEntryId?{...e,winner_pick:team||null}:e));
         showToast("Winner pick saved ✓");
         refreshLb();
-      }catch(e){
-        setMyWinner(prev);
-        showToast(e.message,"err");
-      }
+      }catch(e){setMyWinner(prev);showToast(e.message,"err");}
     }
+
+    async function createEntry(){
+      try{
+        const entry=await api.createEntry();
+        setEntries(es=>[...es,{...entry,predictions:[],winner_pick:lockedWinner||null}]);
+        switchEntry(entry.id);
+        showToast("New form created");
+      }catch(e){showToast(e.message,"err");}
+    }
+
+    async function submitEntry(){
+      if(!canSubmit||submitting)return;
+      setSubmitting(true);
+      try{
+        await api.submitEntry(activeEntryId);
+        const now=new Date().toISOString();
+        setEntries(es=>es.map(e=>e.id===activeEntryId?{...e,submitted_at:now}:e));
+        if(!lockedWinner)setLockedWinner(myWinner);
+        showToast("Form submitted! 🎉");
+        refreshLb();
+      }catch(e){showToast(e.message,"err");}
+      finally{setSubmitting(false);}
+    }
+
+    async function deleteEntryById(entryId){
+      if(!confirm("Delete this form?"))return;
+      try{
+        await api.deleteEntry(entryId);
+        const next=entries.filter(e=>e.id!==entryId);
+        setEntries(next);
+        if(activeEntryId===entryId){
+          if(next[0])switchEntry(next[0].id);
+          else{setActiveEntryId(null);setMyPreds({});setMyWinner(lockedWinner||null);}
+        }
+        showToast("Form deleted");
+      }catch(e){showToast(e.message,"err");}
+    }
+
+    const myLbEntry=leaderboard.find(e=>e.entry_id===activeEntryId);
     return (
       <div>
         <div style={{marginBottom:14}}><RoundPill/></div>
         <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>{user?.name}'s predictions</h1>
+
+        {/* Entry tab bar */}
+        {entries.length>0&&(
+          <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+            {entries.map(e=>{
+              const isActive=e.id===activeEntryId;
+              const submitted=!!e.submitted_at;
+              const filled=(e.predictions||[]).filter(p=>p.score_a!=null&&p.score_b!=null).length;
+              return(
+                <button key={e.id} onClick={()=>switchEntry(e.id)} style={{
+                  padding:"5px 12px",borderRadius:6,cursor:"pointer",
+                  background:isActive?C.accent:C.panel2,
+                  color:isActive?"#1a1a1a":C.text,
+                  border:`1px solid ${isActive?C.accent:C.border}`,
+                  fontWeight:isActive?700:400,fontSize:13,
+                  display:"flex",alignItems:"center",gap:6,
+                }}>
+                  {e.name}
+                  {submitted
+                    ?<span style={{background:"rgba(16,185,129,0.2)",color:C.green,fontSize:10,padding:"1px 5px",borderRadius:4,fontWeight:700}}>✓</span>
+                    :<span style={{background:C.panel,color:C.muted,fontSize:10,padding:"1px 5px",borderRadius:4}}>{filled}/{matches.length}</span>
+                  }
+                </button>
+              );
+            })}
+            {editable&&(
+              <button onClick={createEntry} title="New form" style={{
+                padding:"4px 10px",borderRadius:6,cursor:"pointer",
+                background:"transparent",color:C.muted,
+                border:`1px solid ${C.border}`,fontSize:18,lineHeight:1,
+              }}>＋</button>
+            )}
+          </div>
+        )}
+
+        {/* Entry controls */}
+        {activeEntry&&(
+          <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+            {!activeEntry.submitted_at&&editable&&(
+              <>
+                <Btn green onClick={submitEntry} disabled={!canSubmit||submitting}>
+                  {submitting?"…":"Submit form"}
+                </Btn>
+                {!canSubmit&&(
+                  <span style={{fontSize:11,color:C.muted}}>
+                    {filledCount<matches.length?`${filledCount}/${matches.length} filled`:"Winner pick needed"}
+                  </span>
+                )}
+              </>
+            )}
+            {activeEntry.submitted_at&&(
+              <span style={{background:"rgba(16,185,129,0.1)",color:C.green,border:"1px solid rgba(16,185,129,0.3)",padding:"4px 10px",borderRadius:6,fontSize:13,fontWeight:600}}>
+                ✓ Submitted
+              </span>
+            )}
+            {!activeEntry.submitted_at&&entries.length>1&&editable&&(
+              <Btn ghost red onClick={()=>deleteEntryById(activeEntry.id)}>Delete</Btn>
+            )}
+          </div>
+        )}
+
         {config.round_state==="idle"&&<InfoBlock warn>⏸️ <b>No betting round is open yet.</b> The admin needs to open a round before you can enter predictions.</InfoBlock>}
         {config.round_state==="open"&&<InfoBlock>✏️ <b>Round is open.</b> Predictions save automatically when you leave each field.<br/><b>Scoring:</b> 5 pts correct direction · +3 exact · +1 partial · 10 pts tournament winner.</InfoBlock>}
         {config.round_state==="closed"&&<InfoBlock>🔒 <b>Round closed.</b> Points appear once the admin enters results.</InfoBlock>}
-        {myEntry&&(
+
+        {myLbEntry&&(
           <div style={{textAlign:"right",padding:"8px 12px",background:C.panel2,borderRadius:6,marginBottom:16,fontSize:14,color:C.text}}>
-            Total: <span style={{color:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:18}}>{myEntry.total}</span>
-            &nbsp;·&nbsp;{myEntry.scored_matches}/{matches.length} scored
-            {myEntry.winner_bonus>0&&<>&nbsp;·&nbsp;🏆 +10 winner bonus</>}
+            Total: <span style={{color:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:18}}>{myLbEntry.total}</span>
+            &nbsp;·&nbsp;{myLbEntry.scored_matches}/{matches.length} scored
+            {myLbEntry.winner_bonus>0&&<>&nbsp;·&nbsp;🏆 +10 winner bonus</>}
           </div>
         )}
-        {/* Winner pick — TeamPicker */}
+
+        {/* Winner pick */}
         <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:12,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:16,position:"relative",zIndex:10}}>
           <label style={{color:C.text,fontSize:14,flexShrink:0}}>🏆 Tournament winner pick (+10 pts):</label>
-          <TeamPicker value={myWinner} onChange={saveWinner} teams={teams} disabled={!editable} placeholder="Choose a team…"/>
+          {lockedWinner?(
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:14,color:C.text,fontWeight:600}}>{withFlag(lockedWinner)}</span>
+              <span style={{background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"2px 8px",borderRadius:4,fontSize:11,fontWeight:700}}>🔒 locked</span>
+            </div>
+          ):(
+            <TeamPicker value={myWinner} onChange={saveWinner} teams={teams} disabled={!editable||!!activeEntry?.submitted_at} placeholder="Choose a team…"/>
+          )}
           {config.tournament_winner&&<span style={{color:C.muted,fontSize:13}}>🏆 actual: <b style={{color:C.accent}}>{withFlag(config.tournament_winner)}</b></span>}
         </div>
+
         <SectionHeader>Group stage — {matches.length} matches</SectionHeader>
         {!predsLoaded&&config.round_state==="open"&&(
           <div style={{textAlign:"center",padding:"10px",color:C.muted,fontSize:13,marginBottom:8}}>
@@ -1223,7 +1428,7 @@ export default function App() {
           </div>
         )}
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10,opacity:!predsLoaded&&config.round_state==="open"?0.6:1,transition:"opacity .3s"}}>
-          {matches.map(m=><MatchRow key={m.n} match={m} pred={myPreds[m.n]??null} result={results[m.n]??null} editable={editable} adminResult={false} roundState={config.round_state} onSave={savePred} onResultSave={()=>{}}/>)}
+          {matches.map(m=><MatchRow key={m.n} match={m} pred={myPreds[m.n]??null} result={results[m.n]??null} editable={editable&&!activeEntry?.submitted_at} adminResult={false} roundState={config.round_state} onSave={savePred} onResultSave={()=>{}}/>)}
         </div>
       </div>
     );
@@ -1251,12 +1456,11 @@ export default function App() {
                     const isMe=row.user_id===user?.id;
                     const isRival=!isMe&&myRivals.includes(row.user_id);
                     const rowBg=i===0?"rgba(163,230,53,0.12)":i===1?"rgba(163,230,53,0.07)":i===2?"rgba(163,230,53,0.03)":isRival?"rgba(163,230,53,0.05)":"transparent";
-                    // Everyone sees all winner picks — no lock
                     let winnerCell;
                     if(winnerKnown)winnerCell=row.winner_pick?<>{withFlag(row.winner_pick)}{row.winner_bonus>0&&<span style={{color:C.green}}> +10</span>}</>:"—";
                     else winnerCell=row.winner_pick?withFlag(row.winner_pick):"—";
                     return (
-                      <tr key={row.user_id} style={{
+                      <tr key={row.entry_id||row.user_id} style={{
                         background:rowBg,
                         borderLeft: isMe ? `3px solid ${C.accent}` : isRival ? `3px solid ${C.accent}` : "3px solid transparent",
                       }}>
@@ -1265,7 +1469,10 @@ export default function App() {
                           {isMe&&<span style={{background:C.indigo,color:"white",fontSize:10,padding:"1px 5px",borderRadius:4,marginLeft:6}}>YOU</span>}
                           {isRival&&!isMe&&<span style={{background:"transparent",border:`1px solid ${C.accent}`,color:C.accent,fontSize:10,padding:"1px 5px",borderRadius:4,marginLeft:6}}>★ RIVAL</span>}
                         </td>
-                        <td style={{...td,textAlign:"center",color:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:17}}>{row.total}</td>
+                        <td style={{...td,textAlign:"center",color:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:17}}>
+                          {row.total}
+                          {row.live_matches_count>0&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(239,68,68,0.12)",color:C.red,border:"1px solid rgba(239,68,68,0.3)",padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}><span className="live-dot"/>+{row.live_points} LIVE</span>}
+                        </td>
                         <td style={td}>{winnerCell}</td>
                       </tr>
                     );
@@ -1378,7 +1585,7 @@ export default function App() {
           <ByUser
             config={config} leaderboard={leaderboard} results={results}
             liveMatches={liveMatches} matches={matches} user={user}
-            viewUserId={viewUserId} setViewUserId={setViewUserId}
+            viewUserId={viewEntryId} setViewUserId={setViewEntryId}
             viewUserPreds={viewUserPreds} setViewUserPreds={setViewUserPreds}
             viewUserWinner={viewUserWinner} setViewUserWinner={setViewUserWinner}
             showToast={showToast}
@@ -1389,6 +1596,7 @@ export default function App() {
             config={config} setConfig={setConfig}
             matches={matches} teams={teams} results={results}
             participants={participants} setParticipants={setParticipants}
+            adminParticipants={adminParticipants} setAdminParticipants={setAdminParticipants}
             leaderboard={leaderboard}
             showToast={showToast} refreshLb={refreshLb}
           />

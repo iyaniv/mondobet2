@@ -1,3 +1,4 @@
+from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +13,12 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.get("/", response_model=list[UserOut])
 async def list_users(_=Depends(require_admin), db: AsyncSession = Depends(get_db)):
     return await crud.get_participants(db)
+
+
+@router.get("/admin/participants")
+async def admin_participants(_=Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    """Admin-only: participants with full entry details for the expandable dashboard table."""
+    return await crud.get_participants_with_entries(db)
 
 
 @router.patch("/{user_id}", response_model=UserOut)

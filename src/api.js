@@ -42,32 +42,45 @@ export const api = {
   me:       ()  => request("/api/auth/me"),
 
   // Game data (public-ish)
-  getMatches:  () => request("/api/matches/"),
-  getConfig:   () => request("/api/config/"),
-  getResults:  () => request("/api/results/"),
+  getMatches:     () => request("/api/matches/"),
+  getConfig:      () => request("/api/config/"),
+  getResults:     () => request("/api/results/"),
   getLeaderboard: () => request("/api/leaderboard/"),
 
-  // Predictions (current user)
-  getMyPredictions: ()           => request("/api/predictions/me"),
-  setPrediction:    (n, d)       => request(`/api/predictions/${n}`, { method: "PUT", body: d }),
-  setWinnerPick:    (d)          => request("/api/predictions/winner/me", { method: "PUT", body: d }),
+  // Entries (multi-form per user)
+  getMyEntries:  ()         => request("/api/entries/me"),
+  createEntry:   (d)        => request("/api/entries/",      { method: "POST",   body: d || {} }),
+  renameEntry:   (id, d)    => request(`/api/entries/${id}`, { method: "PATCH",  body: d }),
+  deleteEntry:   (id)       => request(`/api/entries/${id}`, { method: "DELETE" }),
+  submitEntry:   (id)       => request(`/api/entries/${id}/submit`, { method: "POST" }),
+  getEntryPreds: (id)       => request(`/api/entries/${id}/predictions`),
 
-  // Predictions (by user — admin always, others when closed)
-  getUserPredictions: (uid)      => request(`/api/predictions/user/${uid}`),
+  // Predictions — pass entryId to target a specific entry
+  getMyPredictions: (entryId) =>
+    request(`/api/predictions/me${entryId ? `?entry_id=${entryId}` : ""}`),
+  setPrediction: (n, d, entryId) =>
+    request(`/api/predictions/${n}${entryId ? `?entry_id=${entryId}` : ""}`, { method: "PUT", body: d }),
+  setWinnerPick: (d, entryId) =>
+    request(`/api/predictions/winner/me${entryId ? `?entry_id=${entryId}` : ""}`, { method: "PUT", body: d }),
+
+  // Predictions by user (admin always, others when closed)
+  getUserPredictions: (uid, entryId) =>
+    request(`/api/predictions/user/${uid}${entryId ? `?entry_id=${entryId}` : ""}`),
 
   // Admin
-  updateConfig:  (d)             => request("/api/config/",          { method: "PATCH", body: d }),
-  setResult:     (n, d)          => request(`/api/results/${n}`,     { method: "PUT",   body: d }),
-  getUsers:      ()              => request("/api/users/"),
-  patchUser:     (uid, d)        => request(`/api/users/${uid}`,     { method: "PATCH", body: d }),
-  updateMe:      (d)             => request("/api/users/me",           { method: "PATCH", body: d }),
+  updateConfig:         (d)      => request("/api/config/",                  { method: "PATCH", body: d }),
+  setResult:            (n, d)   => request(`/api/results/${n}`,             { method: "PUT",   body: d }),
+  getUsers:             ()       => request("/api/users/"),
+  patchUser:            (uid, d) => request(`/api/users/${uid}`,             { method: "PATCH", body: d }),
+  updateMe:             (d)      => request("/api/users/me",                 { method: "PATCH", body: d }),
+  getAdminParticipants: ()       => request("/api/users/admin/participants"),
 };
 
 export const liveApi = {
-  getAll:    ()      => request("/api/live/"),
-  set:       (n, d)  => request(`/api/live/${n}`,          { method: "PUT",    body: d }),
-  remove:    (n)     => request(`/api/live/${n}`,          { method: "DELETE" }),
-  finalize:  (n)     => request(`/api/live/${n}/finalize`, { method: "POST" }),
+  getAll:   ()      => request("/api/live/"),
+  set:      (n, d)  => request(`/api/live/${n}`,          { method: "PUT",    body: d }),
+  remove:   (n)     => request(`/api/live/${n}`,          { method: "DELETE" }),
+  finalize: (n)     => request(`/api/live/${n}/finalize`, { method: "POST" }),
 };
 
 // Single bootstrap call — replaces 4+ parallel calls with one request

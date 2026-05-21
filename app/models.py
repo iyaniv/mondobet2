@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import enum
+import uuid
 from datetime import datetime
 from typing import Optional
 
@@ -9,6 +10,7 @@ from sqlalchemy import (
     Boolean, DateTime, Enum, ForeignKey, Integer,
     SmallInteger, String, UniqueConstraint, func,
 )
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -29,31 +31,56 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(200), nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     has_paid: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    locked_winner: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
+    entries: Mapped[list["Entry"]] = relationship(
+        "Entry", back_populates="user", cascade="all, delete-orphan",
+        order_by="Entry.created_at",
+    )
+
+
+class Entry(Base):
+    __tablename__ = "entries"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    submitted_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    user: Mapped["User"] = relationship("User", back_populates="entries")
     predictions: Mapped[list["Prediction"]] = relationship(
-        "Prediction", back_populates="user", cascade="all, delete-orphan"
+        "Prediction", back_populates="entry", cascade="all, delete-orphan"
     )
     winner_pick: Mapped[Optional["WinnerPick"]] = relationship(
-        "WinnerPick", back_populates="user", cascade="all, delete-orphan", uselist=False
+        "WinnerPick", back_populates="entry", cascade="all, delete-orphan", uselist=False
     )
 
 
 class Prediction(Base):
     __tablename__ = "predictions"
-    __table_args__ = (UniqueConstraint("user_id", "match_n", name="uq_user_match"),)
+    __table_args__ = (UniqueConstraint("entry_id", "match_n", name="uq_entry_match"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    entry_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("entries.id", ondelete="CASCADE"), nullable=False, index=True
     )
     match_n: Mapped[int] = mapped_column(Integer, nullable=False)
     score_a: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
     score_b: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
 
-    user: Mapped["User"] = relationship("User", back_populates="predictions")
+    entry: Mapped["Entry"] = relationship("Entry", back_populates="predictions")
 
 
 class Result(Base):
@@ -67,12 +94,12 @@ class Result(Base):
 class WinnerPick(Base):
     __tablename__ = "winner_picks"
 
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    entry_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("entries.id", ondelete="CASCADE"), primary_key=True
     )
     team: Mapped[str] = mapped_column(String(100), nullable=False)
 
-    user: Mapped["User"] = relationship("User", back_populates="winner_pick")
+    entry: Mapped["Entry"] = relationship("Entry", back_populates="winner_pick")
 
 
 class GameConfig(Base):

@@ -26,6 +26,7 @@ class UserOut(BaseModel):
     email: str
     is_admin: bool
     has_paid: bool
+    locked_winner: Optional[str] = None
     created_at: datetime
 
 
@@ -44,6 +45,24 @@ class ConfigOut(BaseModel):
 class ConfigUpdate(BaseModel):
     round_state: Optional[str] = None
     tournament_winner: Optional[str] = None
+
+
+# ── Entries ───────────────────────────────────────────────────────────────────
+
+class EntryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    name: str
+    created_at: datetime
+    submitted_at: Optional[datetime] = None
+
+
+class EntryCreate(BaseModel):
+    name: Optional[str] = None  # auto-named if omitted
+
+
+class EntryRename(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
 
 
 # ── Predictions ───────────────────────────────────────────────────────────────
@@ -85,6 +104,7 @@ class UserPatch(BaseModel):
 # ── Leaderboard ───────────────────────────────────────────────────────────────
 
 class LeaderboardEntry(BaseModel):
+    entry_id: str
     user_id: int
     name: str
     total: int
@@ -95,6 +115,8 @@ class LeaderboardEntry(BaseModel):
     winner_bonus: int
     has_paid: bool
     submitted_count: int
+    live_points: int
+    live_matches_count: int
 
 
 # ── Live matches ──────────────────────────────────────────────────────────────
