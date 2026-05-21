@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "vite",
+    "demo": "vite --config vite.config.demo.js",
     "build": "vite build",
     "preview": "vite preview"
   },
