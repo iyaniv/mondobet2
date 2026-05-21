@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Single-request bootstrap — returns everything the client needs on load.
 Replaces 4-5 parallel API calls with one DB session.

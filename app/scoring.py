@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Scoring logic — direct port of matchScore() and userTotals() from wc2026-demo.html.
 

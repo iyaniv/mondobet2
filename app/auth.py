@@ -1,3 +1,4 @@
+from __future__ import annotations
 """JWT auth utilities + FastAPI dependencies."""
 
 from datetime import datetime, timedelta, timezone

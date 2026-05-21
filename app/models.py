@@ -1,7 +1,9 @@
 """SQLAlchemy ORM models for WC2026 Predictions."""
 
+from __future__ import annotations
 import enum
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import (
     Boolean, DateTime, Enum, ForeignKey, Integer,
@@ -34,7 +36,7 @@ class User(Base):
     predictions: Mapped[list["Prediction"]] = relationship(
         "Prediction", back_populates="user", cascade="all, delete-orphan"
     )
-    winner_pick: Mapped["WinnerPick | None"] = relationship(
+    winner_pick: Mapped[Optional["WinnerPick"]] = relationship(
         "WinnerPick", back_populates="user", cascade="all, delete-orphan", uselist=False
     )
 
@@ -48,8 +50,8 @@ class Prediction(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     match_n: Mapped[int] = mapped_column(Integer, nullable=False)
-    score_a: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
-    score_b: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    score_a: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    score_b: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
 
     user: Mapped["User"] = relationship("User", back_populates="predictions")
 
@@ -83,7 +85,7 @@ class GameConfig(Base):
         default=RoundStateEnum.idle,
         nullable=False,
     )
-    tournament_winner: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    tournament_winner: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
 
 class LiveMatch(Base):
