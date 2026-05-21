@@ -410,7 +410,8 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
   }
   const tableData=adminParticipants.length>0?adminParticipants:null;
   const statData=tableData||participants;
-  const allExpanded=tableData&&tableData.length>0&&expandedUsers.size===tableData.length;
+  const multiEntryUsers=tableData?tableData.filter(u=>(u.entries||[]).length>1):[];
+  const allExpanded=multiEntryUsers.length>0&&multiEntryUsers.every(u=>expandedUsers.has(u.id));
 
   async function setRoundState(state) {
     try {
@@ -495,7 +496,7 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflowX:"auto"}}>
         {tableData&&(
           <div style={{display:"flex",justifyContent:"flex-end",padding:"6px 10px",borderBottom:`1px solid ${C.border}`}}>
-            <button onClick={()=>allExpanded?setExpandedUsers(new Set()):setExpandedUsers(new Set(tableData.map(p=>p.id)))}
+            <button onClick={()=>allExpanded?setExpandedUsers(new Set()):setExpandedUsers(new Set(multiEntryUsers.map(p=>p.id)))}
               style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,padding:"3px 10px",borderRadius:4,cursor:"pointer",fontSize:12}}>
               {allExpanded?"Collapse all":"Expand all"}
             </button>
@@ -516,9 +517,9 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
                   const uEntries=u.entries||[];
                   return (
                     <Fragment key={u.id}>
-                      <tr onClick={()=>uEntries.length>0&&toggleExpand(u.id)} style={{cursor:uEntries.length>0?"pointer":"default"}}>
+                      <tr onClick={()=>uEntries.length>1&&toggleExpand(u.id)} style={{cursor:uEntries.length>1?"pointer":"default"}}>
                         <td style={{...td,width:28,paddingRight:0}}>
-                          {uEntries.length>0&&<span style={{display:"inline-block",transition:"transform .2s",transform:expanded?"rotate(90deg)":"none",fontSize:10,color:C.muted}}>▶</span>}
+                          {uEntries.length>1&&<span style={{display:"inline-block",transition:"transform .2s",transform:expanded?"rotate(90deg)":"none",fontSize:10,color:C.muted}}>▶</span>}
                         </td>
                         <td style={td}>{u.name}</td>
                         <td style={{...td,color:C.muted,fontFamily:"monospace",fontSize:12}}>{u.email}</td>
@@ -698,11 +699,14 @@ function GroupCard({ group, allMatches, results, simPreds, liveMatches={} }) {
 }
 
 function Tournament({ matches, results, liveMatches={}, myPreds, config, user }) {
-  const useSim = config.round_state==="open" && !user?.is_admin;
-  const simPreds = useSim ? myPreds : {};
+  const hasPreds = Object.keys(myPreds||{}).some(n=>myPreds[n]?.[0]!=null);
+  const canSim = !user?.is_admin && hasPreds;
+  const [simMode,setSimMode]=useState(canSim&&config.round_state==="open");
+
+  const simPreds = simMode ? (myPreds||{}) : {};
   const played = Object.keys(results).length;
-  const simFilled = useSim
-    ? Object.keys(myPreds).filter(n=>!results[n]&&myPreds[n]?.[0]!=null&&myPreds[n]?.[1]!=null).length
+  const simFilled = simMode
+    ? Object.keys(myPreds||{}).filter(n=>!results[n]&&myPreds[n]?.[0]!=null&&myPreds[n]?.[1]!=null).length
     : 0;
 
   return (
@@ -720,13 +724,27 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
             LIVE · updates with every result
           </span>
         </div>
-        <div style={{fontSize:13,color:C.muted}}>
-          <b style={{color:C.text}}>{played}</b> / {matches.length} played
-          {simFilled>0&&<> · <b style={{color:C.accent}}>{simFilled}</b> from your predictions</>}
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          {canSim&&(
+            <div style={{display:"flex",background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,overflow:"hidden",fontSize:12}}>
+              <button onClick={()=>setSimMode(false)} style={{
+                padding:"4px 12px",border:"none",cursor:"pointer",fontWeight:!simMode?700:400,
+                background:!simMode?C.accent:"transparent",color:!simMode?"#1a1a1a":C.muted,transition:"all .15s",
+              }}>Real results</button>
+              <button onClick={()=>setSimMode(true)} style={{
+                padding:"4px 12px",border:"none",cursor:"pointer",fontWeight:simMode?700:400,
+                background:simMode?C.accent:"transparent",color:simMode?"#1a1a1a":C.muted,transition:"all .15s",
+              }}>Simulate</button>
+            </div>
+          )}
+          <div style={{fontSize:13,color:C.muted}}>
+            <b style={{color:C.text}}>{played}</b> / {matches.length} played
+            {simFilled>0&&<> · <b style={{color:C.accent}}>{simFilled}</b> simulated</>}
+          </div>
         </div>
       </div>
 
-      {useSim&&simFilled>0&&(
+      {simMode&&simFilled>0&&(
         <div style={{background:"var(--c-accent-soft)",border:`1px solid ${C.accent}`,
           borderRadius:6,padding:"7px 14px",marginBottom:14,fontSize:13,color:C.accent}}>
           ✨ Standings include your predictions for unplayed matches
@@ -1263,6 +1281,9 @@ export default function App() {
     const filledCount=Object.keys(myPreds).filter(n=>myPreds[n]?.[0]!=null&&myPreds[n]?.[1]!=null).length;
     const canSubmit=filledCount===matches.length&&(myWinner||lockedWinner)!=null&&!activeEntry?.submitted_at;
     const [submitting,setSubmitting]=useState(false);
+    const [renamingEntryId,setRenamingEntryId]=useState(null);
+    const [renameVal,setRenameVal]=useState("");
+    const [showNewMenu,setShowNewMenu]=useState(false);
 
     function switchEntry(entryId){
       setActiveEntryId(entryId);
@@ -1292,12 +1313,37 @@ export default function App() {
       }catch(e){setMyWinner(prev);showToast(e.message,"err");}
     }
 
-    async function createEntry(){
+    async function createEntry(copyFromEntryId){
+      setShowNewMenu(false);
       try{
-        const entry=await api.createEntry();
-        setEntries(es=>[...es,{...entry,predictions:[],winner_pick:lockedWinner||null}]);
+        const body=copyFromEntryId?{copy_from_entry_id:copyFromEntryId}:{};
+        const entry=await api.createEntry(body);
+        let initPreds={};
+        if(copyFromEntryId){
+          const src=entries.find(e=>e.id===copyFromEntryId);
+          initPreds=Object.fromEntries((src?.predictions||[]).map(p=>[p.match_n,[p.score_a,p.score_b]]));
+        }
+        setEntries(es=>[...es,{...entry,predictions:copyFromEntryId?(entries.find(e=>e.id===copyFromEntryId)?.predictions||[]):[],winner_pick:copyFromEntryId?(entries.find(e=>e.id===copyFromEntryId)?.winner_pick??lockedWinner??null):(lockedWinner??null)}]);
         switchEntry(entry.id);
-        showToast("New form created");
+        if(copyFromEntryId){setMyPreds(initPreds);}
+        setRenameVal(entry.name);
+        setRenamingEntryId(entry.id);
+      }catch(e){showToast(e.message,"err");}
+    }
+
+    function startRename(e,entry){
+      e.stopPropagation();
+      setRenameVal(entry.name);
+      setRenamingEntryId(entry.id);
+    }
+
+    async function commitRename(entryId){
+      const val=renameVal.trim();
+      setRenamingEntryId(null);
+      if(!val)return;
+      try{
+        await api.renameEntry(entryId,{name:val});
+        setEntries(es=>es.map(e=>e.id===entryId?{...e,name:val}:e));
       }catch(e){showToast(e.message,"err");}
     }
 
@@ -1342,29 +1388,84 @@ export default function App() {
               const isActive=e.id===activeEntryId;
               const submitted=!!e.submitted_at;
               const filled=(e.predictions||[]).filter(p=>p.score_a!=null&&p.score_b!=null).length;
+              const isRenaming=renamingEntryId===e.id;
               return(
-                <button key={e.id} onClick={()=>switchEntry(e.id)} style={{
-                  padding:"5px 12px",borderRadius:6,cursor:"pointer",
+                <div key={e.id} onClick={()=>!isRenaming&&switchEntry(e.id)} style={{
+                  padding:"5px 10px",borderRadius:6,cursor:isRenaming?"default":"pointer",
                   background:isActive?C.accent:C.panel2,
                   color:isActive?"#1a1a1a":C.text,
                   border:`1px solid ${isActive?C.accent:C.border}`,
                   fontWeight:isActive?700:400,fontSize:13,
-                  display:"flex",alignItems:"center",gap:6,
+                  display:"flex",alignItems:"center",gap:5,
                 }}>
-                  {e.name}
+                  {isRenaming?(
+                    <input
+                      autoFocus
+                      value={renameVal}
+                      onChange={ev=>setRenameVal(ev.target.value)}
+                      onBlur={()=>commitRename(e.id)}
+                      onKeyDown={ev=>{if(ev.key==="Enter")commitRename(e.id);if(ev.key==="Escape"){setRenamingEntryId(null);}}}
+                      onClick={ev=>ev.stopPropagation()}
+                      style={{
+                        background:"transparent",border:"none",outline:"none",
+                        color:isActive?"#1a1a1a":C.text,fontWeight:"inherit",fontSize:"inherit",
+                        width:Math.max(60,renameVal.length*8)+"px",minWidth:60,maxWidth:160,
+                      }}
+                    />
+                  ):(
+                    <>
+                      <span>{e.name}</span>
+                      {isActive&&editable&&!submitted&&(
+                        <span onClick={ev=>startRename(ev,e)} title="Rename" style={{
+                          fontSize:11,opacity:0.6,cursor:"pointer",lineHeight:1,
+                          padding:"1px 3px",borderRadius:3,
+                        }}>✎</span>
+                      )}
+                    </>
+                  )}
                   {submitted
-                    ?<span style={{background:"rgba(16,185,129,0.2)",color:C.green,fontSize:10,padding:"1px 5px",borderRadius:4,fontWeight:700}}>✓</span>
-                    :<span style={{background:C.panel,color:C.muted,fontSize:10,padding:"1px 5px",borderRadius:4}}>{filled}/{matches.length}</span>
+                    ?<span style={{background:"rgba(16,185,129,0.2)",color:isActive?"#0a6644":C.green,fontSize:10,padding:"1px 5px",borderRadius:4,fontWeight:700}}>✓</span>
+                    :<span style={{background:"rgba(0,0,0,0.15)",color:isActive?"#333":C.muted,fontSize:10,padding:"1px 5px",borderRadius:4}}>{filled}/{matches.length}</span>
                   }
-                </button>
+                </div>
               );
             })}
             {editable&&(
-              <button onClick={createEntry} title="New form" style={{
-                padding:"4px 10px",borderRadius:6,cursor:"pointer",
-                background:"transparent",color:C.muted,
-                border:`1px solid ${C.border}`,fontSize:18,lineHeight:1,
-              }}>＋</button>
+              <div style={{position:"relative"}}>
+                <button onClick={()=>setShowNewMenu(v=>!v)} title="Add form" style={{
+                  padding:"4px 10px",borderRadius:6,cursor:"pointer",
+                  background:showNewMenu?C.panel2:"transparent",color:C.muted,
+                  border:`1px solid ${showNewMenu?C.accent:C.border}`,fontSize:18,lineHeight:1,
+                }}>＋</button>
+                {showNewMenu&&(
+                  <div style={{
+                    position:"absolute",top:"calc(100% + 6px)",left:0,zIndex:100,
+                    background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,
+                    minWidth:180,boxShadow:"0 4px 16px rgba(0,0,0,0.4)",overflow:"hidden",
+                  }}
+                  onMouseLeave={()=>setShowNewMenu(false)}
+                  >
+                    <div style={{padding:"6px 12px",fontSize:11,color:C.muted,borderBottom:`1px solid ${C.border}`,fontWeight:600,letterSpacing:"0.05em",textTransform:"uppercase"}}>Add form</div>
+                    <button onClick={()=>createEntry(null)} style={{
+                      display:"block",width:"100%",textAlign:"left",padding:"9px 14px",
+                      background:"transparent",border:"none",color:C.text,cursor:"pointer",fontSize:13,
+                    }}
+                    onMouseEnter={e=>e.currentTarget.style.background=C.panel}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                    >New empty form</button>
+                    {entries.length>0&&<div style={{height:1,background:C.border}}/>}
+                    {entries.map(src=>(
+                      <button key={src.id} onClick={()=>createEntry(src.id)} style={{
+                        display:"block",width:"100%",textAlign:"left",padding:"9px 14px",
+                        background:"transparent",border:"none",color:C.text,cursor:"pointer",fontSize:13,
+                      }}
+                      onMouseEnter={e=>e.currentTarget.style.background=C.panel}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                      >Copy from <strong>{src.name}</strong></button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}

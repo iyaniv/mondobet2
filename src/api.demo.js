@@ -359,8 +359,14 @@ export const api = {
     const eid = `entry-u${user.id}-${++S.next_entry_seq}`;
     const entry = {id:eid,user_id:user.id,name,created_at:new Date().toISOString(),submitted_at:null};
     S.entries[eid] = entry;
-    S.predictions[eid] = {};
-    if (user.locked_winner) S.winner_picks[eid] = user.locked_winner;
+    const srcId = d?.copy_from_entry_id;
+    if (srcId && S.entries[srcId]?.user_id === user.id) {
+      S.predictions[eid] = {...(S.predictions[srcId]||{})};
+      if (S.winner_picks[srcId]) S.winner_picks[eid] = S.winner_picks[srcId];
+    } else {
+      S.predictions[eid] = {};
+      if (user.locked_winner) S.winner_picks[eid] = user.locked_winner;
+    }
     save(S);
     return entryOut(entry);
   },

@@ -199,6 +199,13 @@ async def upsert_prediction(db: AsyncSession, entry_id: str, match_n: int, score
     return pred
 
 
+async def copy_entry_predictions(db: AsyncSession, from_entry_id: str, to_entry_id: str) -> None:
+    r = await db.execute(select(Prediction).where(Prediction.entry_id == from_entry_id))
+    for src in r.scalars().all():
+        db.add(Prediction(entry_id=to_entry_id, match_n=src.match_n, score_a=src.score_a, score_b=src.score_b))
+    await db.commit()
+
+
 # ── Winner picks ──────────────────────────────────────────────────────────────
 
 async def upsert_winner_pick(db: AsyncSession, entry_id: str, team: Optional[str]) -> Optional[WinnerPick]:

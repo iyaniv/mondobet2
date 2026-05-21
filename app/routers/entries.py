@@ -30,8 +30,14 @@ async def create_entry(
     if cfg.round_state != RoundStateEnum.open:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Betting round is not open.")
     entry = await crud.create_entry(db, user.id, user.name, data.name)
-    # Seed locked winner onto the new entry immediately
-    if user.locked_winner:
+    if data.copy_from_entry_id:
+        src = await crud.get_entry(db, data.copy_from_entry_id)
+        if src and src.user_id == user.id:
+            await crud.copy_entry_predictions(db, data.copy_from_entry_id, entry.id)
+            wp = await db.get(WinnerPick, data.copy_from_entry_id)
+            if wp:
+                await crud.upsert_winner_pick(db, entry.id, wp.team)
+    elif user.locked_winner:
         await crud.upsert_winner_pick(db, entry.id, user.locked_winner)
     return entry
 

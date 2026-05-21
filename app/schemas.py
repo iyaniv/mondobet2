@@ -59,6 +59,7 @@ class EntryOut(BaseModel):
 
 class EntryCreate(BaseModel):
     name: Optional[str] = None  # auto-named if omitted
+    copy_from_entry_id: Optional[str] = None
 
 
 class EntryRename(BaseModel):
