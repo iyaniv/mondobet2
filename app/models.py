@@ -113,6 +113,7 @@ class GameConfig(Base):
         nullable=False,
     )
     tournament_winner: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    data_source: Mapped[str] = mapped_column(String(20), default="manual", nullable=False, server_default="manual")
 
 
 class LiveMatch(Base):

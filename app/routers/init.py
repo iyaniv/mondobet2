@@ -40,6 +40,7 @@ async def bootstrap(
         "config": {
             "round_state": cfg.round_state.value,
             "tournament_winner": cfg.tournament_winner,
+            "data_source": cfg.data_source,
         },
         "results": [
             {"match_n": n, "score_a": v[0], "score_b": v[1]}

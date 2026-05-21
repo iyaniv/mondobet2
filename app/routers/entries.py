@@ -62,7 +62,7 @@ async def delete_entry(
     db: AsyncSession = Depends(get_db),
 ):
     entry = await crud.get_entry(db, entry_id)
-    if not entry or entry.user_id != user.id:
+    if not entry or (entry.user_id != user.id and not user.is_admin):
         raise HTTPException(404, "Entry not found.")
     if entry.submitted_at is not None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Cannot delete a submitted entry.")

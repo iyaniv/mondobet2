@@ -12,7 +12,7 @@ router = APIRouter(prefix="/config", tags=["config"])
 @router.get("/", response_model=ConfigOut)
 async def get_config(db: AsyncSession = Depends(get_db)):
     cfg = await crud.get_config(db)
-    return ConfigOut(round_state=cfg.round_state.value, tournament_winner=cfg.tournament_winner)
+    return ConfigOut(round_state=cfg.round_state.value, tournament_winner=cfg.tournament_winner, data_source=cfg.data_source)
 
 
 @router.patch("/", response_model=ConfigOut)
@@ -27,6 +27,8 @@ async def update_config(data: ConfigUpdate, _=Depends(require_admin), db: AsyncS
         kwargs["round_state"] = data.round_state
     if "tournament_winner" in data.model_fields_set:
         kwargs["tournament_winner"] = data.tournament_winner  # may be None
+    if "data_source" in data.model_fields_set:
+        kwargs["data_source"] = data.data_source
 
     cfg = await crud.update_config(db, **kwargs)
-    return ConfigOut(round_state=cfg.round_state.value, tournament_winner=cfg.tournament_winner)
+    return ConfigOut(round_state=cfg.round_state.value, tournament_winner=cfg.tournament_winner, data_source=cfg.data_source)

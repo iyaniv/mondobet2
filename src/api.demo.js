@@ -154,7 +154,7 @@ const SEED_LIVE   = {21:{score_a:1,score_b:0,minute:34},22:{score_a:2,score_b:2,
 
 function buildInitialState() {
   return {
-    config:{round_state:"open",tournament_winner:null},
+    config:{round_state:"open",tournament_winner:null,data_source:"manual"},
     users:{
       1:{id:1,name:"Admin",email:"admin",password:"admin",is_admin:true,has_paid:false,created_at:"2026-01-01T00:00:00Z",locked_winner:null},
       2:{id:2,name:"Alice",email:"alice@demo.com",password:"alice",is_admin:false,has_paid:true,created_at:"2026-01-02T00:00:00Z",locked_winner:"France"},
@@ -480,6 +480,7 @@ export const api = {
     requireAdmin();
     if (d.round_state !== undefined) S.config.round_state = d.round_state;
     if ("tournament_winner" in d) S.config.tournament_winner = d.tournament_winner||null;
+    if (d.data_source !== undefined) S.config.data_source = d.data_source;
     save(S);
     return S.config;
   },

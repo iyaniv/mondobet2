@@ -404,14 +404,23 @@ function AuthView({ roundState, onSuccess }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function AdminDashboard({ config, setConfig, matches, teams, results, participants, setParticipants, adminParticipants, setAdminParticipants, leaderboard, showToast, refreshLb }) {
   const [expandedUsers,setExpandedUsers]=useState(new Set());
-
-  function toggleExpand(uid){
-    setExpandedUsers(s=>{const n=new Set(s);if(n.has(uid))n.delete(uid);else n.add(uid);return n;});
-  }
   const tableData=adminParticipants.length>0?adminParticipants:null;
   const statData=tableData||participants;
   const multiEntryUsers=tableData?tableData.filter(u=>(u.entries||[]).length>1):[];
-  const allExpanded=multiEntryUsers.length>0&&multiEntryUsers.every(u=>expandedUsers.has(u.id));
+  function toggleExpand(uid){setExpandedUsers(s=>{const n=new Set(s);n.has(uid)?n.delete(uid):n.add(uid);return n;});}
+
+  async function adminDeleteEntry(entryId, userId){
+    if(!confirm("Delete this draft form?"))return;
+    try{
+      await api.deleteEntry(entryId);
+      setAdminParticipants(prev=>prev.map(u=>{
+        if(u.id!==userId)return u;
+        const entries=(u.entries||[]).filter(e=>e.id!==entryId);
+        return{...u,entries,draft_count:Math.max(0,(u.draft_count||1)-1)};
+      }).filter(u=>(u.entries||[]).length>0||(u.submitted_count||0)>0));
+      showToast("Form deleted");
+    }catch(e){showToast(e.message,"err");}
+  }
 
   async function setRoundState(state) {
     try {
@@ -492,78 +501,124 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
         <span style={{color:C.muted,fontSize:12,alignSelf:"center"}}>Awards +10 pts to everyone who picked correctly.</span>
       </div>
 
-      <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>Participants ({statData.length})</h2>
-      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflowX:"auto"}}>
-        {tableData&&(
-          <div style={{display:"flex",justifyContent:"flex-end",padding:"6px 10px",borderBottom:`1px solid ${C.border}`}}>
-            <button onClick={()=>allExpanded?setExpandedUsers(new Set()):setExpandedUsers(new Set(multiEntryUsers.map(p=>p.id)))}
-              style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,padding:"3px 10px",borderRadius:4,cursor:"pointer",fontSize:12}}>
-              {allExpanded?"Collapse all":"Expand all"}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+        <h2 style={{color:C.accent,fontSize:16,margin:0}}>Participants ({statData.length})</h2>
+        {tableData&&multiEntryUsers.length>0&&(
+          <div style={{display:"flex",gap:6}}>
+            <button onClick={()=>setExpandedUsers(new Set(multiEntryUsers.map(u=>u.id)))}
+              style={{background:"transparent",border:`1px solid ${C.accent}`,color:C.accent,padding:"3px 12px",borderRadius:4,cursor:"pointer",fontSize:12,fontWeight:600}}>
+              Expand all
+            </button>
+            <button onClick={()=>setExpandedUsers(new Set())}
+              style={{background:"transparent",border:`1px solid ${C.accent}`,color:C.accent,padding:"3px 12px",borderRadius:4,cursor:"pointer",fontSize:12,fontWeight:600}}>
+              Collapse all
             </button>
           </div>
         )}
+      </div>
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead><tr style={{background:C.panel2}}>
-            {(tableData?["","Name","Email","Best pts","Forms","Paid"]:["Name","Email","Points","Winner pick","Paid"]).map(h=>(
-              <th key={h} style={{padding:"8px 10px",textAlign:"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>
+            {(tableData
+              ?[{h:"",w:28},{h:"Name"},{h:"Forms"},{h:"Best total",a:"right"},{h:"Paid",a:"center"}]
+              :[{h:"Name"},{h:"Forms"},{h:"Best total",a:"right"},{h:"Paid",a:"center"}]
+            ).map(({h,w,a})=>(
+              <th key={h} style={{padding:"9px 12px",textAlign:a||"left",color:C.muted,fontWeight:600,
+                borderBottom:`1px solid ${C.border}`,width:w||undefined,whiteSpace:"nowrap"}}>
+                {h}
+              </th>
             ))}
           </tr></thead>
           <tbody>
             {tableData
               ? tableData.length===0
-                ? <tr><td colSpan={6} style={{padding:24,textAlign:"center",color:C.muted}}>No participants yet</td></tr>
+                ? <tr><td colSpan={5} style={{padding:24,textAlign:"center",color:C.muted}}>No participants yet</td></tr>
                 : tableData.map(u=>{
-                  const expanded=expandedUsers.has(u.id);
                   const uEntries=u.entries||[];
+                  const multi=uEntries.length>1;
+                  const expanded=expandedUsers.has(u.id);
+                  const formsText=[
+                    u.submitted_count>0?`${u.submitted_count} submitted`:"",
+                    u.draft_count>0?`${u.draft_count} draft`:"",
+                  ].filter(Boolean).join(" · ")||"no forms";
                   return (
                     <Fragment key={u.id}>
-                      <tr onClick={()=>uEntries.length>1&&toggleExpand(u.id)} style={{cursor:uEntries.length>1?"pointer":"default"}}>
+                      {/* User row */}
+                      <tr onClick={()=>multi&&toggleExpand(u.id)}
+                        style={{cursor:multi?"pointer":"default",borderTop:`1px solid ${C.border}`}}>
                         <td style={{...td,width:28,paddingRight:0}}>
-                          {uEntries.length>1&&<span style={{display:"inline-block",transition:"transform .2s",transform:expanded?"rotate(90deg)":"none",fontSize:10,color:C.muted}}>▶</span>}
+                          {multi&&<span style={{display:"inline-block",transition:"transform .2s",
+                            transform:expanded?"rotate(90deg)":"none",fontSize:10,color:C.muted}}>▶</span>}
                         </td>
-                        <td style={td}>{u.name}</td>
-                        <td style={{...td,color:C.muted,fontFamily:"monospace",fontSize:12}}>{u.email}</td>
-                        <td style={{...td,color:C.accent,fontWeight:700,fontFamily:"monospace"}}>{u.best_total??0}</td>
-                        <td style={td}>{u.submitted_count} submitted{u.draft_count>0?` · ${u.draft_count} draft`:""}</td>
-                        <td style={td} onClick={e=>e.stopPropagation()}>
+                        <td style={{...td,paddingLeft:6}}>
+                          <div style={{fontWeight:600,color:C.text}}>{u.name}</div>
+                          <div style={{fontSize:11,color:C.muted,marginTop:1}}>{u.email}</div>
+                        </td>
+                        <td style={td}>
+                          <span style={{fontWeight:600}}>{formsText}</span>
+                        </td>
+                        <td style={{...td,textAlign:"right",color:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:14}}>
+                          {u.best_total??0}
+                        </td>
+                        <td style={{...td,textAlign:"center"}} onClick={e=>e.stopPropagation()}>
                           <input type="checkbox" checked={u.has_paid} onChange={e=>togglePaid(u.id,e.target.checked)}/>
                         </td>
                       </tr>
-                      {expanded&&uEntries.map(entry=>(
-                        <tr key={entry.id} style={{background:C.bg}}>
-                          <td style={td}/>
-                          <td style={{...td,paddingLeft:28}}>
-                            <span style={{display:"inline-block",padding:"1px 8px",borderRadius:4,fontSize:12,fontWeight:600,background:entry.submitted_at?"rgba(16,185,129,0.1)":"rgba(99,102,241,0.08)",color:entry.submitted_at?C.green:C.indigo,border:`1px solid ${entry.submitted_at?"rgba(16,185,129,0.3)":C.indigo}`}}>
-                              {entry.name}{entry.submitted_at?" ✓":" draft"}
-                            </span>
-                          </td>
-                          <td style={td}><span style={{fontSize:12,color:C.muted}}>{entry.filled}/{entry.total_matches} filled</span></td>
-                          <td style={td}>
-                            {entry.points!=null
-                              ?<span style={{display:"inline-flex",alignItems:"center",gap:4,color:C.accent,fontWeight:700,fontFamily:"monospace"}}>
-                                {entry.points}
-                                {entry.live_points>0&&<span style={{background:"rgba(239,68,68,0.12)",color:C.red,border:"1px solid rgba(239,68,68,0.3)",padding:"1px 5px",borderRadius:4,fontSize:10,fontWeight:700}}>+{entry.live_points} LIVE</span>}
+                      {/* Entry sub-rows — only for multi-form users when expanded */}
+                      {multi&&expanded&&uEntries.map(entry=>{
+                        const isDraft=!entry.submitted_at;
+                        const badge=isDraft
+                          ?<span style={{marginLeft:7,padding:"1px 7px",borderRadius:4,fontSize:11,fontWeight:700,background:"rgba(245,158,11,0.15)",color:"#f59e0b",border:"1px solid rgba(245,158,11,0.35)"}}>DRAFT</span>
+                          :<span style={{marginLeft:7,padding:"1px 7px",borderRadius:4,fontSize:11,fontWeight:700,background:"rgba(245,158,11,0.15)",color:"#f59e0b",border:"1px solid rgba(245,158,11,0.35)"}}>{entry.filled}/{entry.total_matches}</span>;
+                        return (
+                          <tr key={entry.id} style={{background:C.bg,borderTop:`1px solid ${C.border}`}}>
+                            <td style={td}/>
+                            <td style={{...td,paddingLeft:28}}>
+                              <span style={{color:C.muted,marginRight:4}}>↳</span>
+                              <span style={{fontWeight:500}}>{entry.name}</span>
+                              {badge}
+                            </td>
+                            <td style={td}>
+                              <span style={{color:C.muted,fontSize:12}}>
+                                {entry.filled}/{entry.total_matches} matches filled
+                                {entry.winner_pick&&<> · winner: <b style={{color:C.accent}}>{withFlag(entry.winner_pick)}</b></>}
                               </span>
-                              :"—"}
-                          </td>
-                          <td style={td}>{entry.winner_pick?withFlag(entry.winner_pick):"—"}</td>
-                          <td style={td}/>
-                        </tr>
-                      ))}
+                            </td>
+                            <td style={{...td,textAlign:"right",fontFamily:"monospace",fontWeight:700}}>
+                              {entry.points!=null
+                                ?<span style={{display:"inline-flex",alignItems:"center",gap:4,color:C.accent}}>
+                                  {entry.points}
+                                  {entry.live_points>0&&<span style={{background:"rgba(239,68,68,0.12)",color:C.red,border:"1px solid rgba(239,68,68,0.3)",padding:"1px 5px",borderRadius:4,fontSize:10,fontWeight:700}}>+{entry.live_points} LIVE</span>}
+                                </span>
+                                :<span style={{color:C.muted}}>—</span>}
+                            </td>
+                            <td style={{...td,textAlign:"center"}}>
+                              {isDraft&&(
+                                <button onClick={()=>adminDeleteEntry(entry.id,u.id)} title="Delete draft" style={{
+                                  background:"transparent",border:`1px solid ${C.border}`,color:C.red,
+                                  padding:"2px 8px",borderRadius:4,cursor:"pointer",fontSize:11,lineHeight:1,
+                                }}>✕</button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </Fragment>
                   );
                 })
               : participants.length===0
-                ? <tr><td colSpan={5} style={{padding:24,textAlign:"center",color:C.muted}}>No participants yet</td></tr>
+                ? <tr><td colSpan={4} style={{padding:24,textAlign:"center",color:C.muted}}>No participants yet</td></tr>
                 : participants.map(u=>{
                   const entry=leaderboard.find(e=>e.user_id===u.id);
                   return (
-                    <tr key={u.id}>
-                      <td style={td}>{u.name}</td>
-                      <td style={{...td,color:C.muted,fontFamily:"monospace",fontSize:12}}>{u.email}</td>
-                      <td style={{...td,color:C.accent,fontWeight:700,fontFamily:"monospace"}}>{entry?.total??0}</td>
+                    <tr key={u.id} style={{borderTop:`1px solid ${C.border}`}}>
+                      <td style={td}>
+                        <div style={{fontWeight:600}}>{u.name}</div>
+                        <div style={{fontSize:11,color:C.muted}}>{u.email}</div>
+                      </td>
                       <td style={td}>{entry?.winner_pick?withFlag(entry.winner_pick):"—"}</td>
-                      <td style={td}><input type="checkbox" checked={u.has_paid} onChange={e=>togglePaid(u.id,e.target.checked)}/></td>
+                      <td style={{...td,textAlign:"right",color:C.accent,fontWeight:700,fontFamily:"monospace"}}>{entry?.total??0}</td>
+                      <td style={{...td,textAlign:"center"}}><input type="checkbox" checked={u.has_paid} onChange={e=>togglePaid(u.id,e.target.checked)}/></td>
                     </tr>
                   );
                 })
@@ -920,7 +975,7 @@ const TIMEZONES = [
   { label:"Tokyo",          value:"Asia/Tokyo" },
 ];
 
-function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast }) {
+function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, config, setConfig }) {
   // Profile
   const [name,    setName]    = useState(user?.name || "");
   const [saving,  setSaving]  = useState(false);
@@ -1039,6 +1094,43 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast }) 
         </div>
       )}
 
+      {/* Data source — admin only */}
+      {user?.is_admin&&(
+        <div style={sectionStyle}>
+          <h2 style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:4}}>Data source</h2>
+          <p style={{fontSize:13,color:C.muted,marginBottom:12}}>How match results are entered.</p>
+          {[
+            {
+              value:"manual",
+              label:"Manual entry",
+              desc:"Admin starts each match, edits the live score and ends it manually.",
+            },
+            {
+              value:"realtime",
+              label:"Realtime data feed",
+              desc:<>Live matches auto-progress every 4 seconds — minutes advance, occasional goals, and matches finish automatically past minute 90.<br/><em style={{color:C.muted}}>In production this would connect to a real football API (e.g. football-data.org); in the demo it's simulated.</em></>,
+            },
+          ].map((opt,i)=>(
+            <label key={opt.value} style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",marginBottom:i===0?12:0}}>
+              <input type="radio" name="data_source" value={opt.value}
+                checked={(config?.data_source||"manual")===opt.value}
+                onChange={async()=>{
+                  try{
+                    const cfg=await api.updateConfig({data_source:opt.value});
+                    setConfig(cfg);
+                  }catch(e){showToast(e.message,"err");}
+                }}
+                style={{marginTop:3,accentColor:C.accent,flexShrink:0}}
+              />
+              <div>
+                <div style={{fontWeight:700,color:C.text,fontSize:14}}>{opt.label}</div>
+                <div style={{color:C.muted,fontSize:12,marginTop:2,lineHeight:1.5}}>{opt.desc}</div>
+              </div>
+            </label>
+          ))}
+        </div>
+      )}
+
       {/* Account */}
       <div style={sectionStyle}>
         <h2 style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:14}}>Account</h2>
@@ -1132,7 +1224,7 @@ export default function App() {
   const [tab,setTab]=useState("auth");
   const [matches,setMatches]=useState([]);
   const [teams,setTeams]=useState([]);
-  const [config,setConfig]=useState({round_state:"idle",tournament_winner:null});
+  const [config,setConfig]=useState({round_state:"idle",tournament_winner:null,data_source:"manual"});
   const [myPreds,setMyPreds]=useState({});
   const [myWinner,setMyWinner]=useState(null);
   const [results,setResults]=useState({});
@@ -1704,7 +1796,7 @@ export default function App() {
         )}
         {user&&tab==="results"&&<AdminResults/>}
         {user&&tab==="tournament"&&<Tournament matches={matches} results={results} liveMatches={liveMatches} myPreds={myPreds} config={config} user={user}/>}
-        {user&&tab==="settings"&&<SettingsView user={user} leaderboard={leaderboard} onLogout={doLogout} onNameUpdate={u=>{setUser(u);showToast("Name updated ✓");}} showToast={showToast}/>}
+        {user&&tab==="settings"&&<SettingsView user={user} leaderboard={leaderboard} onLogout={doLogout} onNameUpdate={u=>{setUser(u);showToast("Name updated ✓");}} showToast={showToast} config={config} setConfig={setConfig}/>}
       </div>
       {toast&&(
         <div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",background:toast.kind==="err"?C.red:toast.kind==="warn"?C.accent:C.green,color:toast.kind==="warn"?"#1a1a1a":"white",padding:"8px 16px",borderRadius:6,fontSize:14,zIndex:100,boxShadow:"0 4px 12px rgba(0,0,0,0.2)",whiteSpace:"nowrap"}}>

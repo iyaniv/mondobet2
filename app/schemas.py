@@ -40,11 +40,13 @@ class AuthResponse(BaseModel):
 class ConfigOut(BaseModel):
     round_state: str
     tournament_winner: Optional[str]
+    data_source: str = "manual"
 
 
 class ConfigUpdate(BaseModel):
     round_state: Optional[str] = None
     tournament_winner: Optional[str] = None
+    data_source: Optional[str] = None
 
 
 # ── Entries ───────────────────────────────────────────────────────────────────

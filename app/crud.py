@@ -75,12 +75,15 @@ async def update_config(
     db: AsyncSession,
     round_state: Optional[str] = None,
     tournament_winner: object = _UNSET,
+    data_source: Optional[str] = None,
 ) -> GameConfig:
     cfg = await get_config(db)
     if round_state is not None:
         cfg.round_state = RoundStateEnum(round_state)
     if tournament_winner is not _UNSET:
         cfg.tournament_winner = tournament_winner if tournament_winner else None
+    if data_source is not None:
+        cfg.data_source = data_source
     await db.commit()
     await db.refresh(cfg)
     return cfg
