@@ -2068,14 +2068,18 @@ export default function App() {
       try{
         const body=copyFromEntryId?{copy_from_entry_id:copyFromEntryId}:{};
         const entry=await api.createEntry(body);
-        let initPreds={};
-        if(copyFromEntryId){
-          const src=entries.find(e=>e.id===copyFromEntryId);
-          initPreds=Object.fromEntries((src?.predictions||[]).map(p=>[p.match_n,[p.score_a,p.score_b]]));
-        }
-        setEntries(es=>[...es,{...entry,predictions:copyFromEntryId?(entries.find(e=>e.id===copyFromEntryId)?.predictions||[]):[],winner_pick:copyFromEntryId?(entries.find(e=>e.id===copyFromEntryId)?.winner_pick??lockedWinner??null):(lockedWinner??null)}]);
-        switchEntry(entry.id);
-        if(copyFromEntryId){setMyPreds(initPreds);}
+        const src = copyFromEntryId ? entries.find(e=>e.id===copyFromEntryId) : null;
+        const seedPreds = src ? (src.predictions||[]) : [];
+        const seedWinner = src ? (src.winner_pick ?? lockedWinner ?? null)
+                               : (lockedWinner ?? null);
+        // Important: explicitly reset local state instead of relying on
+        // switchEntry's lookup against the not-yet-updated entries list.
+        // Otherwise a newly-created empty form briefly shows the previously
+        // active entry's data until the next switch.
+        setEntries(es => [...es, {...entry, predictions: seedPreds, winner_pick: seedWinner}]);
+        setActiveEntryId(entry.id);
+        setMyPreds(Object.fromEntries(seedPreds.map(p=>[p.match_n,[p.score_a,p.score_b]])));
+        setMyWinner(seedWinner);
         setRenameVal(entry.name);
         setRenamingEntryId(entry.id);
       }catch(e){showToast(e.message,"err");}
