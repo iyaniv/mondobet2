@@ -343,9 +343,10 @@ function MatchRow({ match, pred, result, editable, adminResult, roundState, onSa
   // Hit quality (drives the color of both the result chip and the +N pts chip)
   // green   = full hit (exact) or direction correct (with/without one goal)
   // orange  = partial only — one goal matched but wrong direction
+  //          → within the result chip, the matching digit is shown in green
   // red     = miss (0 pts)
   // muted   = result exists but user didn't predict, or no result yet
-  let ptsEl=null, hitColor=null;
+  let ptsEl=null, hitColor=null, partialMatchSide=null;
   if(result&&pred?.[0]!=null&&pred?.[1]!=null){
     const p1=pred[0],p2=pred[1],r1=result[0],r2=result[1];
     const sign=(x)=>x===0?0:x>0?1:-1;
@@ -361,14 +362,28 @@ function MatchRow({ match, pred, result, editable, adminResult, roundState, onSa
       ? {bg:"rgba(245,158,11,0.14)",  fg:"#f59e0b", border:"rgba(245,158,11,0.4)"} // partial only
       : {bg:"rgba(239,68,68,0.14)",   fg:C.red,   border:"rgba(239,68,68,0.4)"};   // miss
     hitColor = palette;
+    // For the orange (partial) case: remember which digit the user got right
+    if (total===1) partialMatchSide = p1===r1 ? 0 : (p2===r2 ? 1 : null);
     ptsEl=<span style={{background:palette.bg,color:palette.fg,border:`1px solid ${palette.border}`,padding:"1px 6px",borderRadius:4,fontWeight:700,fontFamily:"monospace",fontSize:11}}>+{total}</span>;
   } else if(roundState==="closed"&&!result){
     ptsEl=<span style={{color:C.muted,fontSize:11}}>awaiting</span>;
   }
-  // Result chip color — share with hit color if both exist, else neutral
-  const resultChipStyle = hitColor
+  // Result chip — color the whole text by hit quality, EXCEPT in the partial
+  // case where the matching digit gets the green accent and only the other
+  // digit keeps the orange.
+  const resultChipBaseStyle = hitColor
     ? {background:hitColor.bg,color:hitColor.fg,border:`1px solid ${hitColor.border}`}
     : {background:"rgba(148,163,184,0.10)",color:C.muted,border:`1px solid ${C.border}`};
+  const renderResultDigits = (r) => {
+    if (partialMatchSide===null) return `${r[0]}:${r[1]}`;
+    return (
+      <>
+        <span style={{color:partialMatchSide===0?C.green:"inherit"}}>{r[0]}</span>
+        :
+        <span style={{color:partialMatchSide===1?C.green:"inherit"}}>{r[1]}</span>
+      </>
+    );
+  };
 
   let winnerSide = null;
   if (result) {
@@ -427,10 +442,10 @@ function MatchRow({ match, pred, result, editable, adminResult, roundState, onSa
           <div style={{display:"flex",gap:5,justifyContent:"flex-end",
             alignItems:"center",marginTop:4}}>
             {result!=null&&(
-              <span style={{...resultChipStyle,padding:"1px 7px",
+              <span style={{...resultChipBaseStyle,padding:"1px 7px",
                 borderRadius:4,fontWeight:700,fontFamily:"monospace",
                 fontSize:11,whiteSpace:"nowrap"}}>
-                ✓ {result[0]}:{result[1]}
+                ✓ {renderResultDigits(result)}
               </span>
             )}
             {ptsEl}
@@ -471,9 +486,9 @@ function MatchRow({ match, pred, result, editable, adminResult, roundState, onSa
       }}>{match.b} {flag(match.b)}</span>
       <div style={{display:"flex",gap:4,alignItems:"center",justifyContent:"flex-end",minWidth:96}}>
         {result!=null
-          ? <span style={{...resultChipStyle,padding:"1px 7px",borderRadius:4,
+          ? <span style={{...resultChipBaseStyle,padding:"1px 7px",borderRadius:4,
               fontWeight:700,fontFamily:"monospace",fontSize:11,whiteSpace:"nowrap",
-            }}>✓ {result[0]}:{result[1]}</span>
+            }}>✓ {renderResultDigits(result)}</span>
           : (!editable&&!adminResult&&
               <span style={{color:C.muted,fontSize:11,fontFamily:"monospace"}}>vs</span>)
         }
