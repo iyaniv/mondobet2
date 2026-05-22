@@ -1422,12 +1422,12 @@ function AdminResults({ config, matches, results, liveMatches, setResults, refre
           <button onClick={()=>autofillCurrentStage("live")} title="Random in-progress scores for the current stage"
             style={{padding:"6px 12px",borderRadius:6,fontSize:12,fontWeight:600,
               background:"transparent",color:C.accent,border:`1px solid ${C.accent}`,cursor:"pointer"}}>
-            🎲 Auto-fill (live)
+            🎲 Auto-fill (live) — current stage
           </button>
           <button onClick={()=>autofillCurrentStage("final")} title="Random final scores for the current stage"
             style={{padding:"6px 12px",borderRadius:6,fontSize:12,fontWeight:600,
               background:C.accent,color:"#1a1a1a",border:`1px solid ${C.accent}`,cursor:"pointer"}}>
-            🎲 Auto-fill (final)
+            🎲 Auto-fill (final) — current stage
           </button>
         </div>
       </div>
@@ -2313,7 +2313,7 @@ export default function App() {
                   padding:"6px 12px",borderRadius:6,fontSize:12,fontWeight:600,
                   background:"transparent",color:C.accent,border:`1px solid ${C.accent}`,cursor:"pointer",
                 }}>
-                🎲 Random fill
+                🎲 Random fill — current stage
               </button>
             )}
             {!activeEntry.submitted_at&&entries.length>1&&editable&&(
