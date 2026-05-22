@@ -1919,10 +1919,49 @@ export default function App() {
     }
 
     const myLbEntry=leaderboard.find(e=>e.entry_id===activeEntryId);
+    const rstate=config.round_state;
+    const rs= rstate==="open"
+      ? {text:"🟢 Round OPEN", color:C.green, border:"rgba(16,185,129,0.4)", bg:"rgba(16,185,129,0.08)"}
+      : rstate==="closed"
+      ? {text:"🔒 Round CLOSED", color:C.red,   border:"rgba(239,68,68,0.4)", bg:"rgba(239,68,68,0.08)"}
+      : {text:"⏸️ Round idle",   color:C.muted, border:C.border,             bg:C.panel2};
     return (
       <div>
-        <div style={{marginBottom:14}}><RoundPill/></div>
-        <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>{user?.name}'s predictions</h1>
+        {/* ── Compact header row ── */}
+        <div style={{
+          display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",
+          background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,
+          padding:"10px 14px",marginBottom:12,
+        }}>
+          <span style={{fontFamily:"var(--c-font-display)",fontSize:22,letterSpacing:1,color:C.accent,lineHeight:1}}>
+            {(user?.name||"").toUpperCase()}'S PREDICTIONS
+          </span>
+          <span style={{
+            display:"inline-flex",alignItems:"center",gap:6,padding:"3px 10px",borderRadius:999,
+            fontSize:12,fontWeight:600,color:rs.color,border:`1px solid ${rs.border}`,background:rs.bg,
+          }}>{rs.text}</span>
+          {activeEntry?.submitted_at&&(
+            <span style={{
+              display:"inline-flex",alignItems:"center",gap:6,padding:"3px 10px",borderRadius:999,
+              fontSize:12,fontWeight:600,color:C.green,border:"1px solid rgba(16,185,129,0.4)",background:"rgba(16,185,129,0.08)",
+            }}>✓ Submitted</span>
+          )}
+          <span style={{flex:1}}/>
+          {myLbEntry?(
+            <span style={{
+              display:"inline-flex",alignItems:"baseline",gap:8,
+              background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 12px",fontSize:12,color:C.muted,
+            }}>
+              <b style={{color:C.accent,fontSize:18,fontFamily:"monospace",fontWeight:700}}>{myLbEntry.total}</b>
+              pts · {myLbEntry.scored_matches}/{matches.length} scored
+              {myLbEntry.winner_bonus>0&&<span style={{color:C.green,fontWeight:600}}>· 🏆 +10</span>}
+            </span>
+          ):(
+            <span style={{fontSize:12,color:C.muted}}>
+              {filledCount}/{openMatches.length} filled
+            </span>
+          )}
+        </div>
 
         {/* Entry tab bar */}
         {entries.length>0&&(
@@ -2028,11 +2067,6 @@ export default function App() {
                 )}
               </>
             )}
-            {activeEntry.submitted_at&&(
-              <span style={{background:"rgba(16,185,129,0.1)",color:C.green,border:"1px solid rgba(16,185,129,0.3)",padding:"4px 10px",borderRadius:6,fontSize:13,fontWeight:600}}>
-                ✓ Submitted
-              </span>
-            )}
             {!activeEntry.submitted_at&&entries.length>1&&editable&&(
               <Btn ghost red onClick={()=>deleteEntryById(activeEntry.id)}>Delete</Btn>
             )}
@@ -2042,14 +2076,6 @@ export default function App() {
         {config.round_state==="idle"&&<InfoBlock warn>⏸️ <b>No betting round is open yet.</b> The admin needs to open a round before you can enter predictions.</InfoBlock>}
         {config.round_state==="open"&&<InfoBlock>✏️ <b>Round is open.</b> Predictions save automatically when you leave each field.<br/><b>Scoring:</b> 5 pts correct direction · +3 exact · +1 partial · 10 pts tournament winner.</InfoBlock>}
         {config.round_state==="closed"&&<InfoBlock>🔒 <b>Round closed.</b> Points appear once the admin enters results.</InfoBlock>}
-
-        {myLbEntry&&(
-          <div style={{textAlign:"right",padding:"8px 12px",background:C.panel2,borderRadius:6,marginBottom:16,fontSize:14,color:C.text}}>
-            Total: <span style={{color:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:18}}>{myLbEntry.total}</span>
-            &nbsp;·&nbsp;{myLbEntry.scored_matches}/{matches.length} scored
-            {myLbEntry.winner_bonus>0&&<>&nbsp;·&nbsp;🏆 +10 winner bonus</>}
-          </div>
-        )}
 
         {/* Winner pick */}
         <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:12,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:16,position:"relative",zIndex:10}}>
@@ -2141,31 +2167,38 @@ export default function App() {
     const [rivalsOnly, setRivalsOnly] = useState(false);
 
     // ── Simulate mode ──────────────────────────────────────────────────────
-    // Find this user's leaderboard entry (prefer active entry tab)
-    const myLbEntry = leaderboard.find(e=>e.entry_id===activeEntryId)
-                   || leaderboard.find(e=>e.user_id===user?.id);
     // Unplayed matches the user has predicted (excluding live — already counted)
     const unplayedPredMatches = matches.filter(m=>
       !results[m.n] && !liveMatches[m.n] && myPreds?.[m.n]?.[0]!=null
     );
     const canSim = !user?.is_admin && unplayedPredMatches.length > 0;
     const [simMode,setSimMode] = useState(false);
+    const [simLb, setSimLb] = useState(null);
+    const [simLoading, setSimLoading] = useState(false);
 
-    // Simulated extra pts: 8 per match (direction 5 + exact 3, since result = prediction)
-    // + 10 winner pick bonus if tournament winner not yet decided and user has a pick
-    const winnerPick = lockedWinner || myWinner;
-    const simMatchPts   = unplayedPredMatches.length * 8;
-    const simWinnerPts  = (!config.tournament_winner && !!winnerPick) ? 10 : 0;
-    const simExtraPts   = simMode ? simMatchPts + simWinnerPts : 0;
+    // Fetch simulated leaderboard when sim mode turns on (uses my predictions
+    // as ground truth for unplayed games — scores every user accordingly).
+    useEffect(() => {
+      if (!simMode || !canSim) { setSimLb(null); return; }
+      const override = {};
+      for (const m of unplayedPredMatches) {
+        const p = myPreds[m.n];
+        if (p?.[0]!=null && p?.[1]!=null) override[m.n] = [p[0], p[1]];
+      }
+      const winnerPick = lockedWinner || myWinner;
+      const winnerOverride = (!config.tournament_winner && winnerPick) ? winnerPick : null;
+      setSimLoading(true);
+      api.getSimulatedLeaderboard(override, winnerOverride)
+        .then(rows => setSimLb(rows))
+        .catch(()=>setSimLb(null))
+        .finally(()=>setSimLoading(false));
+    }, [simMode]);
 
-    // Build display leaderboard: only current user's row is updated, then re-sorted
-    const displayLb = (simMode && myLbEntry && simExtraPts > 0)
-      ? [...leaderboard]
-          .map(e => e.entry_id===myLbEntry.entry_id
-            ? {...e, total: e.total + simExtraPts, _simExtra: simExtraPts}
-            : e
-          )
-          .sort((a,b) => b.total - a.total)
+    // Per-row "diff vs actual" badge data
+    const actualTotalsByEntry = Object.fromEntries(leaderboard.map(e => [e.entry_id, e.total]));
+
+    const displayLb = (simMode && simLb)
+      ? simLb.map(e => ({...e, _simDiff: e.total - (actualTotalsByEntry[e.entry_id] ?? e.total)}))
       : leaderboard;
 
     // Rivals filter — always keeps current user in view
@@ -2214,13 +2247,10 @@ export default function App() {
           </div>
         </div>
 
-        {simMode&&simExtraPts>0&&(
+        {simMode&&(
           <div style={{background:"var(--c-accent-soft)",border:`1px solid ${C.accent}`,
             borderRadius:6,padding:"7px 14px",marginBottom:14,fontSize:13,color:C.accent}}>
-            ✨ Your score includes <b>+{simExtraPts} simulated pts</b>
-            {" — "}{unplayedPredMatches.length} match{unplayedPredMatches.length!==1?"es":""} ×8
-            {simWinnerPts>0&&<> · winner pick +10</>}
-            {" (visible only to you)"}
+            ✨ Simulating <b>{unplayedPredMatches.length}</b> unplayed match{unplayedPredMatches.length!==1?"es":""} with <b>your</b> predictions as results — all users' scores are recomputed accordingly{simLoading?" · loading…":""}
           </div>
         )}
 
@@ -2245,7 +2275,8 @@ export default function App() {
                     const globalRank = displayLb.indexOf(row) + 1;
                     const isMe=row.user_id===user?.id;
                     const isRival=!isMe&&myRivals.includes(row.user_id);
-                    const isSim=simMode&&!!row._simExtra;
+                    const isSim=simMode&&row._simDiff!=null&&row._simDiff!==0;
+                    const simDiff=row._simDiff||0;
                     const i = globalRank - 1;
                     const rowBg=i===0?"rgba(163,230,53,0.12)":i===1?"rgba(163,230,53,0.07)":i===2?"rgba(163,230,53,0.03)":isRival?"rgba(163,230,53,0.05)":"transparent";
                     let winnerCell;
@@ -2263,7 +2294,7 @@ export default function App() {
                         </td>
                         <td style={{...td,textAlign:"center",color:isSim?C.indigo:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:17}}>
                           {row.total}
-                          {isSim&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}>+{row._simExtra} sim</span>}
+                          {isSim&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}>{simDiff>0?"+":""}{simDiff} sim</span>}
                           {!isSim&&row.live_matches_count>0&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(239,68,68,0.12)",color:C.red,border:"1px solid rgba(239,68,68,0.3)",padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}><span className="live-dot"/>+{row.live_points} LIVE</span>}
                         </td>
                         <td style={td}>{winnerCell}</td>

@@ -46,6 +46,8 @@ export const api = {
   getConfig:      () => request("/api/config/"),
   getResults:     () => request("/api/results/"),
   getLeaderboard: () => request("/api/leaderboard/"),
+  // Sim leaderboard isn't implemented on the real backend yet — fall back to actual
+  getSimulatedLeaderboard: () => request("/api/leaderboard/"),
 
   // Entries (multi-form per user)
   getMyEntries:  ()         => request("/api/entries/me"),

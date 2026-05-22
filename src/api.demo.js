@@ -355,14 +355,19 @@ function resolveEntryId(user, entryId) {
 }
 
 // ── Leaderboard computation ──────────────────────────────────────────────────
-function computeLeaderboard() {
+// `resultsOverride` (optional) merges with real results — used by simulate mode
+// to treat the caller's predictions as ground truth for unplayed games.
+// `tournamentWinnerOverride` lets simulate also assume a winner pick.
+function computeLeaderboard(resultsOverride=null, tournamentWinnerOverride=null) {
+  const effectiveResults = resultsOverride ? {...S.results, ...resultsOverride} : S.results;
+  const effectiveWinner  = tournamentWinnerOverride ?? S.config.tournament_winner;
   const rows = [];
   for (const user of Object.values(S.users)) {
     if (user.is_admin) continue;
     for (const entry of Object.values(S.entries).filter(e=>e.user_id===user.id&&e.submitted_at)) {
       const preds = S.predictions[entry.id]||{};
       const wp    = S.winner_picks[entry.id]||null;
-      const t     = calcTotals(preds,S.results,S.live,wp,S.config.tournament_winner);
+      const t     = calcTotals(preds,effectiveResults,S.live,wp,effectiveWinner);
       const filled = Object.values(preds).filter(p=>p[0]!=null&&p[1]!=null).length;
       rows.push({
         entry_id:entry.id, user_id:user.id, name:entry.name,
@@ -438,6 +443,12 @@ export const api = {
   getConfig:      async () => { await delay(30); return S.config; },
   getResults:     async () => { await delay(30); return Object.entries(S.results).map(([n,r])=>({match_n:Number(n),score_a:r[0],score_b:r[1]})); },
   getLeaderboard: async () => { await delay(50); return computeLeaderboard(); },
+  // resultsOverride: { [match_n]: [score_a, score_b] }
+  // winnerOverride: team name (string) — assume tournament winner for sim
+  getSimulatedLeaderboard: async (resultsOverride, winnerOverride=null) => {
+    await delay(50);
+    return computeLeaderboard(resultsOverride||null, winnerOverride);
+  },
 
   // ── Entries
   getMyEntries: async () => {
