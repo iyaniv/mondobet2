@@ -1282,9 +1282,9 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
 // ─────────────────────────────────────────────────────────────────────────────
 function AdminResults({ config, matches, results, liveMatches, setResults, refreshLb, refreshLive, showToast }) {
   const currentStage = config.current_stage || 1;
-  // Stages before the current one start collapsed (results already entered)
+  // All stages except current start collapsed
   const [collapsedStages, setCollapsedStages] = useState(
-    () => new Set(STAGES.filter(s => s.n < currentStage).map(s => s.n))
+    () => new Set(STAGES.filter(s => s.n !== currentStage).map(s => s.n))
   );
   const toggleStage = n => setCollapsedStages(prev => {
     const next = new Set(prev); next.has(n) ? next.delete(n) : next.add(n); return next;
