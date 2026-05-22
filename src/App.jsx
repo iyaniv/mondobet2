@@ -1368,39 +1368,6 @@ function AdminResults({ config, matches, results, liveMatches, setResults, refre
     } catch(e) { showToast(e.message, "err"); }
   }
 
-  // Auto-fill: pick random 0-3 scores for every current-stage match that
-  // doesn't yet have a result. `mode="final"` saves directly as final;
-  // `mode="live"` saves as in-motion scores (admin can flip to FINAL later).
-  async function autofillCurrentStage(mode = "final") {
-    const stage = STAGES.find(s => s.n === currentStage);
-    if (!stage) return;
-    const todo = matches.filter(m =>
-      m.n >= stage.first && m.n <= stage.last && !results[m.n]
-    );
-    if (todo.length === 0) {
-      showToast("No matches left to fill in this stage", "warn");
-      return;
-    }
-    if (!confirm(`Auto-fill ${todo.length} match${todo.length===1?"":"es"} in ${stage.name} with random scores (${mode})?`)) return;
-    const rand = () => Math.floor(Math.random() * 4); // 0..3
-    let ok = 0;
-    for (const m of todo) {
-      const sa = rand(), sb = rand();
-      try {
-        if (mode === "final") {
-          await api.setResult(m.n, {score_a: sa, score_b: sb});
-          setResults(r => ({...r, [m.n]: [sa, sb]}));
-        } else {
-          await liveApi.set(m.n, {score_a: sa, score_b: sb, minute: 0, is_live: false});
-        }
-        ok++;
-      } catch(e) { console.error("autofill", m.n, e); }
-    }
-    await refreshLive();
-    refreshLb();
-    showToast(`Auto-filled ${ok}/${todo.length} match${todo.length===1?"":"es"} ✓`);
-  }
-
   const roundPill = {
     open:   {text:"🟢 Betting round is OPEN",   bg:"rgba(16,185,129,0.1)",  color:C.green, border:`1px solid ${C.green}`},
     closed: {text:"🔒 Betting round is CLOSED",  bg:"rgba(239,68,68,0.1)",   color:C.red,   border:`1px solid ${C.red}`},
@@ -1415,22 +1382,7 @@ function AdminResults({ config, matches, results, liveMatches, setResults, refre
           {roundPill.text}
         </span>
       </div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,
-        flexWrap:"wrap",marginBottom:12}}>
-        <h1 style={{color:C.accent,fontSize:20,margin:0}}>Enter results</h1>
-        <div style={{display:"flex",gap:6}}>
-          <button onClick={()=>autofillCurrentStage("live")} title="Random in-progress scores for the current stage"
-            style={{padding:"6px 12px",borderRadius:6,fontSize:12,fontWeight:600,
-              background:"transparent",color:C.accent,border:`1px solid ${C.accent}`,cursor:"pointer"}}>
-            🎲 Auto-fill (live) — current stage
-          </button>
-          <button onClick={()=>autofillCurrentStage("final")} title="Random final scores for the current stage"
-            style={{padding:"6px 12px",borderRadius:6,fontSize:12,fontWeight:600,
-              background:C.accent,color:"#1a1a1a",border:`1px solid ${C.accent}`,cursor:"pointer"}}>
-            🎲 Auto-fill (final) — current stage
-          </button>
-        </div>
-      </div>
+      <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>Enter results</h1>
       {config.round_state==="open" && (
         <InfoBlock warn>💡 Round is still open. Close it first so participants can't edit after seeing scores.</InfoBlock>
       )}
