@@ -81,6 +81,10 @@ export const api = {
 export const liveApi = {
   getAll:   ()      => request("/api/live/"),
   set:      (n, d)  => request(`/api/live/${n}`,          { method: "PUT",    body: d }),
+  // Mark an existing live record as visibly live (LIVE badge). Falls back to
+  // the regular set endpoint with is_live:true for backends that don't have
+  // a dedicated route.
+  markLive: (n)     => request(`/api/live/${n}`,          { method: "PUT",    body: { is_live: true } }),
   remove:   (n)     => request(`/api/live/${n}`,          { method: "DELETE" }),
   finalize: (n)     => request(`/api/live/${n}/finalize`, { method: "POST" }),
 };

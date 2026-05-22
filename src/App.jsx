@@ -952,7 +952,7 @@ function GroupCard({ group, allMatches, results, simPreds, liveMatches={} }) {
         {gm.map(m=>{
           const res = results[m.n];
           const sim = !res && simPreds[m.n]?.[0]!=null ? simPreds[m.n] : null;
-          const isMatchLive = !!liveMatches[m.n];
+          const isMatchLive = !!(liveMatches[m.n] && liveMatches[m.n].is_live);
           const eff = res||sim;
           const isSim = !res&&!!sim;
           const winA = eff ? (eff[0]>eff[1]?true:eff[1]>eff[0]?false:null) : null;
@@ -1081,15 +1081,17 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
               const resolvedB = resolveTeamDeep(m.b, results, matches);
               const res       = results[m.n];
               const live      = liveMatches[m.n];
+              const isMatchLive = !!(live && live.is_live);
               const dispScore = live ? [live.score_a, live.score_b] : res ?? null;
               const winA      = dispScore
                 ? (dispScore[0] > dispScore[1] ? true : dispScore[0] < dispScore[1] ? false : null)
                 : null;
-              const rowBg     = live ? "rgba(239,68,68,0.06)"
-                              : res  ? "rgba(16,185,129,0.04)"
+              const rowBg     = isMatchLive ? "rgba(239,68,68,0.06)"
+                              : res         ? "rgba(16,185,129,0.04)"
+                              : live        ? C.panel2
                               : C.panel2;
-              const rowBd     = `1px solid ${live ? "rgba(239,68,68,0.35)"
-                              : res  ? "rgba(16,185,129,0.2)"
+              const rowBd     = `1px solid ${isMatchLive ? "rgba(239,68,68,0.35)"
+                              : res                       ? "rgba(16,185,129,0.2)"
                               : C.border}`;
               return (
                 <div key={m.n} style={{
@@ -1103,7 +1105,7 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
                     {flag(resolvedA)} {resolvedA}
                   </span>
                   <div style={{textAlign:"center"}}>
-                    {live ? (
+                    {isMatchLive ? (
                       <>
                         <div style={{fontFamily:"monospace",fontWeight:700,color:C.red,fontSize:15}}>
                           {live.score_a}:{live.score_b}
@@ -1113,7 +1115,8 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
                         </div>
                       </>
                     ) : dispScore ? (
-                      <div style={{fontFamily:"monospace",fontWeight:700,color:C.green,fontSize:15}}>
+                      <div style={{fontFamily:"monospace",fontWeight:700,
+                        color:res?C.green:C.text,fontSize:15}}>
                         {dispScore[0]}:{dispScore[1]}
                       </div>
                     ) : (
@@ -1139,11 +1142,12 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
 // ADMIN MATCH ROW — handles pending / live / final states; outside App
 // ─────────────────────────────────────────────────────────────────────────────
 function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpdateLive, onFinalize }) {
-  const isLive  = !!liveData;
-  const isFinal = !!result;
+  const hasScore   = !!liveData;                  // any in-motion score saved
+  const isShownLive= !!(liveData && liveData.is_live);  // admin clicked LIVE
+  const isFinal    = !!result;
 
-  const [resA, setResA] = useState(isLive ? String(liveData.score_a) : isFinal ? String(result[0]) : "");
-  const [resB, setResB] = useState(isLive ? String(liveData.score_b) : isFinal ? String(result[1]) : "");
+  const [resA, setResA] = useState(hasScore ? String(liveData.score_a) : isFinal ? String(result[0]) : "");
+  const [resB, setResB] = useState(hasScore ? String(liveData.score_b) : isFinal ? String(result[1]) : "");
 
   useEffect(() => {
     if (liveData) { setResA(String(liveData.score_a)); setResB(String(liveData.score_b)); }
@@ -1151,19 +1155,37 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
     else { setResA(""); setResB(""); }
   }, [liveData?.score_a, liveData?.score_b, result?.[0], result?.[1]]);
 
-  // Typing a score saves as LIVE (not final). Inputs stay editable until the
-  // admin clicks ✓ FINAL. Final marking is the only way to lock the row.
+  // Typing a score saves the in-motion data BUT does NOT mark the match as
+  // visibly LIVE. The LIVE badge appears only when the admin explicitly
+  // clicks ▶ LIVE. The row stays editable until the admin clicks ✓ FINAL.
   async function handleBlur(side, val) {
     const a = side===0 ? val : resA, b = side===1 ? val : resB;
     if (a===""&&b==="") return;
     const sa=Number(a)||0, sb=Number(b)||0;
-    await onUpdateLive(match.n, {score_a:sa, score_b:sb, minute:liveData?.minute||0});
+    // Preserve current is_live state (false unless admin already toggled it)
+    await onUpdateLive(match.n, {
+      score_a:sa, score_b:sb,
+      minute: liveData?.minute || 0,
+      is_live: !!liveData?.is_live,
+    });
   }
 
   const effA = Number(resA||0), effB = Number(resB||0);
-  const winA = (isLive||isFinal) ? (effA>effB?true:effB>effA?false:null) : null;
-  const rowBg    = isLive?"rgba(239,68,68,0.06)":isFinal?"rgba(16,185,129,0.04)":C.panel2;
-  const rowBorder= `1px solid ${isLive?"rgba(239,68,68,0.35)":isFinal?"rgba(16,185,129,0.25)":C.border}`;
+  const winA = (hasScore||isFinal) ? (effA>effB?true:effB>effA?false:null) : null;
+  // Row palette: red for shown-as-live, green for final, lime tint for
+  // "score saved but not yet marked LIVE", default panel for empty.
+  const rowBg = isShownLive ? "rgba(239,68,68,0.06)"
+              : isFinal     ? "rgba(16,185,129,0.04)"
+              : hasScore    ? "rgba(163,230,53,0.04)"
+              : C.panel2;
+  const rowBorder = `1px solid ${
+      isShownLive ? "rgba(239,68,68,0.35)"
+    : isFinal     ? "rgba(16,185,129,0.25)"
+    : hasScore    ? "rgba(163,230,53,0.25)"
+    : C.border}`;
+  const inputBorder = isShownLive ? "rgba(239,68,68,0.5)"
+                    : hasScore    ? "rgba(163,230,53,0.4)"
+                    : C.border;
   const isMobile = useIsMobile();
 
   // Score / inputs block shared across layouts
@@ -1174,34 +1196,43 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
     <div style={{display:"flex",alignItems:"center",gap:3}}>
       <input type="number" inputMode="numeric" min={0} max={20} value={resA}
         onChange={e=>setResA(e.target.value)} onBlur={e=>handleBlur(0,e.target.value)}
-        style={{...numInput,border:`1px solid ${isLive?"rgba(239,68,68,0.5)":C.border}`}}/>
+        style={{...numInput,border:`1px solid ${inputBorder}`}}/>
       <span style={{color:C.muted,fontSize:13}}>:</span>
       <input type="number" inputMode="numeric" min={0} max={20} value={resB}
         onChange={e=>setResB(e.target.value)} onBlur={e=>handleBlur(1,e.target.value)}
-        style={{...numInput,border:`1px solid ${isLive?"rgba(239,68,68,0.5)":C.border}`}}/>
+        style={{...numInput,border:`1px solid ${inputBorder}`}}/>
     </div>
   );
 
-  // Controls: while a score is in motion (live) show ✓ FINAL to lock it.
-  // For a not-yet-started match show a small LIVE indicator (optional —
-  // typing a score also moves the row into LIVE state automatically).
-  // For an already-final match show a small green dot.
+  // Controls:
+  //   • match has score but not yet marked LIVE → ● LIVE button + ✓ FINAL
+  //   • match marked LIVE                        → LIVE indicator + ✓ FINAL
+  //   • match final                              → small green dot
+  //   • empty                                     → nothing
   const controls = (
     <div style={{display:"flex",gap:4,alignItems:"center"}}>
-      {isLive && (
-        <>
-          <span style={{display:"inline-flex",alignItems:"center",gap:4,
-            color:C.red,fontSize:11,fontWeight:600,marginRight:4}}>
-            <span className="live-dot"/> LIVE
-          </span>
-          <button onClick={()=>onFinalize(match.n)} style={{
-            background:C.green,color:"white",border:0,padding:"2px 8px",
-            borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>
-            ✓ FINAL
-          </button>
-        </>
+      {hasScore && !isFinal && !isShownLive && (
+        <button onClick={()=>onGoLive(match.n)} style={{
+          background:"transparent",border:`1px solid ${C.red}`,color:C.red,
+          padding:"2px 8px",borderRadius:4,cursor:"pointer",
+          fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
+          <span className="live-dot" style={{marginRight:4}}/> LIVE
+        </button>
       )}
-      {!isLive && isFinal && (
+      {isShownLive && (
+        <span style={{display:"inline-flex",alignItems:"center",gap:4,
+          color:C.red,fontSize:11,fontWeight:600,marginRight:4}}>
+          <span className="live-dot"/> LIVE
+        </span>
+      )}
+      {hasScore && !isFinal && (
+        <button onClick={()=>onFinalize(match.n)} style={{
+          background:C.green,color:"white",border:0,padding:"2px 8px",
+          borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>
+          ✓ FINAL
+        </button>
+      )}
+      {!hasScore && isFinal && (
         <span style={{width:8,height:8,borderRadius:"50%",background:C.green,display:"inline-block"}}
               title="Final result"/>
       )}
@@ -1296,9 +1327,9 @@ function AdminResults({ config, matches, results, liveMatches, setResults, refre
   }
   async function goLive(matchN) {
     try {
-      await liveApi.set(matchN, {score_a:0, score_b:0, minute:0});
+      await liveApi.markLive(matchN);
       await refreshLive();
-      showToast("Match is now LIVE");
+      showToast("Match marked LIVE");
     } catch(e) { showToast(e.message, "err"); }
   }
   async function updateLive(matchN, data) {
@@ -1392,7 +1423,9 @@ function AdminResults({ config, matches, results, liveMatches, setResults, refre
 
 // LiveNowSection — shown at the top of the Leaderboard when matches are in play
 function LiveNowSection({ liveMatches, matches }) {
-  const live = Object.entries(liveMatches);
+  // Only show matches the admin explicitly marked LIVE (is_live === true).
+  // "Saved but not yet LIVE" scores affect ranking but do not appear here.
+  const live = Object.entries(liveMatches).filter(([,ld]) => ld?.is_live);
   if (live.length === 0) return null;
   return (
     <div style={{marginBottom:20}}>
@@ -1751,7 +1784,7 @@ export default function App() {
 
       // Live matches (may not exist yet if table not created)
       if (d.live) {
-        const liveMap={};for(const m of d.live)liveMap[m.match_n]={score_a:m.score_a,score_b:m.score_b,minute:m.minute};
+        const liveMap={};for(const m of d.live)liveMap[m.match_n]={score_a:m.score_a,score_b:m.score_b,minute:m.minute,is_live:!!m.is_live};
         setLiveMatches(liveMap);
       }
 
@@ -1806,7 +1839,7 @@ export default function App() {
   async function refreshLive() {
     try {
       const list = await liveApi.getAll();
-      const m={}; for(const x of list) m[x.match_n]={score_a:x.score_a,score_b:x.score_b,minute:x.minute};
+      const m={}; for(const x of list) m[x.match_n]={score_a:x.score_a,score_b:x.score_b,minute:x.minute,is_live:!!x.is_live};
       setLiveMatches(m);
       localStorage.setItem("mb_live_sync", Date.now().toString());
     } catch(e) { console.error("refreshLive:", e); }
@@ -1817,7 +1850,7 @@ export default function App() {
     function onStorage(e) {
       if (e.key !== "mb_live_sync") return;
       liveApi.getAll().then(list => {
-        const m={}; for(const x of list) m[x.match_n]={score_a:x.score_a,score_b:x.score_b,minute:x.minute};
+        const m={}; for(const x of list) m[x.match_n]={score_a:x.score_a,score_b:x.score_b,minute:x.minute,is_live:!!x.is_live};
         setLiveMatches(m);
       }).catch(()=>{});
     }

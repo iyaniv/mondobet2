@@ -666,6 +666,12 @@ export const api = {
 };
 
 // ── Live API ──────────────────────────────────────────────────────────────────
+// Two-bit state per match record in S.live[n]:
+//   {score_a, score_b, minute, is_live}
+// `is_live` distinguishes "scores saved, ranking updated" (false) from
+// "shown to users as LIVE NOW" (true). Set defaults to false unless the
+// caller explicitly passes is_live=true, or unless the record already had
+// is_live=true (preserve admin's previous LIVE toggle).
 export const liveApi = {
   getAll: async () => {
     await delay(30);
@@ -674,9 +680,23 @@ export const liveApi = {
   set: async (n, d) => {
     await delay();
     requireAdmin();
-    S.live[Number(n)] = {score_a:d.score_a,score_b:d.score_b,minute:d.minute};
+    const prev = S.live[Number(n)];
+    const isLive = d.is_live !== undefined ? !!d.is_live : !!(prev && prev.is_live);
+    S.live[Number(n)] = {
+      score_a: d.score_a, score_b: d.score_b,
+      minute: d.minute ?? (prev?.minute || 0),
+      is_live: isLive,
+    };
     save(S);
-    return {match_n:Number(n),...d};
+    return {match_n:Number(n),...S.live[Number(n)]};
+  },
+  markLive: async (n) => {
+    await delay();
+    requireAdmin();
+    const prev = S.live[Number(n)] || {score_a:0,score_b:0,minute:0};
+    S.live[Number(n)] = {...prev, is_live:true};
+    save(S);
+    return {match_n:Number(n),...S.live[Number(n)]};
   },
   remove: async (n) => {
     await delay();
@@ -689,7 +709,7 @@ export const liveApi = {
     await delay();
     requireAdmin();
     const ld = S.live[Number(n)];
-    if (!ld) throw new Error("Match is not live");
+    if (!ld) throw new Error("Match has no score yet");
     S.results[Number(n)] = [ld.score_a, ld.score_b];
     delete S.live[Number(n)];
     save(S);
