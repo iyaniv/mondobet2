@@ -340,40 +340,45 @@ function MatchRow({ match, pred, result, editable, adminResult, roundState, onSa
     try { await onResultSave(match.n,{score_a:a===""?null:Number(a),score_b:b===""?null:Number(b)}); } catch(e){console.error(e);}
   }
 
-  // Hit quality (drives the color of both the result chip and the +N pts chip)
-  // green   = full hit (exact) or direction correct (with/without one goal)
-  // orange  = partial only — one goal matched but wrong direction
-  //          → within the result chip, the matching digit is shown in green
-  // red     = miss (0 pts)
-  // muted   = result exists but user didn't predict, or no result yet
-  let ptsEl=null, hitColor=null, partialMatchSide=null;
+  // Two independent chips with their own colour rules:
+  //   Points (+N) — based on total points earned
+  //     5+   → green   (direction correct or better)
+  //      1   → orange  (only a partial goal match)
+  //      0   → red     (miss)
+  //   Result (✓ A:B) — based on how many digits the user actually matched
+  //      2   → green   (exact score)
+  //      1   → orange  (one digit matched) + that digit rendered green
+  //      0   → red     (no digit matched, even if direction was right)
+  //   Either chip falls back to muted grey if there is no prediction.
+  const GREEN  = {bg:"rgba(16,185,129,0.14)", fg:C.green,  border:"rgba(16,185,129,0.4)"};
+  const ORANGE = {bg:"rgba(245,158,11,0.14)", fg:"#f59e0b",border:"rgba(245,158,11,0.4)"};
+  const RED    = {bg:"rgba(239,68,68,0.14)",  fg:C.red,    border:"rgba(239,68,68,0.4)"};
+  const MUTED  = {bg:"rgba(148,163,184,0.10)",color:C.muted, border:`1px solid ${C.border}`};
+
+  let ptsEl=null;
+  let resultChipPalette=null;   // for the ✓ result chip
+  let partialMatchSide=null;    // which digit (0/1) to highlight in green
   if(result&&pred?.[0]!=null&&pred?.[1]!=null){
     const p1=pred[0],p2=pred[1],r1=result[0],r2=result[1];
     const sign=(x)=>x===0?0:x>0?1:-1;
     const dir=sign(p1-p2)===sign(r1-r2)?5:0;
-    let exact=0;
-    if(p1===r1&&p2===r2)exact=3;
-    else if(p1===r1||p2===r2)exact=1;
+    const goalsMatched = (p1===r1?1:0) + (p2===r2?1:0);  // 0, 1, or 2
+    const exact = goalsMatched===2 ? 3 : (goalsMatched===1 ? 1 : 0);
     const total=dir+exact;
-    // Palette per hit quality
-    const palette = total>=5
-      ? {bg:"rgba(16,185,129,0.14)",  fg:C.green, border:"rgba(16,185,129,0.4)"}   // direction or exact
-      : total===1
-      ? {bg:"rgba(245,158,11,0.14)",  fg:"#f59e0b", border:"rgba(245,158,11,0.4)"} // partial only
-      : {bg:"rgba(239,68,68,0.14)",   fg:C.red,   border:"rgba(239,68,68,0.4)"};   // miss
-    hitColor = palette;
-    // For the orange (partial) case: remember which digit the user got right
-    if (total===1) partialMatchSide = p1===r1 ? 0 : (p2===r2 ? 1 : null);
-    ptsEl=<span style={{background:palette.bg,color:palette.fg,border:`1px solid ${palette.border}`,padding:"1px 6px",borderRadius:4,fontWeight:700,fontFamily:"monospace",fontSize:11}}>+{total}</span>;
+    // Points chip palette — driven by total points
+    const ptsPalette = total>=5 ? GREEN : total===1 ? ORANGE : RED;
+    // Result chip palette — driven by goals matched (independent of direction)
+    resultChipPalette =
+      goalsMatched===2 ? GREEN :
+      goalsMatched===1 ? ORANGE : RED;
+    if (goalsMatched===1) partialMatchSide = p1===r1 ? 0 : 1;
+    ptsEl=<span style={{background:ptsPalette.bg,color:ptsPalette.fg,border:`1px solid ${ptsPalette.border}`,padding:"1px 6px",borderRadius:4,fontWeight:700,fontFamily:"monospace",fontSize:11}}>+{total}</span>;
   } else if(roundState==="closed"&&!result){
     ptsEl=<span style={{color:C.muted,fontSize:11}}>awaiting</span>;
   }
-  // Result chip — color the whole text by hit quality, EXCEPT in the partial
-  // case where the matching digit gets the green accent and only the other
-  // digit keeps the orange.
-  const resultChipBaseStyle = hitColor
-    ? {background:hitColor.bg,color:hitColor.fg,border:`1px solid ${hitColor.border}`}
-    : {background:"rgba(148,163,184,0.10)",color:C.muted,border:`1px solid ${C.border}`};
+  const resultChipBaseStyle = resultChipPalette
+    ? {background:resultChipPalette.bg,color:resultChipPalette.fg,border:`1px solid ${resultChipPalette.border}`}
+    : MUTED;
   const renderResultDigits = (r) => {
     if (partialMatchSide===null) return `${r[0]}:${r[1]}`;
     return (
