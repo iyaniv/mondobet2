@@ -17,6 +17,9 @@ dist/
 # macOS
 .DS_Store
 
+# Local Claude Code launch config
+.claude/
+
 # Vercel
 .vercel/
 
