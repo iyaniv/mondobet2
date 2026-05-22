@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import crud
 from app.auth import decode_token
 from app.database import get_db
-from app.matches import MATCHES, TEAMS
+from app.matches import MATCHES, STAGES, TEAMS
 from app.models import User, WinnerPick
 
 router = APIRouter(prefix="/init", tags=["init"])
@@ -37,10 +37,12 @@ async def bootstrap(
     out: dict = {
         "matches": MATCHES,
         "teams": TEAMS,
+        "stages": STAGES,
         "config": {
             "round_state": cfg.round_state.value,
             "tournament_winner": cfg.tournament_winner,
             "data_source": cfg.data_source,
+            "current_stage": getattr(cfg, "current_stage", 1),
         },
         "results": [
             {"match_n": n, "score_a": v[0], "score_b": v[1]}

@@ -13,7 +13,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def signup(data: SignupRequest, db: AsyncSession = Depends(get_db)):
     if await crud.get_user_by_email(db, data.email.strip().lower()):
         raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered.")
-    user = await crud.create_user(db, name=data.name.strip(), email=data.email.strip().lower(), password=data.password)
+    user = await crud.create_user(db, name=data.name.strip(), email=data.email.strip().lower(), password=data.password, phone=data.phone.strip())
     return AuthResponse(user=UserOut.model_validate(user), token=create_token(user.id))
 
 

@@ -13,81 +13,129 @@
  */
 
 // ── Match data (mirrors app/matches.py) ─────────────────────────────────────
+// Demo uses real team names for all known knockout matchups (based on simulated
+// group stage results). Slot labels like "W M81" appear only for TBD fixtures.
 const MATCHES = [
-  {n:1,g:"A",a:"Mexico",b:"South Africa"},
-  {n:2,g:"A",a:"Korea Republic",b:"Czech Republic"},
-  {n:3,g:"B",a:"Canada",b:"Bosnia and Herzegovina"},
-  {n:4,g:"D",a:"United States",b:"Paraguay"},
-  {n:5,g:"C",a:"Haiti",b:"Scotland"},
-  {n:6,g:"D",a:"Australia",b:"Turkey"},
-  {n:7,g:"C",a:"Brazil",b:"Morocco"},
-  {n:8,g:"B",a:"Qatar",b:"Switzerland"},
-  {n:9,g:"E",a:"Ivory Coast",b:"Ecuador"},
-  {n:10,g:"E",a:"Germany",b:"Curaçao"},
-  {n:11,g:"F",a:"Netherlands",b:"Japan"},
-  {n:12,g:"F",a:"Sweden",b:"Tunisia"},
-  {n:13,g:"H",a:"Saudi Arabia",b:"Uruguay"},
-  {n:14,g:"H",a:"Spain",b:"Cape Verde"},
-  {n:15,g:"G",a:"Iran",b:"New Zealand"},
-  {n:16,g:"G",a:"Belgium",b:"Egypt"},
-  {n:17,g:"I",a:"France",b:"Senegal"},
-  {n:18,g:"I",a:"Iraq",b:"Norway"},
-  {n:19,g:"J",a:"Argentina",b:"Algeria"},
-  {n:20,g:"J",a:"Austria",b:"Jordan"},
-  {n:21,g:"L",a:"Ghana",b:"Panama"},
-  {n:22,g:"L",a:"England",b:"Croatia"},
-  {n:23,g:"K",a:"Portugal",b:"DR Congo"},
-  {n:24,g:"K",a:"Uzbekistan",b:"Colombia"},
-  {n:25,g:"A",a:"Czech Republic",b:"South Africa"},
-  {n:26,g:"B",a:"Switzerland",b:"Bosnia and Herzegovina"},
-  {n:27,g:"B",a:"Canada",b:"Qatar"},
-  {n:28,g:"A",a:"Mexico",b:"Korea Republic"},
-  {n:29,g:"C",a:"Brazil",b:"Haiti"},
-  {n:30,g:"C",a:"Scotland",b:"Morocco"},
-  {n:31,g:"D",a:"United States",b:"Australia"},
-  {n:32,g:"D",a:"Turkey",b:"Paraguay"},
-  {n:33,g:"E",a:"Germany",b:"Ivory Coast"},
-  {n:34,g:"E",a:"Ecuador",b:"Curaçao"},
-  {n:35,g:"F",a:"Netherlands",b:"Sweden"},
-  {n:36,g:"F",a:"Tunisia",b:"Japan"},
-  {n:37,g:"H",a:"Uruguay",b:"Cape Verde"},
-  {n:38,g:"H",a:"Spain",b:"Saudi Arabia"},
-  {n:39,g:"G",a:"Belgium",b:"Iran"},
-  {n:40,g:"G",a:"New Zealand",b:"Egypt"},
-  {n:41,g:"I",a:"Norway",b:"Senegal"},
-  {n:42,g:"I",a:"France",b:"Iraq"},
-  {n:43,g:"J",a:"Argentina",b:"Austria"},
-  {n:44,g:"J",a:"Jordan",b:"Algeria"},
-  {n:45,g:"L",a:"England",b:"Ghana"},
-  {n:46,g:"L",a:"Panama",b:"Croatia"},
-  {n:47,g:"K",a:"Portugal",b:"Uzbekistan"},
-  {n:48,g:"K",a:"Colombia",b:"DR Congo"},
-  {n:49,g:"C",a:"Scotland",b:"Brazil"},
-  {n:50,g:"C",a:"Morocco",b:"Haiti"},
-  {n:51,g:"B",a:"Switzerland",b:"Canada"},
-  {n:52,g:"B",a:"Bosnia and Herzegovina",b:"Qatar"},
-  {n:53,g:"A",a:"Czech Republic",b:"Mexico"},
-  {n:54,g:"A",a:"South Africa",b:"Korea Republic"},
-  {n:55,g:"E",a:"Curaçao",b:"Ivory Coast"},
-  {n:56,g:"E",a:"Ecuador",b:"Germany"},
-  {n:57,g:"F",a:"Japan",b:"Sweden"},
-  {n:58,g:"F",a:"Tunisia",b:"Netherlands"},
-  {n:59,g:"D",a:"Turkey",b:"United States"},
-  {n:60,g:"D",a:"Paraguay",b:"Australia"},
-  {n:61,g:"I",a:"Norway",b:"France"},
-  {n:62,g:"I",a:"Senegal",b:"Iraq"},
-  {n:63,g:"G",a:"Egypt",b:"Iran"},
-  {n:64,g:"G",a:"New Zealand",b:"Belgium"},
-  {n:65,g:"H",a:"Cape Verde",b:"Saudi Arabia"},
-  {n:66,g:"H",a:"Uruguay",b:"Spain"},
-  {n:67,g:"L",a:"Panama",b:"England"},
-  {n:68,g:"L",a:"Croatia",b:"Ghana"},
-  {n:69,g:"J",a:"Algeria",b:"Austria"},
-  {n:70,g:"J",a:"Jordan",b:"Argentina"},
-  {n:71,g:"K",a:"Colombia",b:"Portugal"},
-  {n:72,g:"K",a:"DR Congo",b:"Uzbekistan"},
+  // ── Group Stage ─────────────────────────────────────────────────────────
+  {n:1, s:1,g:"A",a:"Mexico",b:"South Africa"},
+  {n:2, s:1,g:"A",a:"Korea Republic",b:"Czech Republic"},
+  {n:3, s:1,g:"B",a:"Canada",b:"Bosnia and Herzegovina"},
+  {n:4, s:1,g:"D",a:"United States",b:"Paraguay"},
+  {n:5, s:1,g:"C",a:"Haiti",b:"Scotland"},
+  {n:6, s:1,g:"D",a:"Australia",b:"Turkey"},
+  {n:7, s:1,g:"C",a:"Brazil",b:"Morocco"},
+  {n:8, s:1,g:"B",a:"Qatar",b:"Switzerland"},
+  {n:9, s:1,g:"E",a:"Ivory Coast",b:"Ecuador"},
+  {n:10,s:1,g:"E",a:"Germany",b:"Curaçao"},
+  {n:11,s:1,g:"F",a:"Netherlands",b:"Japan"},
+  {n:12,s:1,g:"F",a:"Sweden",b:"Tunisia"},
+  {n:13,s:1,g:"H",a:"Saudi Arabia",b:"Uruguay"},
+  {n:14,s:1,g:"H",a:"Spain",b:"Cape Verde"},
+  {n:15,s:1,g:"G",a:"Iran",b:"New Zealand"},
+  {n:16,s:1,g:"G",a:"Belgium",b:"Egypt"},
+  {n:17,s:1,g:"I",a:"France",b:"Senegal"},
+  {n:18,s:1,g:"I",a:"Iraq",b:"Norway"},
+  {n:19,s:1,g:"J",a:"Argentina",b:"Algeria"},
+  {n:20,s:1,g:"J",a:"Austria",b:"Jordan"},
+  {n:21,s:1,g:"L",a:"Ghana",b:"Panama"},
+  {n:22,s:1,g:"L",a:"England",b:"Croatia"},
+  {n:23,s:1,g:"K",a:"Portugal",b:"DR Congo"},
+  {n:24,s:1,g:"K",a:"Uzbekistan",b:"Colombia"},
+  {n:25,s:1,g:"A",a:"Czech Republic",b:"South Africa"},
+  {n:26,s:1,g:"B",a:"Switzerland",b:"Bosnia and Herzegovina"},
+  {n:27,s:1,g:"B",a:"Canada",b:"Qatar"},
+  {n:28,s:1,g:"A",a:"Mexico",b:"Korea Republic"},
+  {n:29,s:1,g:"C",a:"Brazil",b:"Haiti"},
+  {n:30,s:1,g:"C",a:"Scotland",b:"Morocco"},
+  {n:31,s:1,g:"D",a:"United States",b:"Australia"},
+  {n:32,s:1,g:"D",a:"Turkey",b:"Paraguay"},
+  {n:33,s:1,g:"E",a:"Germany",b:"Ivory Coast"},
+  {n:34,s:1,g:"E",a:"Ecuador",b:"Curaçao"},
+  {n:35,s:1,g:"F",a:"Netherlands",b:"Sweden"},
+  {n:36,s:1,g:"F",a:"Tunisia",b:"Japan"},
+  {n:37,s:1,g:"H",a:"Uruguay",b:"Cape Verde"},
+  {n:38,s:1,g:"H",a:"Spain",b:"Saudi Arabia"},
+  {n:39,s:1,g:"G",a:"Belgium",b:"Iran"},
+  {n:40,s:1,g:"G",a:"New Zealand",b:"Egypt"},
+  {n:41,s:1,g:"I",a:"Norway",b:"Senegal"},
+  {n:42,s:1,g:"I",a:"France",b:"Iraq"},
+  {n:43,s:1,g:"J",a:"Argentina",b:"Austria"},
+  {n:44,s:1,g:"J",a:"Jordan",b:"Algeria"},
+  {n:45,s:1,g:"L",a:"England",b:"Ghana"},
+  {n:46,s:1,g:"L",a:"Panama",b:"Croatia"},
+  {n:47,s:1,g:"K",a:"Portugal",b:"Uzbekistan"},
+  {n:48,s:1,g:"K",a:"Colombia",b:"DR Congo"},
+  {n:49,s:1,g:"C",a:"Scotland",b:"Brazil"},
+  {n:50,s:1,g:"C",a:"Morocco",b:"Haiti"},
+  {n:51,s:1,g:"B",a:"Switzerland",b:"Canada"},
+  {n:52,s:1,g:"B",a:"Bosnia and Herzegovina",b:"Qatar"},
+  {n:53,s:1,g:"A",a:"Czech Republic",b:"Mexico"},
+  {n:54,s:1,g:"A",a:"South Africa",b:"Korea Republic"},
+  {n:55,s:1,g:"E",a:"Curaçao",b:"Ivory Coast"},
+  {n:56,s:1,g:"E",a:"Ecuador",b:"Germany"},
+  {n:57,s:1,g:"F",a:"Japan",b:"Sweden"},
+  {n:58,s:1,g:"F",a:"Tunisia",b:"Netherlands"},
+  {n:59,s:1,g:"D",a:"Turkey",b:"United States"},
+  {n:60,s:1,g:"D",a:"Paraguay",b:"Australia"},
+  {n:61,s:1,g:"I",a:"Norway",b:"France"},
+  {n:62,s:1,g:"I",a:"Senegal",b:"Iraq"},
+  {n:63,s:1,g:"G",a:"Egypt",b:"Iran"},
+  {n:64,s:1,g:"G",a:"New Zealand",b:"Belgium"},
+  {n:65,s:1,g:"H",a:"Cape Verde",b:"Saudi Arabia"},
+  {n:66,s:1,g:"H",a:"Uruguay",b:"Spain"},
+  {n:67,s:1,g:"L",a:"Panama",b:"England"},
+  {n:68,s:1,g:"L",a:"Croatia",b:"Ghana"},
+  {n:69,s:1,g:"J",a:"Algeria",b:"Austria"},
+  {n:70,s:1,g:"J",a:"Jordan",b:"Argentina"},
+  {n:71,s:1,g:"K",a:"Colombia",b:"Portugal"},
+  {n:72,s:1,g:"K",a:"DR Congo",b:"Uzbekistan"},
+  // ── Round of 32 ─────────────────────────────────────────────────────────
+  // Group qualifiers: A:CzechRep/Mexico · B:Canada/Switzerland · C:Brazil/Morocco
+  // D:Paraguay/USA · E:Germany/Ecuador · F:Netherlands/Japan · G:Belgium/Egypt
+  // H:Spain/Uruguay · I:France/Senegal · J:Argentina/Austria · K:Portugal/Colombia
+  // L:England/Croatia
+  // Best 3rd: Saudi Arabia · Norway · Scotland · South Africa · Ivory Coast ·
+  //           Algeria · Ghana · New Zealand
+  {n:73, s:2,g:"R32",a:"Czech Republic",b:"Switzerland"},
+  {n:74, s:2,g:"R32",a:"Canada",b:"Mexico"},
+  {n:75, s:2,g:"R32",a:"Brazil",b:"United States"},
+  {n:76, s:2,g:"R32",a:"Paraguay",b:"Morocco"},
+  {n:77, s:2,g:"R32",a:"Germany",b:"Japan"},
+  {n:78, s:2,g:"R32",a:"Netherlands",b:"Ecuador"},
+  {n:79, s:2,g:"R32",a:"Belgium",b:"Uruguay"},
+  {n:80, s:2,g:"R32",a:"Spain",b:"Egypt"},
+  {n:81, s:2,g:"R32",a:"France",b:"Austria"},
+  {n:82, s:2,g:"R32",a:"Argentina",b:"Senegal"},
+  {n:83, s:2,g:"R32",a:"Portugal",b:"Croatia"},
+  {n:84, s:2,g:"R32",a:"England",b:"Colombia"},
+  {n:85, s:2,g:"R32",a:"Saudi Arabia",b:"Scotland"},
+  {n:86, s:2,g:"R32",a:"Norway",b:"South Africa"},
+  {n:87, s:2,g:"R32",a:"Ivory Coast",b:"Algeria"},
+  {n:88, s:2,g:"R32",a:"Ghana",b:"New Zealand"},
+  // ── Round of 16 ─────────────────────────────────────────────────────────
+  // 89-92 use actual team names (winners of 73-80 are known from demo results)
+  {n:89, s:3,g:"R16",a:"Czech Republic",b:"Mexico"},
+  {n:90, s:3,g:"R16",a:"Brazil",b:"Morocco"},
+  {n:91, s:3,g:"R16",a:"Germany",b:"Ecuador"},
+  {n:92, s:3,g:"R16",a:"Belgium",b:"Spain"},
+  {n:93, s:3,g:"R16",a:"W M81",b:"W M82"},
+  {n:94, s:3,g:"R16",a:"W M83",b:"W M84"},
+  {n:95, s:3,g:"R16",a:"W M85",b:"W M86"},
+  {n:96, s:3,g:"R16",a:"W M87",b:"W M88"},
+  // ── Quarterfinals ────────────────────────────────────────────────────────
+  {n:97, s:4,g:"QF",a:"W M89",b:"W M90"},
+  {n:98, s:4,g:"QF",a:"W M91",b:"W M92"},
+  {n:99, s:4,g:"QF",a:"W M93",b:"W M94"},
+  {n:100,s:4,g:"QF",a:"W M95",b:"W M96"},
+  // ── Semi-finals ──────────────────────────────────────────────────────────
+  {n:101,s:5,g:"SF",a:"W M97",b:"W M98"},
+  {n:102,s:5,g:"SF",a:"W M99",b:"W M100"},
+  // ── Final & 3rd place ────────────────────────────────────────────────────
+  {n:103,s:6,g:"3P",a:"L M101",b:"L M102"},
+  {n:104,s:6,g:"F", a:"W M101",b:"W M102"},
 ];
-const TEAMS = [...new Set(MATCHES.flatMap(m=>[m.a,m.b]))].sort();
+// TEAMS = real country names from group stage only (for winner picker)
+const TEAMS = [...new Set(MATCHES.filter(m=>m.s===1).flatMap(m=>[m.a,m.b]))].sort();
 
 // ── Scoring ──────────────────────────────────────────────────────────────────
 function matchPts(pred, result) {
@@ -126,7 +174,21 @@ function srng(seed) {
 function genPreds(seed, skill) {
   const r=srng(seed);
   const out={};
-  const RESULTS={1:[2,1],2:[1,1],3:[2,0],4:[1,2],5:[0,3],6:[1,1],7:[3,1],8:[0,2],9:[1,2],10:[4,0],11:[2,1],12:[2,2],13:[1,0],14:[3,0],15:[0,1],16:[2,1],17:[2,0],18:[1,2],19:[3,1],20:[2,0]};
+  // All known results — used to calibrate prediction quality
+  const RESULTS={
+    // Group Stage (all 72 matches)
+    1:[2,1],2:[1,1],3:[2,0],4:[1,2],5:[0,3],6:[1,1],7:[3,1],8:[0,2],
+    9:[1,2],10:[4,0],11:[2,1],12:[2,2],13:[1,0],14:[3,0],15:[0,1],16:[2,1],
+    17:[2,0],18:[1,2],19:[3,1],20:[2,0],21:[1,0],22:[2,1],23:[3,1],24:[0,2],
+    25:[1,0],26:[2,0],27:[2,1],28:[1,1],29:[4,0],30:[1,2],31:[2,0],32:[1,1],
+    33:[3,1],34:[2,0],35:[2,1],36:[1,2],37:[3,0],38:[3,1],39:[2,0],40:[0,1],
+    41:[1,1],42:[3,0],43:[2,0],44:[1,2],45:[2,0],46:[0,2],47:[3,0],48:[2,1],
+    49:[0,2],50:[2,1],51:[1,2],52:[2,1],53:[2,0],54:[2,0],55:[0,2],56:[1,2],
+    57:[2,1],58:[0,2],59:[0,2],60:[1,0],61:[0,2],62:[2,0],63:[1,1],64:[0,2],
+    65:[1,2],66:[2,1],67:[0,2],68:[1,0],69:[1,2],70:[0,2],71:[1,2],72:[0,2],
+    // Round of 32 partial (8 of 16 done)
+    73:[2,1],74:[0,1],75:[3,0],76:[1,2],77:[2,0],78:[1,2],79:[2,1],80:[2,0],
+  };
   for (const m of MATCHES) {
     const res=RESULTS[m.n];
     let pa,pb;
@@ -149,38 +211,76 @@ function genPreds(seed, skill) {
 }
 
 // ── Initial state ────────────────────────────────────────────────────────────
-const SEED_RESULTS = {1:[2,1],2:[1,1],3:[2,0],4:[1,2],5:[0,3],6:[1,1],7:[3,1],8:[0,2],9:[1,2],10:[4,0],11:[2,1],12:[2,2],13:[1,0],14:[3,0],15:[0,1],16:[2,1],17:[2,0],18:[1,2],19:[3,1],20:[2,0]};
-const SEED_LIVE   = {21:{score_a:1,score_b:0,minute:34},22:{score_a:2,score_b:2,minute:67}};
+// Stage 1 (Group Stage, matches 1–72) COMPLETE
+// Stage 2 (Round of 32, matches 73–88) IN PROGRESS — 8 of 16 results entered
+const SEED_RESULTS = {
+  // Group Stage — all 72 matches
+  1:[2,1],2:[1,1],3:[2,0],4:[1,2],5:[0,3],6:[1,1],7:[3,1],8:[0,2],
+  9:[1,2],10:[4,0],11:[2,1],12:[2,2],13:[1,0],14:[3,0],15:[0,1],16:[2,1],
+  17:[2,0],18:[1,2],19:[3,1],20:[2,0],21:[1,0],22:[2,1],23:[3,1],24:[0,2],
+  25:[1,0],26:[2,0],27:[2,1],28:[1,1],29:[4,0],30:[1,2],31:[2,0],32:[1,1],
+  33:[3,1],34:[2,0],35:[2,1],36:[1,2],37:[3,0],38:[3,1],39:[2,0],40:[0,1],
+  41:[1,1],42:[3,0],43:[2,0],44:[1,2],45:[2,0],46:[0,2],47:[3,0],48:[2,1],
+  49:[0,2],50:[2,1],51:[1,2],52:[2,1],53:[2,0],54:[2,0],55:[0,2],56:[1,2],
+  57:[2,1],58:[0,2],59:[0,2],60:[1,0],61:[0,2],62:[2,0],63:[1,1],64:[0,2],
+  65:[1,2],66:[2,1],67:[0,2],68:[1,0],69:[1,2],70:[0,2],71:[1,2],72:[0,2],
+  // Round of 32 — first 8 of 16 results entered
+  73:[2,1],74:[0,1],75:[3,0],76:[1,2],
+  77:[2,0],78:[1,2],79:[2,1],80:[2,0],
+};
+const SEED_LIVE = {}; // No live matches — mid-stage pause between match days
 
 function buildInitialState() {
   return {
-    config:{round_state:"open",tournament_winner:null,data_source:"manual"},
+    config:{round_state:"closed",tournament_winner:null,data_source:"manual",current_stage:2},
     users:{
-      1:{id:1,name:"Admin",email:"admin",password:"admin",is_admin:true,has_paid:false,created_at:"2026-01-01T00:00:00Z",locked_winner:null},
-      2:{id:2,name:"Alice",email:"alice@demo.com",password:"alice",is_admin:false,has_paid:true,created_at:"2026-01-02T00:00:00Z",locked_winner:"France"},
-      3:{id:3,name:"Bob",email:"bob@demo.com",password:"bob",is_admin:false,has_paid:true,created_at:"2026-01-03T00:00:00Z",locked_winner:"Argentina"},
-      4:{id:4,name:"Charlie",email:"charlie@demo.com",password:"charlie",is_admin:false,has_paid:false,created_at:"2026-01-04T00:00:00Z",locked_winner:"Brazil"},
+      1:{id:1,name:"Admin",  email:"admin",            password:"admin",   phone:"",              is_admin:true, has_paid:false,created_at:"2026-01-01T00:00:00Z",locked_winner:null},
+      2:{id:2,name:"Alice",  email:"alice@demo.com",   password:"alice",   phone:"+1-555-0101",   is_admin:false,has_paid:true, created_at:"2026-01-02T00:00:00Z",locked_winner:"France"},
+      3:{id:3,name:"Bob",    email:"bob@demo.com",     password:"bob",     phone:"+1-555-0102",   is_admin:false,has_paid:true, created_at:"2026-01-03T00:00:00Z",locked_winner:"Argentina"},
+      4:{id:4,name:"Charlie",email:"charlie@demo.com", password:"charlie", phone:"+1-555-0103",   is_admin:false,has_paid:false,created_at:"2026-01-04T00:00:00Z",locked_winner:"Brazil"},
+      5:{id:5,name:"Diana",  email:"diana@demo.com",   password:"diana",   phone:"+44-7700-0001", is_admin:false,has_paid:true, created_at:"2026-01-05T00:00:00Z",locked_winner:"France"},
+      6:{id:6,name:"Eve",    email:"eve@demo.com",     password:"eve",     phone:"+44-7700-0002", is_admin:false,has_paid:true, created_at:"2026-01-06T00:00:00Z",locked_winner:"Germany"},
+      7:{id:7,name:"Frank",  email:"frank@demo.com",   password:"frank",   phone:"+44-7700-0003", is_admin:false,has_paid:false,created_at:"2026-01-07T00:00:00Z",locked_winner:"Brazil"},
+      8:{id:8,name:"Grace",  email:"grace@demo.com",   password:"grace",   phone:"+972-50-0001",  is_admin:false,has_paid:true, created_at:"2026-01-08T00:00:00Z",locked_winner:"Argentina"},
+      9:{id:9,name:"Yaniv",  email:"yaniv@demo.com",   password:"yaniv",   phone:"+972-50-0002",  is_admin:false,has_paid:true, created_at:"2026-01-09T00:00:00Z",locked_winner:"France"},
     },
     entries:{
-      "ea1":{id:"ea1",user_id:2,name:"Alice",created_at:"2026-05-01T10:00:00Z",submitted_at:"2026-05-01T10:30:00Z"},
-      "eb1":{id:"eb1",user_id:3,name:"Bob",created_at:"2026-05-01T11:00:00Z",submitted_at:"2026-05-01T11:30:00Z"},
-      "ec1":{id:"ec1",user_id:4,name:"Charlie",created_at:"2026-05-01T12:00:00Z",submitted_at:"2026-05-01T12:30:00Z"},
+      "ea1":{id:"ea1",user_id:2,name:"Alice",            created_at:"2026-05-01T10:00:00Z",submitted_at:"2026-05-01T10:30:00Z"},
+      "eb1":{id:"eb1",user_id:3,name:"Bob",              created_at:"2026-05-01T11:00:00Z",submitted_at:"2026-05-01T11:30:00Z"},
+      "ec1":{id:"ec1",user_id:4,name:"Charlie",          created_at:"2026-05-01T12:00:00Z",submitted_at:"2026-05-01T12:30:00Z"},
+      "ed1":{id:"ed1",user_id:5,name:"Diana",            created_at:"2026-05-01T13:00:00Z",submitted_at:"2026-05-01T13:30:00Z"},
+      "ee1":{id:"ee1",user_id:6,name:"Eve",              created_at:"2026-05-01T14:00:00Z",submitted_at:"2026-05-01T14:30:00Z"},
+      "ef1":{id:"ef1",user_id:7,name:"Frank",            created_at:"2026-05-01T15:00:00Z",submitted_at:"2026-05-01T15:30:00Z"},
+      "ef2":{id:"ef2",user_id:7,name:"Frank (copy)",     created_at:"2026-05-01T16:00:00Z",submitted_at:null},
+      "eg1":{id:"eg1",user_id:8,name:"Grace",            created_at:"2026-05-01T17:00:00Z",submitted_at:"2026-05-01T17:30:00Z"},
+      "ey1":{id:"ey1",user_id:9,name:"Yaniv",            created_at:"2026-05-01T18:00:00Z",submitted_at:"2026-05-01T18:30:00Z"},
+      "ey2":{id:"ey2",user_id:9,name:"Yaniv 2",          created_at:"2026-05-01T19:00:00Z",submitted_at:null},
     },
     predictions:{
       "ea1":genPreds(20001,1),
       "eb1":genPreds(30001,2),
       "ec1":genPreds(40001,3),
+      "ed1":genPreds(50001,1),
+      "ee1":genPreds(60001,2),
+      "ef1":genPreds(70001,3),
+      "ef2":genPreds(70501,2),
+      "eg1":genPreds(80001,1),
+      "ey1":genPreds(90001,1),
+      "ey2":{},
     },
-    winner_picks:{"ea1":"France","eb1":"Argentina","ec1":"Brazil"},
+    winner_picks:{
+      "ea1":"France","eb1":"Argentina","ec1":"Brazil",
+      "ed1":"France","ee1":"Germany","ef1":"Brazil","eg1":"Argentina","ey1":"France",
+    },
     results:{...SEED_RESULTS},
     live:{...SEED_LIVE},
-    next_user_id:5,
-    next_entry_seq:10,
+    next_user_id:10,
+    next_entry_seq:20,
   };
 }
 
 // ── Persistence ──────────────────────────────────────────────────────────────
-const STORAGE_KEY = "mb_demo_v1";
+const STORAGE_KEY = "mb_demo_v3";
 function loadState() {
   try { const s=localStorage.getItem(STORAGE_KEY); if(s) return JSON.parse(s); } catch{}
   return buildInitialState();
@@ -192,14 +292,14 @@ function save(s) {
 let S = loadState();
 
 window._resetDemo = () => {
-  localStorage.removeItem(STORAGE_KEY);
-  localStorage.removeItem("wc2026_token");
+  ["mb_demo_v1","mb_demo_v2","mb_demo_v3","wc2026_token"].forEach(k=>localStorage.removeItem(k));
   location.reload();
 };
 
 console.log('%c🎮 MondoBet — Demo Mode (no server needed)', 'color:#a3e635;font-size:13px;font-weight:bold');
-console.log('Accounts: admin/admin · alice@demo.com/alice · bob@demo.com/bob · charlie@demo.com/charlie');
-console.log('Or sign up with any email. Call window._resetDemo() to wipe all data and restart.');
+console.log('Accounts: admin/admin · alice · bob · charlie · diana · eve · frank · grace · yaniv (password = name)');
+console.log('Stage 1: Group Stage (72 matches) ✓ · Stage 2: Round of 32 in progress (8/16 results entered)');
+console.log('Call window._resetDemo() to wipe all data and restart.');
 
 // ── Token / auth ─────────────────────────────────────────────────────────────
 let _token = localStorage.getItem("wc2026_token") || null;
@@ -235,7 +335,7 @@ function requireAdmin() {
 const delay = (ms=70) => new Promise(r => setTimeout(r, ms + Math.random()*30));
 
 function userOut(u) {
-  return {id:u.id,name:u.name,email:u.email,is_admin:u.is_admin,has_paid:u.has_paid,locked_winner:u.locked_winner||null};
+  return {id:u.id,name:u.name,email:u.email,phone:u.phone||"",is_admin:u.is_admin,has_paid:u.has_paid,locked_winner:u.locked_winner||null};
 }
 function entryOut(e) {
   return {id:e.id,name:e.name,created_at:e.created_at,submitted_at:e.submitted_at||null};
@@ -306,9 +406,10 @@ export const api = {
   signup: async (d) => {
     await delay();
     const email = d.email.trim().toLowerCase();
-    if (Object.values(S.users).find(u=>u.email===email)) throw new Error("Email already registered");
+    if (Object.values(S.users).find(u=>u.email===email)) throw new Error("Email already registered.");
+    if (!d.phone||d.phone.trim().length<7) throw new Error("Phone number is required.");
     const id = S.next_user_id++;
-    const user = {id,name:d.name.trim(),email,password:d.password,is_admin:false,has_paid:false,created_at:new Date().toISOString(),locked_winner:null};
+    const user = {id,name:d.name.trim(),email,phone:d.phone.trim(),password:d.password,is_admin:false,has_paid:false,created_at:new Date().toISOString(),locked_winner:null};
     S.users[id] = user;
     const entryId = `entry-u${id}-1`;
     S.entries[entryId] = {id:entryId,user_id:id,name:d.name.trim(),created_at:new Date().toISOString(),submitted_at:null};
@@ -385,7 +486,7 @@ export const api = {
     await delay();
     const user = requireUser();
     const entry = S.entries[id];
-    if (!entry||entry.user_id!==user.id) throw new Error("Entry not found");
+    if (!entry || (entry.user_id !== user.id && !user.is_admin)) throw new Error("Entry not found");
     if (entry.submitted_at) throw new Error("Cannot delete a submitted entry");
     delete S.entries[id];
     delete S.predictions[id];
@@ -466,12 +567,16 @@ export const api = {
     await delay();
     const caller = getUser();
     if (!caller) throw new Error("Not authenticated");
-    if (!caller.is_admin && S.config.round_state !== "closed") throw new Error("Predictions hidden until round closes");
     const eid = entryId || Object.values(S.entries)
       .filter(e=>e.user_id===Number(uid)&&e.submitted_at)
       .sort((a,b)=>new Date(a.submitted_at)-new Date(b.submitted_at))[0]?.id;
     if (!eid) return [];
-    return Object.entries(S.predictions[eid]||{}).map(([n,p])=>({match_n:Number(n),score_a:p[0],score_b:p[1]}));
+    const allPreds = Object.entries(S.predictions[eid]||{}).map(([n,p])=>({match_n:Number(n),score_a:p[0],score_b:p[1]}));
+    // Admin or own entry: return all; others: only played matches
+    const viewingOwn = Number(uid) === caller.id;
+    if (caller.is_admin || viewingOwn) return allPreds;
+    const played = new Set(Object.keys(S.results).map(Number));
+    return allPreds.filter(p => played.has(p.match_n));
   },
 
   // ── Admin
@@ -481,6 +586,7 @@ export const api = {
     if (d.round_state !== undefined) S.config.round_state = d.round_state;
     if ("tournament_winner" in d) S.config.tournament_winner = d.tournament_winner||null;
     if (d.data_source !== undefined) S.config.data_source = d.data_source;
+    if (d.current_stage !== undefined && d.current_stage !== null) S.config.current_stage = d.current_stage;
     save(S);
     return S.config;
   },

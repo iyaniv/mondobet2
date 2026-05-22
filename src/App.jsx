@@ -7,6 +7,17 @@ const C = {
   accent:"var(--c-accent)", accentDk:"var(--c-accent-dk)", accentSoft:"var(--c-accent-soft)", green:"var(--c-green)", red:"var(--c-red)", indigo:"var(--c-indigo)",
 };
 
+// Stage definitions — mirrors app/matches.py STAGES
+const STAGES = [
+  { n:1, name:"Group Stage",   first:1,   last:72  },
+  { n:2, name:"Round of 32",   first:73,  last:88  },
+  { n:3, name:"Round of 16",   first:89,  last:96  },
+  { n:4, name:"Quarterfinals", first:97,  last:100 },
+  { n:5, name:"Semi-finals",   first:101, last:102 },
+  { n:6, name:"Final & 3rd",   first:103, last:104 },
+];
+function matchStageObj(n) { return STAGES.find(s => n >= s.first && n <= s.last) || STAGES[0]; }
+
 const FLAGS = {
   "Algeria":"🇩🇿","Argentina":"🇦🇷","Australia":"🇦🇺","Austria":"🇦🇹",
   "Belgium":"🇧🇪","Bosnia and Herzegovina":"🇧🇦","Brazil":"🇧🇷",
@@ -350,6 +361,7 @@ function AuthView({ roundState, onSuccess }) {
   const [mode,setMode]=useState("login");
   const [name,setName]=useState("");
   const [email,setEmail]=useState("");
+  const [phone,setPhone]=useState("");
   const [password,setPassword]=useState("");
   const [err,setErr]=useState("");
   const [loading,setLoading]=useState(false);
@@ -365,7 +377,7 @@ function AuthView({ roundState, onSuccess }) {
     e.preventDefault(); setErr(""); setLoading(true);
     try {
       const res=mode==="signup"
-        ?await api.signup({name:name.trim(),email:email.trim().toLowerCase(),password})
+        ?await api.signup({name:name.trim(),email:email.trim().toLowerCase(),phone:phone.trim(),password})
         :await api.login({email:email.trim().toLowerCase(),password});
       onSuccess(res.user,res.token);
     } catch(e){setErr(e.message);}
@@ -387,6 +399,7 @@ function AuthView({ roundState, onSuccess }) {
         </div>
         <form onSubmit={submit}>
           {mode==="signup"&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Full name" required style={inputStyle}/>}
+          {mode==="signup"&&<input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Phone number" required type="tel" minLength={7} style={inputStyle}/>}
           <input value={email} onChange={e=>setEmail(e.target.value)} placeholder={mode==="login"?"Email  (admin: admin)":"Email"} required style={inputStyle}/>
           <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" required minLength={4} style={inputStyle}/>
           {err&&<p style={{color:C.red,fontSize:13,marginBottom:8}}>{err}</p>}
@@ -408,6 +421,27 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
   const statData=tableData||participants;
   const multiEntryUsers=tableData?tableData.filter(u=>(u.entries||[]).length>1):[];
   function toggleExpand(uid){setExpandedUsers(s=>{const n=new Set(s);n.has(uid)?n.delete(uid):n.add(uid);return n;});}
+
+  // Stage management
+  const currentStage = config.current_stage || 1;
+  const stageStats = STAGES.map(s => {
+    const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last);
+    const done = stageMatches.filter(m => results[m.n] != null).length;
+    return { ...s, total: stageMatches.length, done };
+  });
+  const curStat = stageStats[currentStage - 1] || stageStats[0];
+  const currentStageComplete = curStat && curStat.done === curStat.total && curStat.total > 0;
+  const canOpenNextStage = currentStageComplete && currentStage < 6;
+
+  async function openNextStage() {
+    if (!canOpenNextStage) return;
+    const next = currentStage + 1;
+    try {
+      const cfg = await api.updateConfig({ current_stage: next });
+      setConfig(cfg);
+      showToast(`Stage ${next} — ${STAGES[next-1].name} opened! 🎯`);
+    } catch(e) { showToast(e.message, "err"); }
+  }
 
   async function adminDeleteEntry(entryId, userId){
     if(!confirm("Delete this draft form?"))return;
@@ -493,6 +527,62 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
           <div style={{flex:1}}><div style={{color:C.red,fontWeight:600,marginBottom:4}}>🔒 Round is CLOSED.</div><div style={{color:C.muted,fontSize:12}}>Enter results in the Results tab.</div></div>
           <Btn ghost onClick={()=>confirm("Reopen? Bets will be hidden again.")&&setRoundState("open")}>Reopen</Btn>
         </>}
+      </div>
+
+      <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>📊 Stage management</h2>
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,marginBottom:20}}>
+        {/* Stage progress rows */}
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:14}}>
+          {stageStats.map(s => {
+            const isCurrent = s.n === currentStage;
+            const isDone = s.n < currentStage || (s.n === currentStage && s.done === s.total && s.total > 0);
+            const pct = s.total > 0 ? Math.round(s.done / s.total * 100) : 0;
+            return (
+              <div key={s.n} style={{
+                padding:"8px 12px",borderRadius:6,
+                background: isCurrent ? "rgba(99,102,241,0.08)" : "transparent",
+                border: isCurrent ? `1px solid ${C.indigo}` : `1px solid transparent`,
+              }}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                  <span style={{fontSize:13,fontWeight:isCurrent?700:400,color:isCurrent?C.indigo:isDone?C.muted:C.text}}>
+                    {isDone&&s.n<currentStage ? "✓ " : isCurrent ? "▶ " : "○ "}
+                    Stage {s.n} — {s.name}
+                  </span>
+                  <span style={{fontSize:12,color:C.muted,fontFamily:"monospace"}}>
+                    {s.done}/{s.total}
+                  </span>
+                </div>
+                {isCurrent && s.total > 0 && (
+                  <div style={{height:4,borderRadius:2,background:C.panel2,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${pct}%`,background:pct===100?C.green:C.indigo,transition:"width .3s",borderRadius:2}}/>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {/* Open next stage button */}
+        {currentStage < 6 && (
+          <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+            {canOpenNextStage ? (
+              <>
+                <Btn green onClick={openNextStage}>
+                  🎯 Open Stage {currentStage + 1} — {STAGES[currentStage].name}
+                </Btn>
+                <span style={{fontSize:12,color:C.muted}}>All {curStat.total} Stage {currentStage} results are in.</span>
+              </>
+            ) : (
+              <span style={{fontSize:12,color:C.muted}}>
+                {curStat.done < curStat.total
+                  ? `Enter all Stage ${currentStage} results to unlock the next stage (${curStat.done}/${curStat.total} done).`
+                  : `Stage ${currentStage} complete.`}
+              </span>
+            )}
+          </div>
+        )}
+        {currentStage === 6 && (
+          <span style={{fontSize:13,color:C.green,fontWeight:600}}>🏆 Tournament complete!</span>
+        )}
       </div>
 
       <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>🏆 Tournament winner</h2>
@@ -759,10 +849,12 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
   const [simMode,setSimMode]=useState(canSim&&config.round_state==="open");
 
   const simPreds = simMode ? (myPreds||{}) : {};
-  const played = Object.keys(results).length;
+  const groupMatches = matches.filter(m => m.s === 1 || (m.g && m.g.length === 1));
+  const groupPlayed = groupMatches.filter(m => results[m.n]).length;
   const simFilled = simMode
-    ? Object.keys(myPreds||{}).filter(n=>!results[n]&&myPreds[n]?.[0]!=null&&myPreds[n]?.[1]!=null).length
+    ? groupMatches.filter(m=>!results[m.n]&&myPreds[m.n]?.[0]!=null&&myPreds[m.n]?.[1]!=null).length
     : 0;
+  const currentStageName = STAGES.find(s => s.n === (config.current_stage||1))?.name || "Group Stage";
 
   return (
     <div>
@@ -774,13 +866,21 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
           <span style={{fontFamily:"var(--c-font-display)",fontSize:20,color:C.accent,letterSpacing:1}}>
             GROUP STAGE
           </span>
-          <span style={{fontSize:11,padding:"2px 8px",borderRadius:999,fontWeight:600,
-            background:"rgba(16,185,129,0.15)",color:C.green,border:"1px solid rgba(16,185,129,0.3)"}}>
-            LIVE · updates with every result
-          </span>
+          {(config.current_stage||1) > 1 && (
+            <span style={{fontSize:12,padding:"2px 8px",borderRadius:999,fontWeight:600,
+              background:"rgba(99,102,241,0.15)",color:C.indigo,border:`1px solid ${C.indigo}`}}>
+              Now: {currentStageName}
+            </span>
+          )}
+          {(config.current_stage||1) === 1 && (
+            <span style={{fontSize:11,padding:"2px 8px",borderRadius:999,fontWeight:600,
+              background:"rgba(16,185,129,0.15)",color:C.green,border:"1px solid rgba(16,185,129,0.3)"}}>
+              LIVE · updates with every result
+            </span>
+          )}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-          {canSim&&(
+          {canSim&&(config.current_stage||1)===1&&(
             <div style={{display:"flex",background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,overflow:"hidden",fontSize:12}}>
               <button onClick={()=>setSimMode(false)} style={{
                 padding:"4px 12px",border:"none",cursor:"pointer",fontWeight:!simMode?700:400,
@@ -793,7 +893,7 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
             </div>
           )}
           <div style={{fontSize:13,color:C.muted}}>
-            <b style={{color:C.text}}>{played}</b> / {matches.length} played
+            <b style={{color:C.text}}>{groupPlayed}</b> / {groupMatches.length} played
             {simFilled>0&&<> · <b style={{color:C.accent}}>{simFilled}</b> simulated</>}
           </div>
         </div>
@@ -1177,10 +1277,8 @@ function ByUser({ config, leaderboard, results, liveMatches, matches, user,
   };
   const pill = pillMap[config.round_state] || pillMap.idle;
 
-  if (!user?.is_admin && config.round_state !== "closed")
-    return <InfoBlock warn>Other participants' bets are hidden until the admin closes the betting round.</InfoBlock>;
-
   const selected = leaderboard.find(e => (e.entry_id||e.user_id) === viewUserId);
+  const playedMatches = matches.filter(m => results[m.n]);
 
   return (
     <div>
@@ -1189,6 +1287,7 @@ function ByUser({ config, leaderboard, results, liveMatches, matches, user,
           background:pill.bg,color:pill.color,border:pill.border}}>{pill.text}</span>
       </div>
       <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>Bets by participant</h1>
+      <InfoBlock>Showing predictions for the <b>{playedMatches.length}</b> completed match{playedMatches.length!==1?"es":""} only. Unplayed matches are hidden until their results are in.</InfoBlock>
       <div style={{marginBottom:16}}>
         <ParticipantPicker entries={leaderboard} value={viewUserId} onChange={setViewUserId}/>
       </div>
@@ -1201,7 +1300,7 @@ function ByUser({ config, leaderboard, results, liveMatches, matches, user,
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10,
         opacity:predsLoading?0.5:1,transition:"opacity .25s"}}>
         {predsLoading&&<div style={{textAlign:"center",padding:16,color:C.muted,fontSize:13}}>Loading predictions…</div>}
-        {matches.map(m=>(
+        {playedMatches.map(m=>(
           <MatchRow key={m.n} match={m}
             pred={viewUserPreds[m.n]??null} result={results[m.n]??null}
             editable={false} adminResult={false} roundState={config.round_state}
@@ -1224,7 +1323,7 @@ export default function App() {
   const [tab,setTab]=useState("auth");
   const [matches,setMatches]=useState([]);
   const [teams,setTeams]=useState([]);
-  const [config,setConfig]=useState({round_state:"idle",tournament_winner:null,data_source:"manual"});
+  const [config,setConfig]=useState({round_state:"idle",tournament_winner:null,data_source:"manual",current_stage:1});
   const [myPreds,setMyPreds]=useState({});
   const [myWinner,setMyWinner]=useState(null);
   const [results,setResults]=useState({});
@@ -1354,7 +1453,7 @@ export default function App() {
 
   const tabs=!user?[]:user.is_admin
     ?[{id:"dashboard",label:"Dashboard",admin:true},{id:"results",label:"Results",admin:true},{id:"leaderboard",label:"Leaderboard"},{id:"byuser",label:"By participant"},{id:"tournament",label:"🏟 Tournament"},{id:"settings",label:"⚙ Settings"}]
-    :[{id:"predictions",label:"My predictions"},{id:"leaderboard",label:"Leaderboard"},...(config.round_state==="closed"?[{id:"byuser",label:"Bets by participant"}]:[]),{id:"tournament",label:"🏟 Tournament"},{id:"settings",label:"⚙ Settings"}];
+    :[{id:"predictions",label:"My predictions"},{id:"leaderboard",label:"Leaderboard"},...(Object.keys(results).length>0?[{id:"byuser",label:"Bets by participant"}]:[]),{id:"tournament",label:"🏟 Tournament"},{id:"settings",label:"⚙ Settings"}];
 
   function RoundPill(){
     const map={
@@ -1522,7 +1621,7 @@ export default function App() {
                 </div>
               );
             })}
-            {editable&&(
+            {editable&&Object.keys(results).length===0&&(
               <div style={{position:"relative"}}>
                 <button onClick={()=>setShowNewMenu(v=>!v)} title="Add form" style={{
                   padding:"4px 10px",borderRadius:6,cursor:"pointer",
@@ -1614,15 +1713,31 @@ export default function App() {
           {config.tournament_winner&&<span style={{color:C.muted,fontSize:13}}>🏆 actual: <b style={{color:C.accent}}>{withFlag(config.tournament_winner)}</b></span>}
         </div>
 
-        <SectionHeader>Group stage — {matches.length} matches</SectionHeader>
         {!predsLoaded&&config.round_state==="open"&&(
           <div style={{textAlign:"center",padding:"10px",color:C.muted,fontSize:13,marginBottom:8}}>
             Loading your predictions…
           </div>
         )}
-        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10,opacity:!predsLoaded&&config.round_state==="open"?0.6:1,transition:"opacity .3s"}}>
-          {matches.map(m=><MatchRow key={m.n} match={m} pred={myPreds[m.n]??null} result={results[m.n]??null} editable={editable&&!activeEntry?.submitted_at} adminResult={false} roundState={config.round_state} onSave={savePred} onResultSave={()=>{}}/>)}
-        </div>
+        {STAGES.map(s => {
+          const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last);
+          if (stageMatches.length === 0) return null;
+          const stageFilled = stageMatches.filter(m => myPreds[m.n]?.[0] != null && myPreds[m.n]?.[1] != null).length;
+          const isCurrent = (config.current_stage||1) === s.n;
+          return (
+            <div key={s.n}>
+              <SectionHeader>
+                {isCurrent && <span style={{color:C.indigo,marginRight:6}}>▶</span>}
+                Stage {s.n}: {s.name}
+                <span style={{marginLeft:8,fontSize:12,fontWeight:400,color:C.muted}}>
+                  {stageFilled}/{stageMatches.length} filled
+                </span>
+              </SectionHeader>
+              <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10,opacity:!predsLoaded&&config.round_state==="open"?0.6:1,transition:"opacity .3s",marginBottom:8}}>
+                {stageMatches.map(m=><MatchRow key={m.n} match={m} pred={myPreds[m.n]??null} result={results[m.n]??null} editable={editable&&!activeEntry?.submitted_at} adminResult={false} roundState={config.round_state} onSave={savePred} onResultSave={()=>{}}/>)}
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   }
@@ -1722,19 +1837,36 @@ export default function App() {
             <span className="live-dot"/><b>{Object.keys(liveMatches).length}</b> match{Object.keys(liveMatches).length>1?"es":""} currently LIVE
           </div>
         )}
-        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10}}>
-          {matches.map(m=>(
-            <AdminMatchRow key={m.n}
-              match={m}
-              result={results[m.n]??null}
-              liveData={liveMatches[m.n]??null}
-              onSaveResult={saveResult}
-              onGoLive={goLive}
-              onUpdateLive={updateLive}
-              onFinalize={finalizeLive}
-            />
-          ))}
-        </div>
+        {STAGES.map(s => {
+          const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last);
+          if (stageMatches.length === 0) return null;
+          const done = stageMatches.filter(m => results[m.n] != null).length;
+          const isCurrent = (config.current_stage||1) === s.n;
+          return (
+            <div key={s.n}>
+              <SectionHeader>
+                {isCurrent && <span style={{color:C.indigo,marginRight:6}}>▶</span>}
+                Stage {s.n}: {s.name}
+                <span style={{marginLeft:8,fontSize:12,fontWeight:400,color:C.muted}}>
+                  {done}/{stageMatches.length} results
+                </span>
+              </SectionHeader>
+              <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10,marginBottom:8}}>
+                {stageMatches.map(m=>(
+                  <AdminMatchRow key={m.n}
+                    match={m}
+                    result={results[m.n]??null}
+                    liveData={liveMatches[m.n]??null}
+                    onSaveResult={saveResult}
+                    onGoLive={goLive}
+                    onUpdateLive={updateLive}
+                    onFinalize={finalizeLive}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   }

@@ -27,8 +27,8 @@ async def get_participants(db: AsyncSession) -> list[User]:
     return list(r.scalars().all())
 
 
-async def create_user(db: AsyncSession, name: str, email: str, password: str, is_admin: bool = False) -> User:
-    user = User(name=name, email=email, password_hash=hash_password(password), is_admin=is_admin)
+async def create_user(db: AsyncSession, name: str, email: str, password: str, phone: str = "", is_admin: bool = False) -> User:
+    user = User(name=name, email=email, phone=phone, password_hash=hash_password(password), is_admin=is_admin)
     db.add(user)
     await db.commit()
     await db.refresh(user)
@@ -76,6 +76,7 @@ async def update_config(
     round_state: Optional[str] = None,
     tournament_winner: object = _UNSET,
     data_source: Optional[str] = None,
+    current_stage: Optional[int] = None,
 ) -> GameConfig:
     cfg = await get_config(db)
     if round_state is not None:
@@ -84,6 +85,8 @@ async def update_config(
         cfg.tournament_winner = tournament_winner if tournament_winner else None
     if data_source is not None:
         cfg.data_source = data_source
+    if current_stage is not None:
+        cfg.current_stage = current_stage
     await db.commit()
     await db.refresh(cfg)
     return cfg

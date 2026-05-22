@@ -108,9 +108,11 @@ async def entry_predictions(
     entry = await crud.get_entry(db, entry_id)
     if not entry:
         raise HTTPException(404, "Entry not found.")
-    if entry.user_id != current_user.id and not current_user.is_admin:
-        cfg = await crud.get_config(db)
-        if cfg.round_state != RoundStateEnum.closed:
-            raise HTTPException(status.HTTP_403_FORBIDDEN, "Not available until round is closed.")
     preds = await crud.get_entry_predictions(db, entry_id)
-    return [PredictionOut(match_n=n, score_a=v[0], score_b=v[1]) for n, v in preds.items()]
+    viewing_own = (entry.user_id == current_user.id)
+    if current_user.is_admin or viewing_own:
+        return [PredictionOut(match_n=n, score_a=v[0], score_b=v[1]) for n, v in preds.items()]
+    # Other user's entry: only return predictions for matches with results
+    results_map = await crud.get_all_results(db)
+    played = set(results_map.keys())
+    return [PredictionOut(match_n=n, score_a=v[0], score_b=v[1]) for n, v in preds.items() if n in played]

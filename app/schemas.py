@@ -12,6 +12,7 @@ class SignupRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     email: str = Field(..., min_length=1, max_length=200)
     password: str = Field(..., min_length=4)
+    phone: str = Field(..., min_length=7, max_length=50)
 
 
 class LoginRequest(BaseModel):
@@ -24,6 +25,7 @@ class UserOut(BaseModel):
     id: int
     name: str
     email: str
+    phone: str = ""
     is_admin: bool
     has_paid: bool
     locked_winner: Optional[str] = None
@@ -41,12 +43,14 @@ class ConfigOut(BaseModel):
     round_state: str
     tournament_winner: Optional[str]
     data_source: str = "manual"
+    current_stage: int = 1
 
 
 class ConfigUpdate(BaseModel):
     round_state: Optional[str] = None
     tournament_winner: Optional[str] = None
     data_source: Optional[str] = None
+    current_stage: Optional[int] = None
 
 
 # ── Entries ───────────────────────────────────────────────────────────────────
