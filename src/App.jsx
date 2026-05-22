@@ -18,6 +18,36 @@ const STAGES = [
 ];
 function matchStageObj(n) { return STAGES.find(s => n >= s.first && n <= s.last) || STAGES[0]; }
 
+// Resolve slot names like "W M73" / "L M101" to actual team names using known results
+function resolveTeam(name, results, matches) {
+  const m = name.match(/^([WL]) M(\d+)$/);
+  if (!m) return name;
+  const type = m[1], n = Number(m[2]);
+  const res = results[n];
+  const src = matches.find(x => x.n === n);
+  if (!res || !src) return name; // TBD
+  const [sa, sb] = res;
+  if (sa === sb) return name;   // Draw — shouldn't happen in KO rounds
+  return type === 'W' ? (sa > sb ? src.a : src.b) : (sa > sb ? src.b : src.a);
+}
+
+// Recursive variant: resolves through multiple rounds using any scores map (results or sim preds)
+function resolveTeamDeep(name, scoresMap, matchList, depth = 0) {
+  if (depth > 8) return name;
+  const m = name.match(/^([WL]) M(\d+)$/);
+  if (!m) return name;
+  const type = m[1], n = Number(m[2]);
+  const src = matchList.find(x => x.n === n);
+  if (!src) return name;
+  const teamA = resolveTeamDeep(src.a, scoresMap, matchList, depth + 1);
+  const teamB = resolveTeamDeep(src.b, scoresMap, matchList, depth + 1);
+  const res = scoresMap[n];
+  if (!res) return name;
+  const [sa, sb] = res;
+  if (sa === sb) return name;
+  return type === 'W' ? (sa > sb ? teamA : teamB) : (sa > sb ? teamB : teamA);
+}
+
 const FLAGS = {
   "Algeria":"🇩🇿","Argentina":"🇦🇷","Australia":"🇦🇺","Austria":"🇦🇹",
   "Belgium":"🇧🇪","Bosnia and Herzegovina":"🇧🇦","Brazil":"🇧🇷",
@@ -529,59 +559,38 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
         </>}
       </div>
 
-      <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>📊 Stage management</h2>
+      <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>🗂️ Stage management</h2>
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,marginBottom:20}}>
-        {/* Stage progress rows */}
-        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:14}}>
-          {stageStats.map(s => {
-            const isCurrent = s.n === currentStage;
-            const isDone = s.n < currentStage || (s.n === currentStage && s.done === s.total && s.total > 0);
-            const pct = s.total > 0 ? Math.round(s.done / s.total * 100) : 0;
-            return (
-              <div key={s.n} style={{
-                padding:"8px 12px",borderRadius:6,
-                background: isCurrent ? "rgba(99,102,241,0.08)" : "transparent",
-                border: isCurrent ? `1px solid ${C.indigo}` : `1px solid transparent`,
-              }}>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-                  <span style={{fontSize:13,fontWeight:isCurrent?700:400,color:isCurrent?C.indigo:isDone?C.muted:C.text}}>
-                    {isDone&&s.n<currentStage ? "✓ " : isCurrent ? "▶ " : "○ "}
-                    Stage {s.n} — {s.name}
-                  </span>
-                  <span style={{fontSize:12,color:C.muted,fontFamily:"monospace"}}>
-                    {s.done}/{s.total}
-                  </span>
-                </div>
-                {isCurrent && s.total > 0 && (
-                  <div style={{height:4,borderRadius:2,background:C.panel2,overflow:"hidden"}}>
-                    <div style={{height:"100%",width:`${pct}%`,background:pct===100?C.green:C.indigo,transition:"width .3s",borderRadius:2}}/>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        {/* Current stage status */}
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:12}}>
+          <span style={{background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,
+            padding:"4px 12px",borderRadius:999,fontSize:13,fontWeight:700}}>
+            ▶ Stage {currentStage} — {curStat.name} open
+          </span>
+          <span style={{fontSize:13,color:C.muted}}>
+            {curStat.done}/{curStat.total} results entered
+          </span>
         </div>
+
         {/* Open next stage button */}
-        {currentStage < 6 && (
-          <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-            {canOpenNextStage ? (
-              <>
-                <Btn green onClick={openNextStage}>
-                  🎯 Open Stage {currentStage + 1} — {STAGES[currentStage].name}
-                </Btn>
-                <span style={{fontSize:12,color:C.muted}}>All {curStat.total} Stage {currentStage} results are in.</span>
-              </>
-            ) : (
+        {currentStage < 6 ? (
+          canOpenNextStage ? (
+            <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+              <Btn green onClick={openNextStage}>
+                🎯 Open Stage {currentStage + 1} — {STAGES[currentStage].name}
+              </Btn>
               <span style={{fontSize:12,color:C.muted}}>
-                {curStat.done < curStat.total
-                  ? `Enter all Stage ${currentStage} results to unlock the next stage (${curStat.done}/${curStat.total} done).`
-                  : `Stage ${currentStage} complete.`}
+                All results in. Users will be able to fill predictions for Stage {currentStage + 1}.
               </span>
-            )}
-          </div>
-        )}
-        {currentStage === 6 && (
-          <span style={{fontSize:13,color:C.green,fontWeight:600}}>🏆 Tournament complete!</span>
+            </div>
+          ) : (
+            <div style={{fontSize:12,color:C.muted,padding:"8px 12px",background:C.panel2,borderRadius:6}}>
+              ⏳ Enter all {curStat.total} Stage {currentStage} results ({curStat.done} of {curStat.total} done)
+              to unlock Stage {currentStage + 1} predictions for users.
+            </div>
+          )
+        ) : (
+          <span style={{fontSize:13,color:C.green,fontWeight:600}}>🏆 All stages open — tournament complete!</span>
         )}
       </div>
 
@@ -844,74 +853,201 @@ function GroupCard({ group, allMatches, results, simPreds, liveMatches={} }) {
 }
 
 function Tournament({ matches, results, liveMatches={}, myPreds, config, user }) {
+  const openStage = config.current_stage || 1;
+  const visibleStages = user?.is_admin ? STAGES : STAGES.filter(s => s.n <= openStage);
+  const [activeStage, setActiveStage] = useState(openStage);
   const hasPreds = Object.keys(myPreds||{}).some(n=>myPreds[n]?.[0]!=null);
   const canSim = !user?.is_admin && hasPreds;
-  const [simMode,setSimMode]=useState(canSim&&config.round_state==="open");
+  const [simMode, setSimMode] = useState(false);
 
-  const simPreds = simMode ? (myPreds||{}) : {};
-  const groupMatches = matches.filter(m => m.s === 1 || (m.g && m.g.length === 1));
-  const groupPlayed = groupMatches.filter(m => results[m.n]).length;
-  const simFilled = simMode
-    ? groupMatches.filter(m=>!results[m.n]&&myPreds[m.n]?.[0]!=null&&myPreds[m.n]?.[1]!=null).length
+  // Clamp active stage to visible list
+  const effectiveStage = visibleStages.find(s => s.n === activeStage)
+    ? activeStage
+    : (visibleStages[visibleStages.length - 1]?.n || 1);
+
+  const stageObj = STAGES.find(s => s.n === effectiveStage) || STAGES[0];
+  const stageMatchList = matches.filter(m => m.n >= stageObj.first && m.n <= stageObj.last);
+
+  // For simulate: actual results + user preds for unplayed
+  const simScores = simMode
+    ? {
+        ...results,
+        ...Object.fromEntries(
+          Object.entries(myPreds || {})
+            .filter(([n, v]) => !results[Number(n)] && v?.[0] != null)
+        ),
+      }
+    : results;
+
+  const groupMatches = matches.filter(m => m.s === 1);
+  const groupPlayed  = groupMatches.filter(m => results[m.n]).length;
+  const simFilled    = simMode
+    ? groupMatches.filter(m => !results[m.n] && myPreds?.[m.n]?.[0] != null).length
     : 0;
-  const currentStageName = STAGES.find(s => s.n === (config.current_stage||1))?.name || "Group Stage";
+  const knockoutDone = stageMatchList.filter(m => results[m.n]).length;
+
+  const SimToggle = () => !canSim ? null : (
+    <div style={{display:"flex",background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,overflow:"hidden",fontSize:12}}>
+      <button onClick={()=>setSimMode(false)} style={{
+        padding:"4px 12px",border:"none",cursor:"pointer",fontWeight:!simMode?700:400,
+        background:!simMode?C.accent:"transparent",color:!simMode?"#1a1a1a":C.muted,transition:"all .15s",
+      }}>Real results</button>
+      <button onClick={()=>setSimMode(true)} style={{
+        padding:"4px 12px",border:"none",cursor:"pointer",fontWeight:simMode?700:400,
+        background:simMode?C.accent:"transparent",color:simMode?"#1a1a1a":C.muted,transition:"all .15s",
+      }}>Simulate</button>
+    </div>
+  );
 
   return (
     <div>
-      {/* Stage banner */}
-      <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,
-        padding:"10px 16px",marginBottom:16,display:"flex",alignItems:"center",
-        justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontFamily:"var(--c-font-display)",fontSize:20,color:C.accent,letterSpacing:1}}>
-            GROUP STAGE
-          </span>
-          {(config.current_stage||1) > 1 && (
-            <span style={{fontSize:12,padding:"2px 8px",borderRadius:999,fontWeight:600,
-              background:"rgba(99,102,241,0.15)",color:C.indigo,border:`1px solid ${C.indigo}`}}>
-              Now: {currentStageName}
-            </span>
-          )}
-          {(config.current_stage||1) === 1 && (
-            <span style={{fontSize:11,padding:"2px 8px",borderRadius:999,fontWeight:600,
-              background:"rgba(16,185,129,0.15)",color:C.green,border:"1px solid rgba(16,185,129,0.3)"}}>
-              LIVE · updates with every result
-            </span>
-          )}
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-          {canSim&&(config.current_stage||1)===1&&(
-            <div style={{display:"flex",background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,overflow:"hidden",fontSize:12}}>
-              <button onClick={()=>setSimMode(false)} style={{
-                padding:"4px 12px",border:"none",cursor:"pointer",fontWeight:!simMode?700:400,
-                background:!simMode?C.accent:"transparent",color:!simMode?"#1a1a1a":C.muted,transition:"all .15s",
-              }}>Real results</button>
-              <button onClick={()=>setSimMode(true)} style={{
-                padding:"4px 12px",border:"none",cursor:"pointer",fontWeight:simMode?700:400,
-                background:simMode?C.accent:"transparent",color:simMode?"#1a1a1a":C.muted,transition:"all .15s",
-              }}>Simulate</button>
-            </div>
-          )}
-          <div style={{fontSize:13,color:C.muted}}>
-            <b style={{color:C.text}}>{groupPlayed}</b> / {groupMatches.length} played
-            {simFilled>0&&<> · <b style={{color:C.accent}}>{simFilled}</b> simulated</>}
-          </div>
-        </div>
+      {/* ── Stage tabs ── */}
+      <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
+        {visibleStages.map(s => {
+          const isActive  = s.n === effectiveStage;
+          const isCurrent = s.n === openStage;
+          const sMatches  = matches.filter(m => m.n >= s.first && m.n <= s.last);
+          const sDone     = sMatches.filter(m => results[m.n]).length;
+          return (
+            <button key={s.n} onClick={() => setActiveStage(s.n)} style={{
+              padding:"6px 14px", borderRadius:6, cursor:"pointer", fontSize:13,
+              background: isActive ? C.accent : C.panel2,
+              color: isActive ? "#1a1a1a" : C.text,
+              border: `1px solid ${isActive ? C.accent : (isCurrent && !isActive ? C.indigo : C.border)}`,
+              fontWeight: isActive ? 700 : 400,
+            }}>
+              {isCurrent && !isActive && <span style={{color:C.indigo,marginRight:4}}>▶</span>}
+              {s.name}
+              {sDone > 0 && (
+                <span style={{marginLeft:6,fontSize:11,opacity:0.65,fontWeight:400}}>
+                  {sDone}/{sMatches.length}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
-      {simMode&&simFilled>0&&(
-        <div style={{background:"var(--c-accent-soft)",border:`1px solid ${C.accent}`,
-          borderRadius:6,padding:"7px 14px",marginBottom:14,fontSize:13,color:C.accent}}>
-          ✨ Standings include your predictions for unplayed matches
+      {/* ── Group Stage (stage 1) ── */}
+      {effectiveStage === 1 && (
+        <div>
+          <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,
+            padding:"10px 16px",marginBottom:16,display:"flex",alignItems:"center",
+            justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontFamily:"var(--c-font-display)",fontSize:20,color:C.accent,letterSpacing:1}}>
+                GROUP STAGE
+              </span>
+              <span style={{fontSize:11,padding:"2px 8px",borderRadius:999,fontWeight:600,
+                background:"rgba(16,185,129,0.15)",color:C.green,border:"1px solid rgba(16,185,129,0.3)"}}>
+                updates with every result
+              </span>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+              <SimToggle/>
+              <div style={{fontSize:13,color:C.muted}}>
+                <b style={{color:C.text}}>{groupPlayed}</b> / {groupMatches.length} played
+                {simFilled>0&&<> · <b style={{color:C.accent}}>{simFilled}</b> simulated</>}
+              </div>
+            </div>
+          </div>
+          {simMode&&simFilled>0&&(
+            <div style={{background:"var(--c-accent-soft)",border:`1px solid ${C.accent}`,
+              borderRadius:6,padding:"7px 14px",marginBottom:14,fontSize:13,color:C.accent}}>
+              ✨ Standings include your predictions for unplayed matches
+            </div>
+          )}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14}}>
+            {GROUPS.map(g=>(
+              <GroupCard key={g} group={g} allMatches={matches} results={results}
+                simPreds={simMode?(myPreds||{}):{}} liveMatches={liveMatches}/>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* 12 group cards */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14}}>
-        {GROUPS.map(g=>(
-          <GroupCard key={g} group={g} allMatches={matches} results={results} simPreds={simPreds} liveMatches={liveMatches}/>
-        ))}
-      </div>
+      {/* ── Knockout stages (2-6) ── */}
+      {effectiveStage > 1 && (
+        <div>
+          <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,
+            padding:"10px 16px",marginBottom:16,display:"flex",alignItems:"center",
+            justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontFamily:"var(--c-font-display)",fontSize:20,color:C.accent,letterSpacing:1}}>
+                {stageObj.name.toUpperCase()}
+              </span>
+              <span style={{fontSize:13,color:C.muted}}>
+                <b style={{color:C.text}}>{knockoutDone}</b> / {stageMatchList.length} played
+              </span>
+            </div>
+            <SimToggle/>
+          </div>
+
+          <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10}}>
+            {stageMatchList.map(m => {
+              const resolvedA = resolveTeamDeep(m.a, simScores, matches);
+              const resolvedB = resolveTeamDeep(m.b, simScores, matches);
+              const res       = results[m.n];
+              const live      = liveMatches[m.n];
+              const simPred   = simMode && !res ? myPreds?.[m.n] : null;
+              const dispScore = live ? [live.score_a, live.score_b]
+                              : res  ? res
+                              : simPred ?? null;
+              const isSim     = simMode && !res && !!simPred;
+              const winA      = dispScore
+                ? (dispScore[0] > dispScore[1] ? true : dispScore[0] < dispScore[1] ? false : null)
+                : null;
+              const rowBg     = live ? "rgba(239,68,68,0.06)"
+                              : res  ? "rgba(16,185,129,0.04)"
+                              : isSim ? "rgba(99,102,241,0.04)"
+                              : C.panel2;
+              const rowBd     = `1px solid ${live ? "rgba(239,68,68,0.35)"
+                              : res  ? "rgba(16,185,129,0.2)"
+                              : isSim ? "rgba(99,102,241,0.25)"
+                              : C.border}`;
+              return (
+                <div key={m.n} style={{
+                  display:"grid",gridTemplateColumns:"32px 1fr 88px 1fr",
+                  alignItems:"center",gap:6,padding:"7px 10px",borderRadius:6,
+                  marginBottom:4,background:rowBg,border:rowBd,fontSize:13,
+                }}>
+                  <span style={{color:C.muted,fontSize:11,fontFamily:"monospace"}}>#{m.n}</span>
+                  <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
+                    color:winA===true?C.accent:winA===false?C.muted:C.text,fontWeight:winA===true?700:400}}>
+                    {flag(resolvedA)} {resolvedA}
+                  </span>
+                  <div style={{textAlign:"center"}}>
+                    {live ? (
+                      <>
+                        <div style={{fontFamily:"monospace",fontWeight:700,color:C.red,fontSize:15}}>
+                          {live.score_a}:{live.score_b}
+                        </div>
+                        <div style={{fontSize:10,color:C.red,display:"flex",alignItems:"center",gap:2,justifyContent:"center"}}>
+                          <span className="live-dot"/>{live.minute}′
+                        </div>
+                      </>
+                    ) : dispScore ? (
+                      <>
+                        <div style={{fontFamily:"monospace",fontWeight:700,
+                          color:isSim?C.indigo:C.green,fontSize:15}}>
+                          {dispScore[0]}:{dispScore[1]}
+                        </div>
+                        {isSim&&<div style={{fontSize:10,color:C.indigo}}>sim</div>}
+                      </>
+                    ) : (
+                      <span style={{color:C.muted,fontSize:12}}>vs</span>
+                    )}
+                  </div>
+                  <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:"right",
+                    color:winA===false?C.accent:winA===true?C.muted:C.text,fontWeight:winA===false?700:400}}>
+                    {resolvedB} {flag(resolvedB)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1469,8 +1605,10 @@ export default function App() {
   function MyPredictions(){
     const editable=config.round_state==="open";
     const activeEntry=entries.find(e=>e.id===activeEntryId)||entries[0]||null;
-    const filledCount=Object.keys(myPreds).filter(n=>myPreds[n]?.[0]!=null&&myPreds[n]?.[1]!=null).length;
-    const canSubmit=filledCount===matches.length&&(myWinner||lockedWinner)!=null&&!activeEntry?.submitted_at;
+    const openStage = config.current_stage || 1;
+    const openMatches = matches.filter(m => matchStageObj(m.n).n <= openStage);
+    const filledCount = openMatches.filter(m => myPreds[m.n]?.[0] != null && myPreds[m.n]?.[1] != null).length;
+    const canSubmit = filledCount === openMatches.length && (myWinner||lockedWinner) != null && !activeEntry?.submitted_at;
     const [submitting,setSubmitting]=useState(false);
     const [renamingEntryId,setRenamingEntryId]=useState(null);
     const [renameVal,setRenameVal]=useState("");
@@ -1578,7 +1716,7 @@ export default function App() {
             {entries.map(e=>{
               const isActive=e.id===activeEntryId;
               const submitted=!!e.submitted_at;
-              const filled=(e.predictions||[]).filter(p=>p.score_a!=null&&p.score_b!=null).length;
+              const filled=(e.predictions||[]).filter(p=>matchStageObj(p.match_n).n<=openStage&&p.score_a!=null&&p.score_b!=null).length;
               const isRenaming=renamingEntryId===e.id;
               return(
                 <div key={e.id} onClick={()=>!isRenaming&&switchEntry(e.id)} style={{
@@ -1616,7 +1754,7 @@ export default function App() {
                   )}
                   {submitted
                     ?<span style={{background:"rgba(16,185,129,0.2)",color:isActive?"#0a6644":C.green,fontSize:10,padding:"1px 5px",borderRadius:4,fontWeight:700}}>✓</span>
-                    :<span style={{background:"rgba(0,0,0,0.15)",color:isActive?"#333":C.muted,fontSize:10,padding:"1px 5px",borderRadius:4}}>{filled}/{matches.length}</span>
+                    :<span style={{background:"rgba(0,0,0,0.15)",color:isActive?"#333":C.muted,fontSize:10,padding:"1px 5px",borderRadius:4}}>{filled}/{openMatches.length}</span>
                   }
                 </div>
               );
@@ -1671,7 +1809,7 @@ export default function App() {
                 </Btn>
                 {!canSubmit&&(
                   <span style={{fontSize:11,color:C.muted}}>
-                    {filledCount<matches.length?`${filledCount}/${matches.length} filled`:"Winner pick needed"}
+                    {filledCount<openMatches.length?`${filledCount}/${openMatches.length} filled`:"Winner pick needed"}
                   </span>
                 )}
               </>
@@ -1721,8 +1859,30 @@ export default function App() {
         {STAGES.map(s => {
           const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last);
           if (stageMatches.length === 0) return null;
+
+          // Locked stage: show a collapsed preview instead
+          if (s.n > openStage) {
+            return (
+              <div key={s.n}>
+                <SectionHeader>
+                  <span style={{color:C.muted,marginRight:6}}>🔒</span>
+                  Stage {s.n}: {s.name}
+                  <span style={{marginLeft:8,fontSize:12,fontWeight:400,color:C.muted}}>
+                    locked
+                  </span>
+                </SectionHeader>
+                <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,
+                  padding:"10px 14px",marginBottom:8,fontSize:13,color:C.muted,
+                  display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:16}}>🔒</span>
+                  <span>Stage {s.n} predictions open after admin advances the tournament.</span>
+                </div>
+              </div>
+            );
+          }
+
           const stageFilled = stageMatches.filter(m => myPreds[m.n]?.[0] != null && myPreds[m.n]?.[1] != null).length;
-          const isCurrent = (config.current_stage||1) === s.n;
+          const isCurrent = openStage === s.n;
           return (
             <div key={s.n}>
               <SectionHeader>
