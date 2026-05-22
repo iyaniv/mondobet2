@@ -295,26 +295,80 @@ function buildInitialState() {
   };
 }
 
+// ── Fresh state (variant = "fresh") ──────────────────────────────────────────
+// Pre-tournament: round is OPEN for group-stage predictions, no results, no
+// submitted forms, no live matches. Same user roster — they just haven't bet
+// yet, so the leaderboard is empty. Great for trying the full flow from the
+// "first prediction" all the way to "admin enters results".
+function buildFreshState() {
+  const base = buildInitialState();
+  return {
+    ...base,
+    config:{ round_state:"open", tournament_winner:null, data_source:"manual", current_stage:1 },
+    // Same users + admin, but no entries yet
+    users: base.users,
+    entries: {},
+    predictions: {},
+    winner_picks: {},
+    results: {},
+    live: {},
+    next_user_id: base.next_user_id,
+    next_entry_seq: base.next_entry_seq,
+  };
+}
+
 // ── Persistence ──────────────────────────────────────────────────────────────
-const STORAGE_KEY = "mb_demo_v5";
+// Two parallel demos: "current" (mid-tournament) and "fresh" (pre-tournament).
+// Switch with window._switchDemo("fresh"|"current"). Each variant has its own
+// localStorage slot, so flipping back and forth preserves whatever you did in
+// each.
+const VARIANT_KEY = "mb_demo_variant";
+const STORAGE_KEYS = {
+  current: "mb_demo_v5",
+  fresh:   "mb_demo_v5_fresh",
+};
+function getVariant() {
+  const v = localStorage.getItem(VARIANT_KEY);
+  return (v === "fresh" || v === "current") ? v : "current";
+}
+function storageKeyForVariant(v) { return STORAGE_KEYS[v] || STORAGE_KEYS.current; }
+function buildForVariant(v) { return v === "fresh" ? buildFreshState() : buildInitialState(); }
+
 function loadState() {
-  try { const s=localStorage.getItem(STORAGE_KEY); if(s) return JSON.parse(s); } catch{}
-  return buildInitialState();
+  const v = getVariant();
+  try { const s = localStorage.getItem(storageKeyForVariant(v)); if (s) return JSON.parse(s); } catch{}
+  return buildForVariant(v);
 }
 function save(s) {
-  try { localStorage.setItem(STORAGE_KEY,JSON.stringify(s)); } catch{}
+  try { localStorage.setItem(storageKeyForVariant(getVariant()), JSON.stringify(s)); } catch{}
 }
 
 let S = loadState();
 
 window._resetDemo = () => {
-  ["mb_demo_v1","mb_demo_v2","mb_demo_v3","mb_demo_v4","mb_demo_v5","wc2026_token"].forEach(k=>localStorage.removeItem(k));
+  ["mb_demo_v1","mb_demo_v2","mb_demo_v3","mb_demo_v4","mb_demo_v5","mb_demo_v5_fresh","wc2026_token","mb_demo_variant"].forEach(k=>localStorage.removeItem(k));
+  location.reload();
+};
+window._switchDemo = (variant) => {
+  if (variant !== "fresh" && variant !== "current") {
+    console.warn('Use _switchDemo("fresh") or _switchDemo("current")');
+    return;
+  }
+  localStorage.setItem(VARIANT_KEY, variant);
+  // Drop auth so the variant change is visible (different users may be
+  // already logged in across variants).
+  localStorage.removeItem("wc2026_token");
   location.reload();
 };
 
 console.log('%c🎮 MondoBet — Demo Mode (no server needed)', 'color:#a3e635;font-size:13px;font-weight:bold');
+console.log('Active variant: ' + getVariant().toUpperCase() + ' · switch with window._switchDemo("fresh"|"current")');
 console.log('Accounts: admin/admin · alice · bob · charlie · diana · eve · frank · grace · yaniv (password = name)');
-console.log('Stage 1: Group Stage (72 matches) ✓ · Stage 2: Round of 32 in progress (8/16 results entered)');
+if (getVariant() === "current") {
+  console.log('Stage 1: Group Stage (72 matches) ✓ · Stage 2: Round of 32 in progress (8/16 results entered)');
+} else {
+  console.log('Fresh start: round OPEN, no results, no submitted forms. Stage 1 ready for predictions.');
+}
 console.log('Call window._resetDemo() to wipe all data and restart.');
 
 // ── Token / auth ─────────────────────────────────────────────────────────────
@@ -718,6 +772,12 @@ export const liveApi = {
 };
 
 // ── Init (bootstrap) ─────────────────────────────────────────────────────────
+// Read-only helper for the UI: which demo variant is currently active.
+export const demoVariantApi = {
+  get: () => getVariant(),
+  set: (v) => window._switchDemo(v),  // reloads
+};
+
 export const initApi = {
   load: async () => {
     await delay(80);

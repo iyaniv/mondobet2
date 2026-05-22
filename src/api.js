@@ -89,6 +89,9 @@ export const liveApi = {
   finalize: (n)     => request(`/api/live/${n}/finalize`, { method: "POST" }),
 };
 
+// Demo-only helper (no-op in production, the demo build replaces this module)
+export const demoVariantApi = { get: () => null, set: () => {} };
+
 // Single bootstrap call — replaces 4+ parallel calls with one request
 export const initApi = {
   load: () => request("/api/init/"),

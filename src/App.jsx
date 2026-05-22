@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, Fragment } from "react";
-import { api, liveApi, initApi, setToken, getToken } from "./api";
+import { api, liveApi, initApi, demoVariantApi, setToken, getToken } from "./api";
 
 const C = {
   bg:"var(--c-bg)", panel:"var(--c-panel)", panel2:"var(--c-panel2)",
@@ -1691,6 +1691,46 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
               </div>
             </label>
           ))}
+        </div>
+      )}
+
+      {/* Demo variant switcher — only visible in demo mode */}
+      {demoVariantApi.get() && (
+        <div style={sectionStyle}>
+          <h2 style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:6}}>Demo</h2>
+          <p style={{color:C.muted,fontSize:13,marginBottom:14,marginTop:0}}>
+            Switch between two preset demos. Each one keeps its own state — what
+            you do in one doesn't affect the other. The page will reload.
+          </p>
+          {(() => {
+            const current = demoVariantApi.get();
+            const Btn2 = ({value, title, desc}) => {
+              const active = current === value;
+              return (
+                <button onClick={()=>active||demoVariantApi.set(value)}
+                  style={{
+                    flex:1,minWidth:200,textAlign:"left",cursor:active?"default":"pointer",
+                    padding:"12px 14px",borderRadius:8,
+                    background:active?"rgba(163,230,53,0.10)":C.panel,
+                    border:`1px solid ${active?C.accent:C.border}`,
+                    borderLeftWidth:3,borderLeftColor:active?C.accent:"transparent",
+                    color:C.text,fontSize:13,display:"flex",flexDirection:"column",gap:2,
+                  }}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:active?700:600}}>
+                    <span style={{color:active?C.accent:C.text}}>{title}</span>
+                    {active && <span style={{fontSize:10,color:C.accent,fontWeight:700,padding:"1px 7px",borderRadius:999,border:`1px solid ${C.accent}`}}>ACTIVE</span>}
+                  </div>
+                  <div style={{fontSize:11,color:C.muted}}>{desc}</div>
+                </button>
+              );
+            };
+            return (
+              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                <Btn2 value="current" title="Mid-tournament" desc="Group stage done · R32 in progress · 12 submitted forms"/>
+                <Btn2 value="fresh"   title="Fresh start"     desc="Round open · no results · no forms yet · stage 1 ready"/>
+              </div>
+            );
+          })()}
         </div>
       )}
 
