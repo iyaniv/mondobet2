@@ -2276,20 +2276,30 @@ export default function App() {
         {/* Entry controls */}
         {activeEntry&&(
           <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-            {editable&&!currentStageSubmitted&&(
-              <>
-                <Btn green onClick={submitEntry} disabled={!canSubmit||submitting}>
-                  {submitting?"…":`Submit stage ${openStage}`}
-                </Btn>
-                {!canSubmit&&(
-                  <span style={{fontSize:11,color:C.muted}}>
-                    {filledCount<submittableMatches.length
-                      ? `${filledCount}/${submittableMatches.length} filled`
-                      : winnerNeededForSubmit ? "Winner pick needed" : ""}
-                  </span>
-                )}
-              </>
-            )}
+            {editable&&!currentStageSubmitted&&(() => {
+              const missing = Math.max(0, submittableMatches.length - filledCount);
+              const blockers = [];
+              if (missing > 0) blockers.push(`🎯 ${missing} match${missing===1?"":"es"} still to fill`);
+              if (winnerNeededForSubmit) blockers.push("🏆 winner pick needed");
+              return (
+                <>
+                  <Btn green onClick={submitEntry} disabled={!canSubmit||submitting}
+                    title={blockers.length ? `Can't submit yet: ${blockers.join(", ")}` : ""}>
+                    {submitting?"…":`Submit stage ${openStage}`}
+                  </Btn>
+                  {!canSubmit && blockers.length>0 && (
+                    <span style={{
+                      display:"inline-flex",alignItems:"center",gap:6,
+                      background:"rgba(245,158,11,0.10)",color:"#f59e0b",
+                      border:"1px solid rgba(245,158,11,0.35)",
+                      padding:"4px 10px",borderRadius:999,fontSize:12,fontWeight:500,
+                    }}>
+                      {blockers.join(" · ")}
+                    </span>
+                  )}
+                </>
+              );
+            })()}
             {editable&&currentStageSubmitted&&(
               <span style={{
                 background:"rgba(16,185,129,0.10)",color:C.green,
