@@ -404,7 +404,16 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
     if (effectiveScore[0] > effectiveScore[1]) winnerSide = 0;
     else if (effectiveScore[1] > effectiveScore[0]) winnerSide = 1;
   }
-  const rowBg = (!editable&&!adminResult) ? C.panel : C.panel2;
+  // Live rows get a red tint + red border so users spot in-play matches in
+  // their predictions table. "In-progress" (score saved but not LIVE) rows
+  // get a subtle lime tint — same color language as the LIVE-NOW section.
+  const baseRowBg     = (!editable&&!adminResult) ? C.panel : C.panel2;
+  const rowBg         = isLiveBadge ? "rgba(239,68,68,0.07)"
+                      : isPreliminary ? "rgba(163,230,53,0.04)"
+                      : baseRowBg;
+  const rowBorderColor= isLiveBadge ? "rgba(239,68,68,0.4)"
+                      : isPreliminary ? "rgba(163,230,53,0.25)"
+                      : C.border;
 
   // Shared score / input block used in both layouts
   const scoreBlock = editable ? (
@@ -433,8 +442,8 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
   // ── Mobile: two-line layout ────────────────────────────────────────────────
   if (isMobile) {
     return (
-      <div style={{background:rowBg,border:`1px solid ${C.border}`,borderRadius:6,
-        padding:"6px 8px",marginBottom:3,fontSize:12}}>
+      <div style={{background:rowBg,border:`1px solid ${rowBorderColor}`,borderRadius:6,
+        padding:"6px 8px",marginBottom:3,fontSize:12,position:"relative"}}>
         {/* Line 1: flag+name — score — name+flag */}
         <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",
           alignItems:"center",gap:6}}>
@@ -474,7 +483,7 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
 
   // ── Desktop: original single-row grid layout ───────────────────────────────
   return (
-    <div style={{display:"grid",gridTemplateColumns:"28px 1fr 44px 12px 44px 1fr auto",alignItems:"center",gap:5,padding:"5px 8px",borderRadius:6,background:rowBg,border:`1px solid ${C.border}`,marginBottom:3,fontSize:13}}>
+    <div style={{display:"grid",gridTemplateColumns:"28px 1fr 44px 12px 44px 1fr auto",alignItems:"center",gap:5,padding:"5px 8px",borderRadius:6,background:rowBg,border:`1px solid ${rowBorderColor}`,marginBottom:3,fontSize:13,position:"relative"}}>
       <span style={{color:C.muted,fontSize:11}}>#{match.n}</span>
       <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12,
         color:winnerSide===0?C.accent:winnerSide===1?C.muted:C.text,
