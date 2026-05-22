@@ -1301,11 +1301,11 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
         <>
           <input type="number" inputMode="numeric" min={0} max={20} value={resA}
             onChange={e=>setResA(e.target.value)} onBlur={e=>handleBlur(0,e.target.value)}
-            style={{...numInput,border:`1px solid ${isLive?"rgba(239,68,68,0.5)":C.border}`}}/>
+            style={{...numInput,border:`1px solid ${inputBorder}`}}/>
           <span style={{textAlign:"center",color:C.muted}}>:</span>
           <input type="number" inputMode="numeric" min={0} max={20} value={resB}
             onChange={e=>setResB(e.target.value)} onBlur={e=>handleBlur(1,e.target.value)}
-            style={{...numInput,border:`1px solid ${isLive?"rgba(239,68,68,0.5)":C.border}`}}/>
+            style={{...numInput,border:`1px solid ${inputBorder}`}}/>
         </>
       )}
       <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:"right",fontSize:12,
