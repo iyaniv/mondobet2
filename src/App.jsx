@@ -2075,23 +2075,20 @@ export default function App() {
       showToast("Saved ✓");
     }
 
-    // Random fill — only the current stage's empty / no-score-yet predictions.
-    // Past stages stay locked; matches with an admin-entered result/live are
-    // skipped (you can't predict a played match). Uses 0–3 per side.
-    async function randomFillCurrentStage() {
-      if (!editable || !activeEntry || activeEntry.submitted_at) return;
-      const stage = STAGES.find(s => s.n === openStage);
+    // Random fill — fills the given stage's empty / no-score-yet predictions
+    // with random 0-3 scores. Won't touch matches that already have a result
+    // or a live score. Only callable when the stage is currently editable.
+    async function randomFillStage(stageN) {
+      if (!editable || !activeEntry) return;
+      if ((activeEntry.stages_submitted||{})[stageN]) return;
+      const stage = STAGES.find(s => s.n === stageN);
       if (!stage) return;
       const todo = matches.filter(m =>
         m.n >= stage.first && m.n <= stage.last
         && !results[m.n] && !liveMatches[m.n]
         && (myPreds[m.n]?.[0] == null || myPreds[m.n]?.[1] == null)
       );
-      if (todo.length === 0) {
-        showToast("Nothing left to fill in this stage", "warn");
-        return;
-      }
-      if (!confirm(`Fill ${todo.length} match${todo.length===1?"":"es"} in ${stage.name} with random scores? (you can still edit any of them)`)) return;
+      if (todo.length === 0) { showToast("Nothing left to fill", "warn"); return; }
       const rand = () => Math.floor(Math.random() * 4);
       let ok = 0;
       for (const m of todo) {
@@ -2100,7 +2097,7 @@ export default function App() {
           ok++;
         } catch(e) { console.error("randomFill", m.n, e); }
       }
-      showToast(`Filled ${ok}/${todo.length} match${todo.length===1?"":"es"} 🎲`);
+      showToast(`Random results filled · stage ${stageN} 🎲`);
     }
 
     async function saveWinner(team){
@@ -2351,16 +2348,6 @@ export default function App() {
                 ✓ Stage {openStage} submitted
               </span>
             )}
-            {editable&&!currentStageSubmitted&&(
-              <button onClick={randomFillCurrentStage}
-                title="Fill empty matches in the current stage with random scores"
-                style={{
-                  padding:"6px 12px",borderRadius:6,fontSize:12,fontWeight:600,
-                  background:"transparent",color:C.accent,border:`1px solid ${C.accent}`,cursor:"pointer",
-                }}>
-                🎲 Random fill — current stage
-              </button>
-            )}
             {!activeEntry.submitted_at&&entries.length>1&&editable&&(
               <Btn ghost red onClick={()=>deleteEntryById(activeEntry.id)}>Delete</Btn>
             )}
@@ -2477,8 +2464,24 @@ export default function App() {
                     {stageStatus}
                   </span>
                 </span>
-                <span style={{fontSize:13,color:C.muted,lineHeight:1}}>
-                  {isCollapsed ? "▸" : "▾"}
+                <span style={{display:"flex",alignItems:"center",gap:10}}>
+                  {/* Per-stage Random Results — visible only while THIS stage
+                      is the open one, the round is open, and the user
+                      hasn't already submitted this stage on this form. */}
+                  {isCurrent && editable && !(activeEntry?.stages_submitted||{})[s.n] && (
+                    <button
+                      onClick={(ev)=>{ ev.stopPropagation(); randomFillStage(s.n); }}
+                      title="Fill empty matches in this stage with random scores"
+                      style={{
+                        padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,
+                        background:"transparent",color:C.accent,border:`1px solid ${C.accent}`,cursor:"pointer",
+                      }}>
+                      🎲 Random Results
+                    </button>
+                  )}
+                  <span style={{fontSize:13,color:C.muted,lineHeight:1}}>
+                    {isCollapsed ? "▸" : "▾"}
+                  </span>
                 </span>
               </div>
               {!isCollapsed && (
