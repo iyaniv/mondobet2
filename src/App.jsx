@@ -1942,11 +1942,69 @@ export default function App() {
   function LeaderboardView(){
     const winnerKnown=!!config.tournament_winner;
     const myRivals = (() => { try { return JSON.parse(localStorage.getItem("mb_rivals")||"[]"); } catch { return []; } })();
+
+    // ── Simulate mode ──────────────────────────────────────────────────────
+    // Find this user's leaderboard entry (prefer active entry tab)
+    const myLbEntry = leaderboard.find(e=>e.entry_id===activeEntryId)
+                   || leaderboard.find(e=>e.user_id===user?.id);
+    // Unplayed matches the user has predicted (excluding live — already counted)
+    const unplayedPredMatches = matches.filter(m=>
+      !results[m.n] && !liveMatches[m.n] && myPreds?.[m.n]?.[0]!=null
+    );
+    const canSim = !user?.is_admin && unplayedPredMatches.length > 0;
+    const [simMode,setSimMode] = useState(false);
+
+    // Simulated extra pts: 8 per match (direction 5 + exact 3, since result = prediction)
+    // + 10 winner pick bonus if tournament winner not yet decided and user has a pick
+    const winnerPick = lockedWinner || myWinner;
+    const simMatchPts   = unplayedPredMatches.length * 8;
+    const simWinnerPts  = (!config.tournament_winner && !!winnerPick) ? 10 : 0;
+    const simExtraPts   = simMode ? simMatchPts + simWinnerPts : 0;
+
+    // Build display leaderboard: only current user's row is updated, then re-sorted
+    const displayLb = (simMode && myLbEntry && simExtraPts > 0)
+      ? [...leaderboard]
+          .map(e => e.entry_id===myLbEntry.entry_id
+            ? {...e, total: e.total + simExtraPts, _simExtra: simExtraPts}
+            : e
+          )
+          .sort((a,b) => b.total - a.total)
+      : leaderboard;
+
     return (
       <div>
         <LiveNowSection liveMatches={liveMatches} matches={matches}/>
         <div style={{marginBottom:14}}><RoundPill/></div>
-        <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>🏆 Leaderboard</h1>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+          marginBottom:12,flexWrap:"wrap",gap:8}}>
+          <h1 style={{color:C.accent,fontSize:20,margin:0}}>🏆 Leaderboard</h1>
+          {canSim&&(
+            <div style={{display:"flex",background:C.panel,border:`1px solid ${C.border}`,
+              borderRadius:6,overflow:"hidden",fontSize:12}}>
+              <button onClick={()=>setSimMode(false)} style={{
+                padding:"4px 12px",border:"none",cursor:"pointer",
+                background:!simMode?C.accent:"transparent",
+                color:!simMode?"#1a1a1a":C.muted,fontWeight:!simMode?700:400,transition:"all .15s",
+              }}>Actual</button>
+              <button onClick={()=>setSimMode(true)} style={{
+                padding:"4px 12px",border:"none",cursor:"pointer",
+                background:simMode?C.accent:"transparent",
+                color:simMode?"#1a1a1a":C.muted,fontWeight:simMode?700:400,transition:"all .15s",
+              }}>Simulate</button>
+            </div>
+          )}
+        </div>
+
+        {simMode&&simExtraPts>0&&(
+          <div style={{background:"var(--c-accent-soft)",border:`1px solid ${C.accent}`,
+            borderRadius:6,padding:"7px 14px",marginBottom:14,fontSize:13,color:C.accent}}>
+            ✨ Your score includes <b>+{simExtraPts} simulated pts</b>
+            {" — "}{unplayedPredMatches.length} match{unplayedPredMatches.length!==1?"es":""} ×8
+            {simWinnerPts>0&&<> · winner pick +10</>}
+            {" (visible only to you)"}
+          </div>
+        )}
+
         {leaderboard.length===0
           ?<div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>No participants yet.</div>
           :(
@@ -1956,16 +2014,17 @@ export default function App() {
                   {["#","Name","Points","Winner pick"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Points"?"center":"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}
                 </tr></thead>
                 <tbody>
-                  {leaderboard.map((row,i)=>{
+                  {displayLb.map((row,i)=>{
                     const isMe=row.user_id===user?.id;
                     const isRival=!isMe&&myRivals.includes(row.user_id);
+                    const isSim=simMode&&!!row._simExtra;
                     const rowBg=i===0?"rgba(163,230,53,0.12)":i===1?"rgba(163,230,53,0.07)":i===2?"rgba(163,230,53,0.03)":isRival?"rgba(163,230,53,0.05)":"transparent";
                     let winnerCell;
                     if(winnerKnown)winnerCell=row.winner_pick?<>{withFlag(row.winner_pick)}{row.winner_bonus>0&&<span style={{color:C.green}}> +10</span>}</>:"—";
                     else winnerCell=row.winner_pick?withFlag(row.winner_pick):"—";
                     return (
                       <tr key={row.entry_id||row.user_id} style={{
-                        background:rowBg,
+                        background:isSim?"rgba(99,102,241,0.06)":rowBg,
                         borderLeft: isMe ? `3px solid ${C.accent}` : isRival ? `3px solid ${C.accent}` : "3px solid transparent",
                       }}>
                         <td style={td}><b>{i+1}</b></td>
@@ -1973,9 +2032,10 @@ export default function App() {
                           {isMe&&<span style={{background:C.indigo,color:"white",fontSize:10,padding:"1px 5px",borderRadius:4,marginLeft:6}}>YOU</span>}
                           {isRival&&!isMe&&<span style={{background:"transparent",border:`1px solid ${C.accent}`,color:C.accent,fontSize:10,padding:"1px 5px",borderRadius:4,marginLeft:6}}>★ RIVAL</span>}
                         </td>
-                        <td style={{...td,textAlign:"center",color:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:17}}>
+                        <td style={{...td,textAlign:"center",color:isSim?C.indigo:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:17}}>
                           {row.total}
-                          {row.live_matches_count>0&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(239,68,68,0.12)",color:C.red,border:"1px solid rgba(239,68,68,0.3)",padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}><span className="live-dot"/>+{row.live_points} LIVE</span>}
+                          {isSim&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}>+{row._simExtra} sim</span>}
+                          {!isSim&&row.live_matches_count>0&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(239,68,68,0.12)",color:C.red,border:"1px solid rgba(239,68,68,0.3)",padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}><span className="live-dot"/>+{row.live_points} LIVE</span>}
                         </td>
                         <td style={td}>{winnerCell}</td>
                       </tr>
