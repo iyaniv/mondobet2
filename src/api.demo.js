@@ -245,20 +245,24 @@ function buildInitialState() {
       9:{id:9,name:"Yaniv",  email:"yaniv@demo.com",   password:"yaniv",   phone:"+972-50-0002",  is_admin:false,has_paid:true, created_at:"2026-01-09T00:00:00Z",locked_winner:"France"},
     },
     entries:{
-      "ea1":{id:"ea1",user_id:2,name:"Alice",            created_at:"2026-05-01T10:00:00Z",submitted_at:"2026-05-01T10:30:00Z"},
-      "eb1":{id:"eb1",user_id:3,name:"Bob",              created_at:"2026-05-01T11:00:00Z",submitted_at:"2026-05-01T11:30:00Z"},
+      "ea1":{id:"ea1",user_id:2,name:"Alice — main",     created_at:"2026-05-01T10:00:00Z",submitted_at:"2026-05-01T10:30:00Z"},
+      "ea2":{id:"ea2",user_id:2,name:"Alice — backup",   created_at:"2026-05-01T10:15:00Z",submitted_at:"2026-05-01T10:45:00Z"},
+      "eb1":{id:"eb1",user_id:3,name:"Bob — strategy A", created_at:"2026-05-01T11:00:00Z",submitted_at:"2026-05-01T11:30:00Z"},
+      "eb2":{id:"eb2",user_id:3,name:"Bob — strategy B", created_at:"2026-05-01T11:20:00Z",submitted_at:"2026-05-01T11:50:00Z"},
       "ec1":{id:"ec1",user_id:4,name:"Charlie",          created_at:"2026-05-01T12:00:00Z",submitted_at:"2026-05-01T12:30:00Z"},
       "ed1":{id:"ed1",user_id:5,name:"Diana",            created_at:"2026-05-01T13:00:00Z",submitted_at:"2026-05-01T13:30:00Z"},
       "ee1":{id:"ee1",user_id:6,name:"Eve",              created_at:"2026-05-01T14:00:00Z",submitted_at:"2026-05-01T14:30:00Z"},
       "ef1":{id:"ef1",user_id:7,name:"Frank",            created_at:"2026-05-01T15:00:00Z",submitted_at:"2026-05-01T15:30:00Z"},
-      "ef2":{id:"ef2",user_id:7,name:"Frank (copy)",     created_at:"2026-05-01T16:00:00Z",submitted_at:null},
+      "ef2":{id:"ef2",user_id:7,name:"Frank — copy",     created_at:"2026-05-01T16:00:00Z",submitted_at:"2026-05-01T16:30:00Z"},
       "eg1":{id:"eg1",user_id:8,name:"Grace",            created_at:"2026-05-01T17:00:00Z",submitted_at:"2026-05-01T17:30:00Z"},
-      "ey1":{id:"ey1",user_id:9,name:"Yaniv",            created_at:"2026-05-01T18:00:00Z",submitted_at:"2026-05-01T18:30:00Z"},
-      "ey2":{id:"ey2",user_id:9,name:"Yaniv 2",          created_at:"2026-05-01T19:00:00Z",submitted_at:null},
+      "ey1":{id:"ey1",user_id:9,name:"Yaniv — A",        created_at:"2026-05-01T18:00:00Z",submitted_at:"2026-05-01T18:30:00Z"},
+      "ey2":{id:"ey2",user_id:9,name:"Yaniv — B",        created_at:"2026-05-01T19:00:00Z",submitted_at:"2026-05-01T19:30:00Z"},
     },
     predictions:{
       "ea1":genPreds(20001,1),
+      "ea2":genPreds(20501,2),
       "eb1":genPreds(30001,2),
+      "eb2":genPreds(30501,1),
       "ec1":genPreds(40001,3),
       "ed1":genPreds(50001,1),
       "ee1":genPreds(60001,2),
@@ -266,11 +270,16 @@ function buildInitialState() {
       "ef2":genPreds(70501,2),
       "eg1":genPreds(80001,1),
       "ey1":genPreds(90001,1),
-      "ey2":{},
+      "ey2":genPreds(90501,2),
     },
     winner_picks:{
-      "ea1":"France","eb1":"Argentina","ec1":"Brazil",
-      "ed1":"France","ee1":"Germany","ef1":"Brazil","eg1":"Argentina","ey1":"France",
+      "ea1":"France","ea2":"Brazil",
+      "eb1":"Argentina","eb2":"Spain",
+      "ec1":"Brazil",
+      "ed1":"France","ee1":"Germany",
+      "ef1":"Brazil","ef2":"England",
+      "eg1":"Argentina",
+      "ey1":"France","ey2":"Argentina",
     },
     results:{...SEED_RESULTS},
     live:{...SEED_LIVE},
@@ -280,7 +289,7 @@ function buildInitialState() {
 }
 
 // ── Persistence ──────────────────────────────────────────────────────────────
-const STORAGE_KEY = "mb_demo_v3";
+const STORAGE_KEY = "mb_demo_v4";
 function loadState() {
   try { const s=localStorage.getItem(STORAGE_KEY); if(s) return JSON.parse(s); } catch{}
   return buildInitialState();
@@ -292,7 +301,7 @@ function save(s) {
 let S = loadState();
 
 window._resetDemo = () => {
-  ["mb_demo_v1","mb_demo_v2","mb_demo_v3","wc2026_token"].forEach(k=>localStorage.removeItem(k));
+  ["mb_demo_v1","mb_demo_v2","mb_demo_v3","mb_demo_v4","wc2026_token"].forEach(k=>localStorage.removeItem(k));
   location.reload();
 };
 
