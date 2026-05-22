@@ -821,7 +821,7 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
                               {entry.points!=null
                                 ?<span style={{display:"inline-flex",alignItems:"center",gap:4,color:C.accent}}>
                                   {entry.points}
-                                  {entry.live_points>0&&<span style={{background:"rgba(239,68,68,0.12)",color:C.red,border:"1px solid rgba(239,68,68,0.3)",padding:"1px 5px",borderRadius:4,fontSize:10,fontWeight:700}}>+{entry.live_points} LIVE</span>}
+                                  {entry.live_points>0&&<span style={{background:"rgba(239,68,68,0.12)",color:C.red,border:"1px solid rgba(239,68,68,0.3)",padding:"1px 5px",borderRadius:4,fontSize:10,fontWeight:700}}>{entry.live_points} LIVE</span>}
                                 </span>
                                 :<span style={{color:C.muted}}>—</span>}
                             </td>
@@ -2152,7 +2152,7 @@ export default function App() {
                   display:"inline-flex",alignItems:"center",gap:3,marginLeft:4,
                   background:"rgba(239,68,68,0.12)",color:C.red,
                   border:"1px solid rgba(239,68,68,0.3)",padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,
-                }}><span className="live-dot"/>+{myLbEntry.live_points} LIVE</span>
+                }}><span className="live-dot"/>{myLbEntry.live_points} LIVE</span>
               )}
             </div>
           )}
@@ -2424,7 +2424,7 @@ export default function App() {
                         <td style={{...td,textAlign:"center",color:isSim?C.indigo:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:17}}>
                           {row.total}
                           {isSim&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}>{simDiff>0?"+":""}{simDiff} sim</span>}
-                          {!isSim&&row.live_matches_count>0&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(239,68,68,0.12)",color:C.red,border:"1px solid rgba(239,68,68,0.3)",padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}><span className="live-dot"/>+{row.live_points} LIVE</span>}
+                          {!isSim&&row.live_matches_count>0&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(239,68,68,0.12)",color:C.red,border:"1px solid rgba(239,68,68,0.3)",padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}><span className="live-dot"/>{row.live_points} LIVE</span>}
                         </td>
                         <td style={td}>{winnerCell}</td>
                         {canJumpToParticipant&&(

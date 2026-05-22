@@ -146,6 +146,9 @@ function matchPts(pred, result) {
 }
 
 function calcTotals(preds, results, live, winnerPick, tournamentWinner) {
+  // Both FINAL and LIVE results count toward total/ranking. The Live/Final
+  // flag is purely a UI signal — Live tells users which games are still
+  // running, but the points are awarded the moment any score is entered.
   let total=0,exact=0,correctDir=0,scored=0,livePoints=0,liveCount=0;
   const sgn=x=>x===0?0:x>0?1:-1;
   for (const [n,r] of Object.entries(results)) {
@@ -158,7 +161,11 @@ function calcTotals(preds, results, live, winnerPick, tournamentWinner) {
     const mn=Number(n); if(results[mn]) continue;
     const p=preds[mn]; if(!p||p[0]==null) continue;
     const pts=matchPts(p,[ld.score_a,ld.score_b]);
-    livePoints+=pts; liveCount++;
+    total+=pts;                    // ← live points count toward total
+    scored++;                       // ← live matches count as "scored"
+    if(p[0]===ld.score_a&&p[1]===ld.score_b) exact++;
+    if(sgn(p[0]-p[1])===sgn(ld.score_a-ld.score_b)) correctDir++;
+    livePoints+=pts; liveCount++;   // tracked separately for the LIVE badge
   }
   const winnerBonus=tournamentWinner&&winnerPick===tournamentWinner?10:0;
   total+=winnerBonus;
