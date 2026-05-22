@@ -2189,21 +2189,46 @@ export default function App() {
           }
 
           const stageFilled = stageMatches.filter(m => myPreds[m.n]?.[0] != null && myPreds[m.n]?.[1] != null).length;
+          const stageDone   = stageMatches.filter(m => results[m.n]).length;
           const isCurrent = openStage === s.n;
+          const isPast    = s.n < openStage;
+          // A match is editable only when this is the CURRENT stage, the round
+          // is open, and the match has no result / isn't live. Past stages stay
+          // read-only even on submitted forms; newly-opened stages on a
+          // submitted form remain editable.
+          const matchEditable = (m) =>
+            isCurrent
+            && editable
+            && !results[m.n]
+            && !liveMatches[m.n];
+
+          // Header colors / icon vary per stage state
+          const headerColor = isPast ? C.muted : isCurrent ? C.indigo : C.muted;
+          const headerIcon  = isPast ? "✓" : isCurrent ? "▶" : "·";
+          const stageStatus = isPast
+            ? `${stageDone}/${stageMatches.length} played · stage closed`
+            : isCurrent
+              ? (editable
+                  ? `${stageFilled}/${stageMatches.length} filled · open for predictions`
+                  : `${stageFilled}/${stageMatches.length} filled · round closed`)
+              : `${stageFilled}/${stageMatches.length} filled`;
+
           return (
             <div key={s.n}>
               {/* Clickable collapsible header */}
               <div onClick={()=>toggleStage(s.n)} style={{
-                background:C.panel2,padding:"8px 12px",borderRadius:6,
-                margin:"16px 0 6px",fontWeight:600,color:C.indigo,fontSize:14,
+                background:isPast?C.panel2:isCurrent?"rgba(99,102,241,0.08)":C.panel2,
+                padding:"8px 12px",borderRadius:6,
+                margin:"16px 0 6px",fontWeight:600,color:headerColor,fontSize:14,
                 cursor:"pointer",display:"flex",alignItems:"center",
                 justifyContent:"space-between",userSelect:"none",
+                border:isCurrent?`1px solid rgba(99,102,241,0.35)`:`1px solid ${C.border}`,
               }}>
                 <span>
-                  {isCurrent && <span style={{marginRight:6}}>▶</span>}
+                  <span style={{marginRight:6,opacity:isPast?0.7:1}}>{headerIcon}</span>
                   Stage {s.n}: {s.name}
                   <span style={{marginLeft:8,fontSize:12,fontWeight:400,color:C.muted}}>
-                    {stageFilled}/{stageMatches.length} filled
+                    {stageStatus}
                   </span>
                 </span>
                 <span style={{fontSize:13,color:C.muted,lineHeight:1}}>
@@ -2211,8 +2236,23 @@ export default function App() {
                 </span>
               </div>
               {!isCollapsed && (
-                <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10,opacity:!predsLoaded&&config.round_state==="open"?0.6:1,transition:"opacity .3s",marginBottom:8}}>
-                  {stageMatches.map(m=><MatchRow key={m.n} match={m} pred={myPreds[m.n]??null} result={results[m.n]??null} editable={editable&&!activeEntry?.submitted_at} adminResult={false} roundState={config.round_state} onSave={savePred} onResultSave={()=>{}}/>)}
+                <div style={{
+                  background:isPast?"rgba(20,28,52,0.5)":C.panel,
+                  border:`1px solid ${isCurrent?"rgba(99,102,241,0.25)":C.border}`,
+                  borderRadius:8,padding:10,
+                  opacity:!predsLoaded&&config.round_state==="open"?0.6:1,
+                  transition:"opacity .3s",marginBottom:8,
+                }}>
+                  {stageMatches.map(m=>(
+                    <MatchRow key={m.n} match={m}
+                      pred={myPreds[m.n]??null}
+                      result={results[m.n]??null}
+                      editable={matchEditable(m)}
+                      adminResult={false}
+                      roundState={config.round_state}
+                      onSave={savePred}
+                      onResultSave={()=>{}}/>
+                  ))}
                 </div>
               )}
             </div>

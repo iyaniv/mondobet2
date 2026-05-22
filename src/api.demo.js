@@ -560,8 +560,15 @@ export const api = {
     if (S.config.round_state !== "open") throw new Error("Round is not open");
     const eid = resolveEntryId(user,entryId);
     if (!eid) throw new Error("No entry");
-    const entry = S.entries[eid];
-    if (entry.submitted_at) throw new Error("Entry already submitted");
+    // Only the current stage is editable; past stages stay locked even on
+    // not-yet-submitted forms (defence-in-depth — UI already gates this).
+    const match = MATCHES.find(m => m.n === Number(matchN));
+    if (!match) throw new Error("Unknown match");
+    if (match.s !== S.config.current_stage) {
+      throw new Error("This stage is closed for predictions");
+    }
+    if (S.results[matchN]) throw new Error("Match already has a result");
+    if (S.live[matchN])    throw new Error("Match is live — cannot edit");
     if (!S.predictions[eid]) S.predictions[eid] = {};
     S.predictions[eid][matchN] = [d.score_a, d.score_b];
     save(S);
