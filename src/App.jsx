@@ -1613,6 +1613,15 @@ export default function App() {
     const [renamingEntryId,setRenamingEntryId]=useState(null);
     const [renameVal,setRenameVal]=useState("");
     const [showNewMenu,setShowNewMenu]=useState(false);
+    // Stages < current open stage start collapsed; current stage starts open
+    const [collapsedStages,setCollapsedStages]=useState(
+      ()=>new Set(STAGES.filter(s=>s.n<openStage).map(s=>s.n))
+    );
+    const toggleStage=n=>setCollapsedStages(prev=>{
+      const next=new Set(prev);
+      if(next.has(n))next.delete(n);else next.add(n);
+      return next;
+    });
 
     function switchEntry(entryId){
       setActiveEntryId(entryId);
@@ -1859,18 +1868,23 @@ export default function App() {
         {STAGES.map(s => {
           const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last);
           if (stageMatches.length === 0) return null;
+          const isCollapsed = collapsedStages.has(s.n);
 
-          // Locked stage: show a collapsed preview instead
+          // Locked stage: non-interactive header only
           if (s.n > openStage) {
             return (
               <div key={s.n}>
-                <SectionHeader>
-                  <span style={{color:C.muted,marginRight:6}}>🔒</span>
-                  Stage {s.n}: {s.name}
-                  <span style={{marginLeft:8,fontSize:12,fontWeight:400,color:C.muted}}>
-                    locked
+                <div style={{
+                  background:C.panel2,padding:"8px 12px",borderRadius:6,
+                  margin:"16px 0 6px",fontWeight:600,color:C.muted,fontSize:14,
+                  display:"flex",alignItems:"center",justifyContent:"space-between",
+                }}>
+                  <span>
+                    <span style={{marginRight:6}}>🔒</span>
+                    Stage {s.n}: {s.name}
+                    <span style={{marginLeft:8,fontSize:12,fontWeight:400}}>locked</span>
                   </span>
-                </SectionHeader>
+                </div>
                 <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,
                   padding:"10px 14px",marginBottom:8,fontSize:13,color:C.muted,
                   display:"flex",alignItems:"center",gap:8}}>
@@ -1885,16 +1899,29 @@ export default function App() {
           const isCurrent = openStage === s.n;
           return (
             <div key={s.n}>
-              <SectionHeader>
-                {isCurrent && <span style={{color:C.indigo,marginRight:6}}>▶</span>}
-                Stage {s.n}: {s.name}
-                <span style={{marginLeft:8,fontSize:12,fontWeight:400,color:C.muted}}>
-                  {stageFilled}/{stageMatches.length} filled
+              {/* Clickable collapsible header */}
+              <div onClick={()=>toggleStage(s.n)} style={{
+                background:C.panel2,padding:"8px 12px",borderRadius:6,
+                margin:"16px 0 6px",fontWeight:600,color:C.indigo,fontSize:14,
+                cursor:"pointer",display:"flex",alignItems:"center",
+                justifyContent:"space-between",userSelect:"none",
+              }}>
+                <span>
+                  {isCurrent && <span style={{marginRight:6}}>▶</span>}
+                  Stage {s.n}: {s.name}
+                  <span style={{marginLeft:8,fontSize:12,fontWeight:400,color:C.muted}}>
+                    {stageFilled}/{stageMatches.length} filled
+                  </span>
                 </span>
-              </SectionHeader>
-              <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10,opacity:!predsLoaded&&config.round_state==="open"?0.6:1,transition:"opacity .3s",marginBottom:8}}>
-                {stageMatches.map(m=><MatchRow key={m.n} match={m} pred={myPreds[m.n]??null} result={results[m.n]??null} editable={editable&&!activeEntry?.submitted_at} adminResult={false} roundState={config.round_state} onSave={savePred} onResultSave={()=>{}}/>)}
+                <span style={{fontSize:13,color:C.muted,lineHeight:1}}>
+                  {isCollapsed ? "▸" : "▾"}
+                </span>
               </div>
+              {!isCollapsed && (
+                <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10,opacity:!predsLoaded&&config.round_state==="open"?0.6:1,transition:"opacity .3s",marginBottom:8}}>
+                  {stageMatches.map(m=><MatchRow key={m.n} match={m} pred={myPreds[m.n]??null} result={results[m.n]??null} editable={editable&&!activeEntry?.submitted_at} adminResult={false} roundState={config.round_state} onSave={savePred} onResultSave={()=>{}}/>)}
+                </div>
+              )}
             </div>
           );
         })}
