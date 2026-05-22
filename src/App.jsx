@@ -1961,11 +1961,9 @@ export default function App() {
                 const submitted=!!e.submitted_at;
                 const filled=(e.predictions||[]).filter(p=>matchStageObj(p.match_n).n<=openStage&&p.score_a!=null&&p.score_b!=null).length;
                 const lbE = lbByEntry[e.id];
+                const rank = lbE ? leaderboard.indexOf(lbE) + 1 : null;
+                const rankBadge = rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":rank?`#${rank}`:null;
                 const isRenaming=renamingEntryId===e.id;
-                const subtitle = lbE
-                  ? `${lbE.total} pts · ${lbE.scored_matches}/${matches.length}`
-                  : submitted ? "waiting for results"
-                  : `${filled}/${openMatches.length} filled`;
                 return (
                   <div key={e.id} onClick={()=>!isRenaming&&switchEntry(e.id)} style={{
                     padding:"10px 14px",borderRadius:6,cursor:isRenaming?"default":"pointer",
@@ -2001,8 +1999,21 @@ export default function App() {
                       )}
                     </div>
                     <div style={{fontSize:12,fontFamily:"monospace",
-                      color:isActive?C.muted:"rgba(107,122,153,0.85)"}}>
-                      {subtitle}
+                      color:isActive?C.muted:"rgba(107,122,153,0.85)",
+                      display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                      {rankBadge && (
+                        <span title={`Rank ${rank} of ${leaderboard.length}`}
+                          style={{
+                            fontFamily:rank<=3?"inherit":"monospace",
+                            color:rank<=3?C.accent:(isActive?C.muted:"rgba(107,122,153,0.85)"),
+                            fontWeight:rank<=3?700:600,
+                          }}>{rankBadge}</span>
+                      )}
+                      {rankBadge && <span style={{opacity:0.6}}>·</span>}
+                      {lbE
+                        ? <span>{lbE.total} pts · {lbE.scored_matches}/{matches.length}</span>
+                        : <span>{submitted?"waiting for results":`${filled}/${openMatches.length} filled`}</span>
+                      }
                     </div>
                   </div>
                 );
