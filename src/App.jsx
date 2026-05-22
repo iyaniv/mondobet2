@@ -465,6 +465,7 @@ function AuthView({ roundState, onSuccess }) {
   const [password,setPassword]=useState("");
   const [err,setErr]=useState("");
   const [loading,setLoading]=useState(false);
+  const [showPsw,setShowPsw]=useState(false);
 
   const pills={
     open:  {text:"🟢 Betting round is OPEN",  bg:"rgba(16,185,129,0.1)",  color:C.green, border:`1px solid ${C.green}`},
@@ -501,7 +502,12 @@ function AuthView({ roundState, onSuccess }) {
           {mode==="signup"&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Full name" required style={inputStyle}/>}
           {mode==="signup"&&<input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Phone number" required type="tel" minLength={7} style={inputStyle}/>}
           <input value={email} onChange={e=>setEmail(e.target.value)} placeholder={mode==="login"?"Email  (admin: admin)":"Email"} required style={inputStyle}/>
-          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" required minLength={4} style={inputStyle}/>
+          <div style={{position:"relative"}}>
+            <input type={showPsw?"text":"password"} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" required minLength={4} style={{...inputStyle,marginBottom:0,paddingRight:36}}/>
+            <button type="button" onClick={()=>setShowPsw(v=>!v)} tabIndex={-1} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:16,lineHeight:1,padding:"2px 4px"}}>
+              {showPsw?"🙈":"👁️"}
+            </button>
+          </div>
           {err&&<p style={{color:C.red,fontSize:13,marginBottom:8}}>{err}</p>}
           <button type="submit" disabled={loading} style={{width:"100%",background:C.accent,color:"#1a1a1a",border:0,padding:"10px 0",borderRadius:6,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.6:1}}>
             {loading?"…":mode==="signup"?"Create account":"Log in"}
