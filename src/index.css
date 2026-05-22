@@ -42,6 +42,17 @@ html { -webkit-text-size-adjust: 100%; }
   --c-indigo:       #4f46e5;
 }
 
+/* ── Mobile: prevent number inputs from zooming on iOS ──────────────────── */
+@media (max-width: 520px) {
+  input[type="number"] { font-size: 16px !important; }
+  /* Tighter horizontal padding on small screens */
+  nav > div { padding-left: 10px !important; padding-right: 10px !important; }
+  /* Tab buttons: shrink so they wrap cleanly */
+  nav button { padding: 5px 9px !important; font-size: 12px !important; }
+  /* Leaderboard table: allow horizontal scroll */
+  .lb-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
+
 /* ── Live match pulsing dot ──────────────────────────────────────────────── */
 @keyframes pulse-red {
   0%, 100% { opacity: 1; }

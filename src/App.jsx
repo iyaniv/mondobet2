@@ -83,6 +83,17 @@ const numInput = {
 };
 const td = { padding:"8px 10px", borderBottom:`1px solid ${C.border}` };
 
+// Responsive breakpoint hook — re-renders when crossing the mobile threshold
+function useIsMobile(bp = 520) {
+  const [mobile, setMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < bp);
+  useEffect(() => {
+    const fn = () => setMobile(window.innerWidth < bp);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, [bp]);
+  return mobile;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PRESTIGE SELECT COMPONENTS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -298,6 +309,7 @@ function MatchRow({ match, pred, result, editable, adminResult, roundState, onSa
   const [localB, setLocalB] = useState(pred?.[1]!=null?String(pred[1]):"");
   const [resA,   setResA]   = useState(result?.[0]!=null?String(result[0]):"");
   const [resB,   setResB]   = useState(result?.[1]!=null?String(result[1]):"");
+  const isMobile = useIsMobile();
 
   useEffect(()=>{setLocalA(pred?.[0]!=null?String(pred[0]):"");setLocalB(pred?.[1]!=null?String(pred[1]):"");},[pred?.[0],pred?.[1]]);
   useEffect(()=>{setResA(result?.[0]!=null?String(result[0]):"");setResB(result?.[1]!=null?String(result[1]):"");},[result?.[0],result?.[1]]);
@@ -329,21 +341,84 @@ function MatchRow({ match, pred, result, editable, adminResult, roundState, onSa
     ptsEl=<span style={{color:C.muted,fontSize:11}}>awaiting</span>;
   }
 
-  // Winner / loser highlight — used for team name colours
-  let winnerSide = null; // 0 = A wins, 1 = B wins, null = draw or no result
+  let winnerSide = null;
   if (result) {
     if (result[0] > result[1]) winnerSide = 0;
     else if (result[1] > result[0]) winnerSide = 1;
   }
-  const rowBg=(!editable&&!adminResult)?C.panel:C.panel2;
+  const rowBg = (!editable&&!adminResult) ? C.panel : C.panel2;
+
+  // Shared score / input block used in both layouts
+  const scoreBlock = editable ? (
+    <div style={{display:"flex",alignItems:"center",gap:3,justifyContent:"center"}}>
+      <input type="number" inputMode="numeric" min={0} max={20} value={localA}
+        onChange={e=>setLocalA(e.target.value)} onBlur={e=>savePred(0,e.target.value)} style={numInput}/>
+      <span style={{color:C.muted,fontSize:13}}>:</span>
+      <input type="number" inputMode="numeric" min={0} max={20} value={localB}
+        onChange={e=>setLocalB(e.target.value)} onBlur={e=>savePred(1,e.target.value)} style={numInput}/>
+    </div>
+  ) : adminResult ? (
+    <div style={{display:"flex",alignItems:"center",gap:3,justifyContent:"center"}}>
+      <input type="number" inputMode="numeric" min={0} max={20} value={resA}
+        onChange={e=>setResA(e.target.value)} onBlur={e=>saveResult(0,e.target.value)} style={numInput}/>
+      <span style={{color:C.muted,fontSize:13}}>:</span>
+      <input type="number" inputMode="numeric" min={0} max={20} value={resB}
+        onChange={e=>setResB(e.target.value)} onBlur={e=>saveResult(1,e.target.value)} style={numInput}/>
+    </div>
+  ) : (
+    <span style={{fontFamily:"monospace",fontWeight:700,fontSize:14,
+      color:pred?.[0]!=null?C.text:C.muted,whiteSpace:"nowrap"}}>
+      {pred?.[0]!=null ? `${pred[0]} : ${pred[1]}` : "—"}
+    </span>
+  );
+
+  // ── Mobile: two-line layout ────────────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <div style={{background:rowBg,border:`1px solid ${C.border}`,borderRadius:6,
+        padding:"6px 8px",marginBottom:3,fontSize:12}}>
+        {/* Line 1: flag+name — score — name+flag */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",
+          alignItems:"center",gap:6}}>
+          <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
+            color:winnerSide===0?C.accent:winnerSide===1?C.muted:C.text,
+            fontWeight:winnerSide===0?700:400}}>
+            {flag(match.a)} {match.a}
+          </span>
+          {scoreBlock}
+          <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
+            textAlign:"right",
+            color:winnerSide===1?C.accent:winnerSide===0?C.muted:C.text,
+            fontWeight:winnerSide===1?700:400}}>
+            {match.b} {flag(match.b)}
+          </span>
+        </div>
+        {/* Line 2: result badge + pts (only when relevant) */}
+        {(result!=null||ptsEl)&&(
+          <div style={{display:"flex",gap:5,justifyContent:"flex-end",
+            alignItems:"center",marginTop:4}}>
+            {result!=null&&(
+              <span style={{background:"rgba(16,185,129,0.12)",color:C.green,
+                border:"1px solid rgba(16,185,129,0.35)",padding:"1px 7px",
+                borderRadius:4,fontWeight:700,fontFamily:"monospace",
+                fontSize:11,whiteSpace:"nowrap"}}>
+                ✓ {result[0]}:{result[1]}
+              </span>
+            )}
+            {ptsEl}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Desktop: original single-row grid layout ───────────────────────────────
   return (
     <div style={{display:"grid",gridTemplateColumns:"28px 1fr 44px 12px 44px 1fr auto",alignItems:"center",gap:5,padding:"5px 8px",borderRadius:6,background:rowBg,border:`1px solid ${C.border}`,marginBottom:3,fontSize:13}}>
       <span style={{color:C.muted,fontSize:11}}>#{match.n}</span>
-      <span style={{
-        overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12,
-        color: winnerSide===0?C.accent:winnerSide===1?C.muted:C.text,
-        fontWeight: winnerSide===0?700:400,
-        transition:"color .2s",
+      <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12,
+        color:winnerSide===0?C.accent:winnerSide===1?C.muted:C.text,
+        fontWeight:winnerSide===0?700:400,transition:"color .2s",
       }}>{flag(match.a)} {match.a}</span>
       {editable?(
         <>
@@ -362,18 +437,14 @@ function MatchRow({ match, pred, result, editable, adminResult, roundState, onSa
           {pred?.[0]!=null?`${pred[0]} : ${pred[1]}`:"—"}
         </span>
       )}
-      <span style={{
-        overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:"right",fontSize:12,
-        color: winnerSide===1?C.accent:winnerSide===0?C.muted:C.text,
-        fontWeight: winnerSide===1?700:400,
-        transition:"color .2s",
+      <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:"right",fontSize:12,
+        color:winnerSide===1?C.accent:winnerSide===0?C.muted:C.text,
+        fontWeight:winnerSide===1?700:400,transition:"color .2s",
       }}>{match.b} {flag(match.b)}</span>
       <div style={{display:"flex",gap:4,alignItems:"center",justifyContent:"flex-end",minWidth:96}}>
         {result!=null
-          ? <span style={{
-              background:"rgba(16,185,129,0.12)",color:C.green,
-              border:"1px solid rgba(16,185,129,0.35)",
-              padding:"1px 7px",borderRadius:4,
+          ? <span style={{background:"rgba(16,185,129,0.12)",color:C.green,
+              border:"1px solid rgba(16,185,129,0.35)",padding:"1px 7px",borderRadius:4,
               fontWeight:700,fontFamily:"monospace",fontSize:11,whiteSpace:"nowrap",
             }}>✓ {result[0]}:{result[1]}</span>
           : (!editable&&!adminResult&&
@@ -1096,7 +1167,78 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
   const winA = (isLive||isFinal) ? (effA>effB?true:effB>effA?false:null) : null;
   const rowBg    = isLive?"rgba(239,68,68,0.06)":isFinal?"rgba(16,185,129,0.04)":C.panel2;
   const rowBorder= `1px solid ${isLive?"rgba(239,68,68,0.35)":isFinal?"rgba(16,185,129,0.25)":C.border}`;
+  const isMobile = useIsMobile();
 
+  // Score / inputs block shared across layouts
+  const scoreBlock = isFinal ? (
+    <span style={{fontFamily:"monospace",fontWeight:700,fontSize:14,whiteSpace:"nowrap",
+      color:C.green}}>✓ {result[0]}:{result[1]}</span>
+  ) : (
+    <div style={{display:"flex",alignItems:"center",gap:3}}>
+      <input type="number" inputMode="numeric" min={0} max={20} value={resA}
+        onChange={e=>setResA(e.target.value)} onBlur={e=>handleBlur(0,e.target.value)}
+        style={{...numInput,border:`1px solid ${isLive?"rgba(239,68,68,0.5)":C.border}`}}/>
+      <span style={{color:C.muted,fontSize:13}}>:</span>
+      <input type="number" inputMode="numeric" min={0} max={20} value={resB}
+        onChange={e=>setResB(e.target.value)} onBlur={e=>handleBlur(1,e.target.value)}
+        style={{...numInput,border:`1px solid ${isLive?"rgba(239,68,68,0.5)":C.border}`}}/>
+    </div>
+  );
+
+  // Controls (LIVE button / minute + FINAL / done dot)
+  const controls = (
+    <div style={{display:"flex",gap:4,alignItems:"center"}}>
+      {isLive && <>
+        <input type="number" inputMode="numeric" min={0} max={120} value={min} placeholder="0"
+          onChange={e=>setMin(e.target.value)} onBlur={e=>handleMinBlur(e.target.value)}
+          style={{...numInput,width:34,border:"1px solid rgba(239,68,68,0.4)"}}/>
+        <span style={{fontSize:10,color:C.red}}>′</span>
+        <button onClick={()=>onFinalize(match.n)} style={{
+          background:C.green,color:"white",border:0,padding:"2px 8px",
+          borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>
+          ✓ FINAL
+        </button>
+      </>}
+      {!isLive && !isFinal && (
+        <button onClick={()=>onGoLive(match.n)} style={{
+          background:"transparent",border:`1px solid ${C.red}`,color:C.red,
+          padding:"2px 8px",borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
+          <span className="live-dot" style={{marginRight:4}}/> LIVE
+        </button>
+      )}
+      {!isLive && isFinal && (
+        <span style={{width:8,height:8,borderRadius:"50%",background:C.green,display:"inline-block"}}/>
+      )}
+    </div>
+  );
+
+  // ── Mobile: two-line layout ────────────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <div style={{background:rowBg,border:rowBorder,borderRadius:6,
+        padding:"6px 8px",marginBottom:3,fontSize:12}}>
+        {/* Line 1: flag+name — score — name+flag */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",
+          alignItems:"center",gap:6}}>
+          <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
+            color:winA===true?C.accent:winA===false?C.muted:C.text,fontWeight:winA===true?700:400}}>
+            {flag(match.a)} {match.a}
+          </span>
+          {scoreBlock}
+          <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:"right",
+            color:winA===false?C.accent:winA===true?C.muted:C.text,fontWeight:winA===false?700:400}}>
+            {match.b} {flag(match.b)}
+          </span>
+        </div>
+        {/* Line 2: live controls / status */}
+        <div style={{display:"flex",justifyContent:"flex-end",marginTop:4}}>
+          {controls}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Desktop: original single-row grid layout ───────────────────────────────
   return (
     <div style={{display:"grid",gridTemplateColumns:"28px 1fr 44px 12px 44px 1fr auto",
       alignItems:"center",gap:5,padding:"5px 8px",borderRadius:6,
@@ -1127,27 +1269,7 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
         {match.b} {flag(match.b)}
       </span>
       <div style={{display:"flex",gap:4,alignItems:"center",justifyContent:"flex-end",minWidth:110}}>
-        {isLive && <>
-          <input type="number" inputMode="numeric" min={0} max={120} value={min} placeholder="0"
-            onChange={e=>setMin(e.target.value)} onBlur={e=>handleMinBlur(e.target.value)}
-            style={{...numInput,width:34,border:"1px solid rgba(239,68,68,0.4)"}}/>
-          <span style={{fontSize:10,color:C.red}}>′</span>
-          <button onClick={()=>onFinalize(match.n)} style={{
-            background:C.green,color:"white",border:0,padding:"2px 8px",
-            borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>
-            ✓ FINAL
-          </button>
-        </>}
-        {!isLive && !isFinal && (
-          <button onClick={()=>onGoLive(match.n)} style={{
-            background:"transparent",border:`1px solid ${C.red}`,color:C.red,
-            padding:"2px 8px",borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
-            <span className="live-dot" style={{marginRight:4}}/> LIVE
-          </button>
-        )}
-        {!isLive && isFinal && (
-          <span style={{width:8,height:8,borderRadius:"50%",background:C.green,display:"inline-block"}}/>
-        )}
+        {controls}
       </div>
     </div>
   );
@@ -2102,8 +2224,8 @@ export default function App() {
         {leaderboard.length===0
           ?<div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>No participants yet.</div>
           :(
-            <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflowX:"auto"}}>
-              <table style={{width:"100%",borderCollapse:"collapse",fontSize:14}}>
+            <div className="lb-table-wrap" style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:14,minWidth:320}}>
                 <thead><tr style={{background:C.panel2}}>
                   {["#","Name","Points","Winner pick"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Points"?"center":"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}
                 </tr></thead>
