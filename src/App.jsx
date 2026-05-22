@@ -2278,11 +2278,10 @@ export default function App() {
                 );
               })}
 
-              {/* Add form button — only available BEFORE the first stage
-                  starts: round open + current_stage = 1 + no results yet
-                  + no live data yet. Once any match has been played, new
-                  forms would skip past stages, which is unfair. */}
-              {editable && openStage===1 && Object.keys(results).length===0 && Object.keys(liveMatches).length===0 && (
+              {/* Add form button — available while stage 1 is still the
+                  current open stage. Once admin advances past stage 1, new
+                  forms would skip prior stages and that's not fair. */}
+              {editable && openStage===1 && (
                 <div style={{position:"relative",display:"flex",alignItems:"stretch"}}>
                   <button onClick={()=>setShowNewMenu(v=>!v)} title="Add form" style={{
                     padding:"10px 16px",borderRadius:6,cursor:"pointer",
