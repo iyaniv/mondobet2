@@ -320,7 +320,7 @@ function Btn({ children, onClick, green, red, ghost, disabled }) {
 }
 
 // MatchRow — outside App so localA/localB survive App re-renders
-function MatchRow({ match, pred, result, editable, adminResult, roundState, onSave, onResultSave }) {
+function MatchRow({ match, pred, result, liveData, editable, adminResult, roundState, onSave, onResultSave }) {
   const [localA, setLocalA] = useState(pred?.[0]!=null?String(pred[0]):"");
   const [localB, setLocalB] = useState(pred?.[1]!=null?String(pred[1]):"");
   const [resA,   setResA]   = useState(result?.[0]!=null?String(result[0]):"");
@@ -355,11 +355,20 @@ function MatchRow({ match, pred, result, editable, adminResult, roundState, onSa
   const RED    = {bg:"rgba(239,68,68,0.14)",  fg:C.red,    border:"rgba(239,68,68,0.4)"};
   const MUTED  = {bg:"rgba(148,163,184,0.10)",color:C.muted, border:`1px solid ${C.border}`};
 
+  // Effective score: final result wins, otherwise the in-motion live score.
+  // This way users see their points adjust in real time as the admin enters
+  // scores — even before the match is marked FINAL.
+  const effectiveScore = result
+    ? result
+    : (liveData && liveData.score_a != null ? [liveData.score_a, liveData.score_b] : null);
+  const isPreliminary = !result && !!effectiveScore;  // score from live, not final
+  const isLiveBadge   = !!(liveData && liveData.is_live);
+
   let ptsEl=null;
   let resultChipPalette=null;   // for the ✓ result chip
   let partialMatchSide=null;    // which digit (0/1) to highlight in green
-  if(result&&pred?.[0]!=null&&pred?.[1]!=null){
-    const p1=pred[0],p2=pred[1],r1=result[0],r2=result[1];
+  if(effectiveScore&&pred?.[0]!=null&&pred?.[1]!=null){
+    const p1=pred[0],p2=pred[1],r1=effectiveScore[0],r2=effectiveScore[1];
     const sign=(x)=>x===0?0:x>0?1:-1;
     const dir=sign(p1-p2)===sign(r1-r2)?5:0;
     const goalsMatched = (p1===r1?1:0) + (p2===r2?1:0);  // 0, 1, or 2
@@ -373,7 +382,7 @@ function MatchRow({ match, pred, result, editable, adminResult, roundState, onSa
       goalsMatched===1 ? ORANGE : RED;
     if (goalsMatched===1) partialMatchSide = p1===r1 ? 0 : 1;
     ptsEl=<span style={{background:ptsPalette.bg,color:ptsPalette.fg,border:`1px solid ${ptsPalette.border}`,padding:"1px 6px",borderRadius:4,fontWeight:700,fontFamily:"monospace",fontSize:11}}>+{total}</span>;
-  } else if(roundState==="closed"&&!result){
+  } else if(roundState==="closed"&&!effectiveScore){
     ptsEl=<span style={{color:C.muted,fontSize:11}}>awaiting</span>;
   }
   const resultChipBaseStyle = resultChipPalette
@@ -391,9 +400,9 @@ function MatchRow({ match, pred, result, editable, adminResult, roundState, onSa
   };
 
   let winnerSide = null;
-  if (result) {
-    if (result[0] > result[1]) winnerSide = 0;
-    else if (result[1] > result[0]) winnerSide = 1;
+  if (effectiveScore) {
+    if (effectiveScore[0] > effectiveScore[1]) winnerSide = 0;
+    else if (effectiveScore[1] > effectiveScore[0]) winnerSide = 1;
   }
   const rowBg = (!editable&&!adminResult) ? C.panel : C.panel2;
 
@@ -443,14 +452,17 @@ function MatchRow({ match, pred, result, editable, adminResult, roundState, onSa
           </span>
         </div>
         {/* Line 2: result badge + pts (only when relevant) */}
-        {(result!=null||ptsEl)&&(
+        {(effectiveScore!=null||ptsEl)&&(
           <div style={{display:"flex",gap:5,justifyContent:"flex-end",
             alignItems:"center",marginTop:4}}>
-            {result!=null&&(
+            {effectiveScore!=null&&(
               <span style={{...resultChipBaseStyle,padding:"1px 7px",
                 borderRadius:4,fontWeight:700,fontFamily:"monospace",
                 fontSize:11,whiteSpace:"nowrap"}}>
-                ✓ {renderResultDigits(result)}
+                {isLiveBadge ? <span className="live-dot" style={{marginRight:4}}/>
+                  : isPreliminary ? "" : "✓ "}
+                {renderResultDigits(effectiveScore)}
+                {isLiveBadge && <span style={{marginLeft:4,fontSize:10}}>{liveData.minute}′</span>}
               </span>
             )}
             {ptsEl}
@@ -490,10 +502,15 @@ function MatchRow({ match, pred, result, editable, adminResult, roundState, onSa
         fontWeight:winnerSide===1?700:400,transition:"color .2s",
       }}>{match.b} {flag(match.b)}</span>
       <div style={{display:"flex",gap:4,alignItems:"center",justifyContent:"flex-end",minWidth:96}}>
-        {result!=null
+        {effectiveScore!=null
           ? <span style={{...resultChipBaseStyle,padding:"1px 7px",borderRadius:4,
               fontWeight:700,fontFamily:"monospace",fontSize:11,whiteSpace:"nowrap",
-            }}>✓ {renderResultDigits(result)}</span>
+            }}>
+              {isLiveBadge ? <span className="live-dot" style={{marginRight:4}}/>
+                : isPreliminary ? "" : "✓ "}
+              {renderResultDigits(effectiveScore)}
+              {isLiveBadge && <span style={{marginLeft:4,fontSize:10}}>{liveData.minute}′</span>}
+            </span>
           : (!editable&&!adminResult&&
               <span style={{color:C.muted,fontSize:11,fontFamily:"monospace"}}>vs</span>)
         }
@@ -1694,7 +1711,8 @@ function ByUser({ config, leaderboard, results, liveMatches, matches, user,
   const pill = pillMap[config.round_state] || pillMap.idle;
 
   const selected = leaderboard.find(e => (e.entry_id||e.user_id) === viewUserId);
-  const playedMatches = matches.filter(m => results[m.n]);
+  // Show any match that has a final result OR an in-motion live score
+  const playedMatches = matches.filter(m => results[m.n] || liveMatches[m.n]);
 
   return (
     <div>
@@ -1719,6 +1737,7 @@ function ByUser({ config, leaderboard, results, liveMatches, matches, user,
         {playedMatches.map(m=>(
           <MatchRow key={m.n} match={m}
             pred={viewUserPreds[m.n]??null} result={results[m.n]??null}
+            liveData={liveMatches[m.n]??null}
             editable={false} adminResult={false} roundState={config.round_state}
             onSave={()=>{}} onResultSave={()=>{}}/>
         ))}
@@ -1868,7 +1887,7 @@ export default function App() {
   }
 
   const tabs=!user?[]:user.is_admin
-    ?[{id:"dashboard",label:"Dashboard",admin:true},{id:"results",label:"Results",admin:true},{id:"leaderboard",label:"Leaderboard"},{id:"byuser",label:"By participant"},{id:"tournament",label:"🏟 Tournament"},{id:"settings",label:"⚙ Settings"}]
+    ?[{id:"results",label:"Results",admin:true},{id:"tournament",label:"🏟 Tournament"},{id:"leaderboard",label:"Leaderboard"},{id:"byuser",label:"By participant"},{id:"dashboard",label:"Dashboard",admin:true},{id:"settings",label:"⚙ Settings"}]
     :[{id:"predictions",label:"My predictions"},{id:"leaderboard",label:"Leaderboard"},...(Object.keys(results).length>0?[{id:"byuser",label:"Bets by participant"}]:[]),{id:"tournament",label:"🏟 Tournament"},{id:"settings",label:"⚙ Settings"}];
 
   function RoundPill(){
@@ -2280,6 +2299,7 @@ export default function App() {
                     <MatchRow key={m.n} match={m}
                       pred={myPreds[m.n]??null}
                       result={results[m.n]??null}
+                      liveData={liveMatches[m.n]??null}
                       editable={matchEditable(m)}
                       adminResult={false}
                       roundState={config.round_state}
