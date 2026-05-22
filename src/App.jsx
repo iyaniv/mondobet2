@@ -1845,11 +1845,11 @@ export default function App() {
 
   useEffect(()=>{
     if(!getToken()){setAuthLoading(false);return;}
-    api.me().then(u=>{setUser(u);setTab(u.is_admin?"dashboard":"predictions");setAuthLoading(false);loadGameData(u.is_admin,u.id);}).catch(()=>{setToken(null);setAuthLoading(false);});
+    api.me().then(u=>{setUser(u);setTab(u.is_admin?"results":"predictions");setAuthLoading(false);loadGameData(u.is_admin,u.id);}).catch(()=>{setToken(null);setAuthLoading(false);});
   },[loadGameData]);
 
   async function doLogin(userData,token){
-    setToken(token);setUser(userData);setTab(userData.is_admin?"dashboard":"predictions");
+    setToken(token);setUser(userData);setTab(userData.is_admin?"results":"predictions");
     showToast(`Welcome, ${userData.name}!`);
     loadGameData(userData.is_admin,userData.id); // background — UI already visible
   }
