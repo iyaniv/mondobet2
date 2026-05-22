@@ -1809,7 +1809,6 @@ export default function App() {
   // ── My Predictions ────────────────────────────────────────────────────────
   function MyPredictions(){
     const editable=config.round_state==="open";
-    const useSidebar = !useIsMobile(820);  // sidebar when wide enough; horizontal pills otherwise
     const activeEntry=entries.find(e=>e.id===activeEntryId)||entries[0]||null;
     const openStage = config.current_stage || 1;
     const openMatches = matches.filter(m => matchStageObj(m.n).n <= openStage);
@@ -1935,20 +1934,12 @@ export default function App() {
           {rs.text}
         </div>
 
-        {/* Option A: vertical sidebar (wide screens) / horizontal pills (mobile) */}
-        <div style={useSidebar
-          ? {display:"grid",gridTemplateColumns:"220px 1fr",gap:18,alignItems:"start"}
-          : {}}>
-
-          {/* ── Sidebar / horizontal forms list ── */}
-          {entries.length>0&&(
-            <aside style={useSidebar
-              ? {position:"sticky",top:12,display:"flex",flexDirection:"column",gap:4}
-              : {display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"stretch"}}>
-              {useSidebar&&(
-                <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:".5px",
-                  padding:"2px 10px 6px",fontWeight:600}}>My forms ({entries.length})</div>
-              )}
+        {/* Forms list — horizontal cards above the table */}
+        {entries.length>0&&(
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:".5px",
+              padding:"0 0 6px",fontWeight:600}}>My forms ({entries.length})</div>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"stretch"}}>
               {entries.map(e=>{
                 const isActive=e.id===activeEntryId;
                 const submitted=!!e.submitted_at;
@@ -1959,54 +1950,19 @@ export default function App() {
                   ? `${lbE.total} pts · ${lbE.scored_matches}/${matches.length}`
                   : submitted ? "waiting for results"
                   : `${filled}/${openMatches.length} filled`;
-                if (useSidebar) {
-                  return (
-                    <div key={e.id} onClick={()=>!isRenaming&&switchEntry(e.id)} style={{
-                      padding:"9px 12px",borderRadius:6,cursor:isRenaming?"default":"pointer",
-                      background:isActive?"rgba(163,230,53,0.12)":"transparent",
-                      borderLeft:`3px solid ${isActive?C.accent:"transparent"}`,
-                      transition:"all .12s",display:"flex",flexDirection:"column",gap:2,
-                    }}>
-                      <div style={{display:"flex",alignItems:"center",gap:6,
-                        fontSize:13,fontWeight:isActive?700:500,
-                        color:isActive?C.accent:C.text}}>
-                        {isRenaming?(
-                          <input autoFocus value={renameVal}
-                            onChange={ev=>setRenameVal(ev.target.value)}
-                            onBlur={()=>commitRename(e.id)}
-                            onKeyDown={ev=>{if(ev.key==="Enter")commitRename(e.id);if(ev.key==="Escape"){setRenamingEntryId(null);}}}
-                            onClick={ev=>ev.stopPropagation()}
-                            style={{background:"transparent",border:"none",outline:"none",
-                              color:C.text,fontWeight:"inherit",fontSize:"inherit",width:"100%"}}/>
-                        ):(
-                          <>
-                            <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.name}</span>
-                            {submitted&&<span style={{fontSize:11,color:C.green,fontWeight:700}}>✓</span>}
-                            {isActive&&editable&&!submitted&&(
-                              <span onClick={ev=>startRename(ev,e)} title="Rename" style={{
-                                fontSize:11,opacity:0.55,cursor:"pointer",lineHeight:1,padding:"1px 3px",borderRadius:3,
-                              }}>✎</span>
-                            )}
-                          </>
-                        )}
-                      </div>
-                      <div style={{fontSize:11,fontFamily:"monospace",
-                        color:isActive?C.muted:"rgba(107,122,153,0.75)"}}>
-                        {subtitle}
-                      </div>
-                    </div>
-                  );
-                }
-                // Mobile/horizontal card
                 return (
                   <div key={e.id} onClick={()=>!isRenaming&&switchEntry(e.id)} style={{
-                    padding:"8px 14px",borderRadius:10,cursor:isRenaming?"default":"pointer",
-                    background:isActive?C.accent:C.panel2,
-                    color:isActive?"#1a1a1a":C.text,
-                    border:`1px solid ${isActive?C.accent:C.border}`,
-                    display:"flex",flexDirection:"column",gap:3,minWidth:130,transition:"all .15s",
+                    padding:"10px 14px",borderRadius:6,cursor:isRenaming?"default":"pointer",
+                    background:isActive?"rgba(163,230,53,0.12)":C.panel2,
+                    borderLeft:`3px solid ${isActive?C.accent:"transparent"}`,
+                    border:`1px solid ${isActive?"rgba(163,230,53,0.3)":C.border}`,
+                    borderLeftWidth:3,borderLeftColor:isActive?C.accent:"transparent",
+                    transition:"all .12s",display:"flex",flexDirection:"column",gap:3,
+                    minWidth:170,
                   }}>
-                    <div style={{display:"flex",alignItems:"center",gap:6,fontSize:14,fontWeight:isActive?700:600}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,
+                      fontSize:14,fontWeight:isActive?700:600,
+                      color:isActive?C.accent:C.text}}>
                       {isRenaming?(
                         <input autoFocus value={renameVal}
                           onChange={ev=>setRenameVal(ev.target.value)}
@@ -2014,12 +1970,12 @@ export default function App() {
                           onKeyDown={ev=>{if(ev.key==="Enter")commitRename(e.id);if(ev.key==="Escape"){setRenamingEntryId(null);}}}
                           onClick={ev=>ev.stopPropagation()}
                           style={{background:"transparent",border:"none",outline:"none",
-                            color:isActive?"#1a1a1a":C.text,fontWeight:"inherit",fontSize:"inherit",
-                            width:Math.max(60,renameVal.length*8)+"px",minWidth:60,maxWidth:160}}/>
+                            color:C.text,fontWeight:"inherit",fontSize:"inherit",
+                            width:Math.max(80,renameVal.length*8)+"px",minWidth:80,maxWidth:200}}/>
                       ):(
                         <>
-                          <span>{e.name}</span>
-                          {submitted&&<span style={{fontSize:11,color:isActive?"#0a6644":C.green,fontWeight:700}}>✓</span>}
+                          <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.name}</span>
+                          {submitted&&<span style={{fontSize:13,color:C.green,fontWeight:700}}>✓</span>}
                           {isActive&&editable&&!submitted&&(
                             <span onClick={ev=>startRename(ev,e)} title="Rename" style={{
                               fontSize:11,opacity:0.55,cursor:"pointer",lineHeight:1,padding:"1px 3px",borderRadius:3,
@@ -2028,8 +1984,8 @@ export default function App() {
                         </>
                       )}
                     </div>
-                    <div style={{fontSize:11,fontFamily:"monospace",
-                      color:isActive?"rgba(26,26,26,0.7)":C.muted,fontWeight:isActive?600:400}}>
+                    <div style={{fontSize:12,fontFamily:"monospace",
+                      color:isActive?C.muted:"rgba(107,122,153,0.85)"}}>
                       {subtitle}
                     </div>
                   </div>
@@ -2038,16 +1994,12 @@ export default function App() {
 
               {/* Add form button */}
               {editable&&Object.keys(results).length===0&&(
-                <div style={useSidebar?{position:"relative",marginTop:4}:{position:"relative"}}>
-                  <button onClick={()=>setShowNewMenu(v=>!v)} title="Add form" style={useSidebar?{
-                    padding:"7px 12px",borderRadius:6,cursor:"pointer",width:"100%",textAlign:"left",
+                <div style={{position:"relative",display:"flex",alignItems:"stretch"}}>
+                  <button onClick={()=>setShowNewMenu(v=>!v)} title="Add form" style={{
+                    padding:"10px 16px",borderRadius:6,cursor:"pointer",
                     background:showNewMenu?C.panel2:"transparent",color:C.muted,
-                    border:`1px dashed ${showNewMenu?C.accent:C.border}`,fontSize:13,
-                  }:{
-                    padding:"4px 10px",borderRadius:6,cursor:"pointer",
-                    background:showNewMenu?C.panel2:"transparent",color:C.muted,
-                    border:`1px solid ${showNewMenu?C.accent:C.border}`,fontSize:18,lineHeight:1,
-                  }}>{useSidebar?"＋ Add form":"＋"}</button>
+                    border:`1px dashed ${showNewMenu?C.accent:C.border}`,fontSize:13,minWidth:130,
+                  }}>＋ Add form</button>
                   {showNewMenu&&(
                     <div style={{
                       position:"absolute",top:"calc(100% + 6px)",left:0,zIndex:100,
@@ -2077,11 +2029,9 @@ export default function App() {
                   )}
                 </div>
               )}
-            </aside>
-          )}
-
-          {/* ── Main column ── */}
-          <main style={{minWidth:0}}>
+            </div>
+          </div>
+        )}
 
         {/* Entry controls */}
         {activeEntry&&(
@@ -2208,9 +2158,6 @@ export default function App() {
             </div>
           );
         })}
-
-          </main>
-        </div>
       </div>
     );
   }
