@@ -2226,7 +2226,7 @@ export default function App() {
           marginBottom:12,flexWrap:"wrap",gap:8}}>
           <h1 style={{color:C.accent,fontSize:20,margin:0}}>🏆 Leaderboard</h1>
           <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-            {myRivals.length>0&&(
+            {myRivals.length>0&&!user?.is_admin&&(
               <div style={{display:"flex",background:C.panel,border:`1px solid ${C.border}`,
                 borderRadius:6,overflow:"hidden",fontSize:12}}>
                 <button onClick={()=>setRivalsOnly(false)} style={{
