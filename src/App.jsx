@@ -1153,6 +1153,100 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN RESULTS — module-level so its identity is stable across App re-renders.
+// Defining it inside App would create a new function reference on every render,
+// causing React to unmount+remount the whole tree and reset AdminMatchRow inputs.
+// ─────────────────────────────────────────────────────────────────────────────
+function AdminResults({ config, matches, results, liveMatches, setResults, refreshLb, refreshLive, showToast }) {
+  async function saveResult(matchN, data) {
+    await api.setResult(matchN, data);
+    if (data.score_a != null && data.score_b != null)
+      setResults(r => ({...r, [matchN]: [data.score_a, data.score_b]}));
+    else
+      setResults(r => { const n = {...r}; delete n[matchN]; return n; });
+    showToast("Result saved ✓"); refreshLb();
+  }
+  async function goLive(matchN) {
+    try {
+      await liveApi.set(matchN, {score_a:0, score_b:0, minute:0});
+      await refreshLive();
+      showToast("Match is now LIVE");
+    } catch(e) { showToast(e.message, "err"); }
+  }
+  async function updateLive(matchN, data) {
+    try { await liveApi.set(matchN, data); await refreshLive(); }
+    catch(e) { showToast(e.message, "err"); }
+  }
+  async function finalizeLive(matchN) {
+    try {
+      const res = await liveApi.finalize(matchN);
+      setResults(r => ({...r, [matchN]: [res.score_a, res.score_b]}));
+      await refreshLive();
+      showToast("Match finalized ✓"); refreshLb();
+    } catch(e) { showToast(e.message, "err"); }
+  }
+
+  const roundPill = {
+    open:   {text:"🟢 Betting round is OPEN",   bg:"rgba(16,185,129,0.1)",  color:C.green, border:`1px solid ${C.green}`},
+    closed: {text:"🔒 Betting round is CLOSED",  bg:"rgba(239,68,68,0.1)",   color:C.red,   border:`1px solid ${C.red}`},
+    idle:   {text:"⏸️ No betting round yet",     bg:"rgba(148,163,184,0.1)", color:C.muted, border:`1px solid ${C.border}`},
+  }[config.round_state] || {};
+
+  return (
+    <div>
+      <div style={{marginBottom:14}}>
+        <span style={{display:"inline-block",padding:"4px 14px",borderRadius:999,fontSize:13,
+          fontWeight:600,background:roundPill.bg,color:roundPill.color,border:roundPill.border}}>
+          {roundPill.text}
+        </span>
+      </div>
+      <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>Enter results</h1>
+      {config.round_state==="open" && (
+        <InfoBlock warn>💡 Round is still open. Close it first so participants can't edit after seeing scores.</InfoBlock>
+      )}
+      {Object.keys(liveMatches).length > 0 && (
+        <div style={{background:"rgba(239,68,68,0.06)",border:"1px solid rgba(239,68,68,0.25)",
+          borderRadius:6,padding:"7px 14px",marginBottom:14,fontSize:13,color:C.red,
+          display:"flex",alignItems:"center",gap:8}}>
+          <span className="live-dot"/>
+          <b>{Object.keys(liveMatches).length}</b> match{Object.keys(liveMatches).length!==1?"es":""} currently LIVE
+        </div>
+      )}
+      {STAGES.map(s => {
+        const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last);
+        if (stageMatches.length === 0) return null;
+        const done = stageMatches.filter(m => results[m.n] != null).length;
+        const isCurrent = (config.current_stage||1) === s.n;
+        return (
+          <div key={s.n}>
+            <SectionHeader>
+              {isCurrent && <span style={{color:C.indigo,marginRight:6}}>▶</span>}
+              Stage {s.n}: {s.name}
+              <span style={{marginLeft:8,fontSize:12,fontWeight:400,color:C.muted}}>
+                {done}/{stageMatches.length} results
+              </span>
+            </SectionHeader>
+            <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10,marginBottom:8}}>
+              {stageMatches.map(m => (
+                <AdminMatchRow key={m.n}
+                  match={m}
+                  result={results[m.n] ?? null}
+                  liveData={liveMatches[m.n] ?? null}
+                  onSaveResult={saveResult}
+                  onGoLive={goLive}
+                  onUpdateLive={updateLive}
+                  onFinalize={finalizeLive}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // LiveNowSection — shown at the top of the Leaderboard when matches are in play
 function LiveNowSection({ liveMatches, matches }) {
   const live = Object.entries(liveMatches);
@@ -2052,81 +2146,6 @@ export default function App() {
   // ── By User ───────────────────────────────────────────────────────────────
   // ByUser moved outside App — see module-level definition above
 
-  // ── Admin Results ─────────────────────────────────────────────────────────
-  function AdminResults(){
-    async function saveResult(matchN,data){
-      await api.setResult(matchN,data);
-      if(data.score_a!=null&&data.score_b!=null)setResults(r=>({...r,[matchN]:[data.score_a,data.score_b]}));
-      else setResults(r=>{const n={...r};delete n[matchN];return n;});
-      showToast("Result saved ✓");refreshLb();
-    }
-    async function goLive(matchN){
-      try{
-        await liveApi.set(matchN,{score_a:0,score_b:0,minute:0});
-        await refreshLive();
-        showToast("Match is now LIVE");
-      }catch(e){showToast(e.message,"err");}
-    }
-    async function updateLive(matchN,data){
-      try{
-        await liveApi.set(matchN,data);
-        await refreshLive();
-      }catch(e){showToast(e.message,"err");}
-    }
-    async function finalizeLive(matchN){
-      try{
-        const res=await liveApi.finalize(matchN);
-        setResults(r=>({...r,[matchN]:[res.score_a,res.score_b]}));
-        await refreshLive();
-        showToast("Match finalized ✓");refreshLb();
-      }catch(e){showToast(e.message,"err");}
-    }
-    return (
-      <div>
-        <div style={{marginBottom:14}}><RoundPill/></div>
-        <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>Enter results</h1>
-        {config.round_state==="open"&&<InfoBlock warn>💡 Round is still open. Close it first so participants can't edit after seeing scores.</InfoBlock>}
-        {Object.keys(liveMatches).length>0&&(
-          <div style={{background:"rgba(239,68,68,0.06)",border:"1px solid rgba(239,68,68,0.25)",
-            borderRadius:6,padding:"7px 14px",marginBottom:14,fontSize:13,color:C.red,
-            display:"flex",alignItems:"center",gap:8}}>
-            <span className="live-dot"/><b>{Object.keys(liveMatches).length}</b> match{Object.keys(liveMatches).length>1?"es":""} currently LIVE
-          </div>
-        )}
-        {STAGES.map(s => {
-          const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last);
-          if (stageMatches.length === 0) return null;
-          const done = stageMatches.filter(m => results[m.n] != null).length;
-          const isCurrent = (config.current_stage||1) === s.n;
-          return (
-            <div key={s.n}>
-              <SectionHeader>
-                {isCurrent && <span style={{color:C.indigo,marginRight:6}}>▶</span>}
-                Stage {s.n}: {s.name}
-                <span style={{marginLeft:8,fontSize:12,fontWeight:400,color:C.muted}}>
-                  {done}/{stageMatches.length} results
-                </span>
-              </SectionHeader>
-              <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10,marginBottom:8}}>
-                {stageMatches.map(m=>(
-                  <AdminMatchRow key={m.n}
-                    match={m}
-                    result={results[m.n]??null}
-                    liveData={liveMatches[m.n]??null}
-                    onSaveResult={saveResult}
-                    onGoLive={goLive}
-                    onUpdateLive={updateLive}
-                    onFinalize={finalizeLive}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
   // ── Render ────────────────────────────────────────────────────────────────
   if(authLoading){
     return <div data-theme={isDark?"dark":"light"} style={{background:C.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:C.muted}}>Loading…</div>;
@@ -2182,7 +2201,10 @@ export default function App() {
             showToast={showToast} refreshLb={refreshLb}
           />
         )}
-        {user&&tab==="results"&&<AdminResults/>}
+        {user&&tab==="results"&&<AdminResults
+          config={config} matches={matches} results={results} liveMatches={liveMatches}
+          setResults={setResults} refreshLb={refreshLb} refreshLive={refreshLive} showToast={showToast}
+        />}
         {user&&tab==="tournament"&&<Tournament matches={matches} results={results} liveMatches={liveMatches} myPreds={myPreds} config={config} user={user}/>}
         {user&&tab==="settings"&&<SettingsView user={user} leaderboard={leaderboard} onLogout={doLogout} onNameUpdate={u=>{setUser(u);showToast("Name updated ✓");}} showToast={showToast} config={config} setConfig={setConfig}/>}
       </div>
