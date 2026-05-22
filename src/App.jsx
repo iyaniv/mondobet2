@@ -337,9 +337,8 @@ function MatchRow({ match, pred, result, editable, adminResult, roundState, onSa
   }
   const rowBg=(!editable&&!adminResult)?C.panel:C.panel2;
   return (
-    <div style={{display:"grid",gridTemplateColumns:"28px 26px 1fr 44px 12px 44px 1fr auto",alignItems:"center",gap:5,padding:"5px 8px",borderRadius:6,background:rowBg,border:`1px solid ${C.border}`,marginBottom:3,fontSize:13}}>
+    <div style={{display:"grid",gridTemplateColumns:"28px 1fr 44px 12px 44px 1fr auto",alignItems:"center",gap:5,padding:"5px 8px",borderRadius:6,background:rowBg,border:`1px solid ${C.border}`,marginBottom:3,fontSize:13}}>
       <span style={{color:C.muted,fontSize:11}}>#{match.n}</span>
-      <span style={{background:C.border,color:C.text,padding:"1px 5px",borderRadius:4,fontSize:11,textAlign:"center"}}>{match.g}</span>
       <span style={{
         overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12,
         color: winnerSide===0?C.accent:winnerSide===1?C.muted:C.text,
@@ -517,17 +516,8 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
     } catch(e) { showToast(e.message, "err"); }
   }
 
-  const pill = {
-    open:   {text:"🟢 Betting round is OPEN",   bg:"rgba(16,185,129,0.1)",  color:C.green, border:`1px solid ${C.green}`},
-    closed: {text:"🔒 Betting round is CLOSED", bg:"rgba(239,68,68,0.1)",   color:C.red,   border:`1px solid ${C.red}`},
-    idle:   {text:"⏸️ No betting round yet",    bg:"rgba(148,163,184,0.1)", color:C.muted, border:`1px solid ${C.border}`},
-  }[config.round_state] || {};
-
   return (
     <div>
-      <div style={{marginBottom:14}}>
-        <span style={{display:"inline-block",padding:"4px 14px",borderRadius:999,fontSize:13,fontWeight:600,background:pill.bg,color:pill.color,border:pill.border}}>{pill.text}</span>
-      </div>
       <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>⚙️ Admin dashboard</h1>
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginBottom:20}}>
@@ -543,54 +533,74 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
         ))}
       </div>
 
-      <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>Round control</h2>
-      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:20}}>
-        {config.round_state==="idle"&&<>
-          <div style={{flex:1}}><div style={{fontWeight:600,marginBottom:4,color:C.text}}>⏸️ Round is idle.</div><div style={{color:C.muted,fontSize:12}}>Open to start collecting predictions.</div></div>
-          <Btn green onClick={()=>setRoundState("open")}>🟢 Open round</Btn>
-        </>}
-        {config.round_state==="open"&&<>
-          <div style={{flex:1}}><div style={{color:C.green,fontWeight:600,marginBottom:4}}>🟢 Round is OPEN.</div><div style={{color:C.muted,fontSize:12}}>Close to lock bets and reveal them.</div></div>
-          <Btn red onClick={()=>confirm("Close the round?")&&setRoundState("closed")}>🔒 Close round</Btn>
-        </>}
-        {config.round_state==="closed"&&<>
-          <div style={{flex:1}}><div style={{color:C.red,fontWeight:600,marginBottom:4}}>🔒 Round is CLOSED.</div><div style={{color:C.muted,fontSize:12}}>Enter results in the Results tab.</div></div>
-          <Btn ghost onClick={()=>confirm("Reopen? Bets will be hidden again.")&&setRoundState("open")}>Reopen</Btn>
-        </>}
-      </div>
-
-      <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>🗂️ Stage management</h2>
+      <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>🗂️ Stage control</h2>
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,marginBottom:20}}>
-        {/* Current stage status */}
-        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:12}}>
+        {/* Stage + round state row */}
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:14}}>
           <span style={{background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,
             padding:"4px 12px",borderRadius:999,fontSize:13,fontWeight:700}}>
-            ▶ Stage {currentStage} — {curStat.name} open
+            ▶ Stage {currentStage} — {curStat.name}
           </span>
-          <span style={{fontSize:13,color:C.muted}}>
-            {curStat.done}/{curStat.total} results entered
+          <span style={{fontSize:13,color:C.muted}}>{curStat.done}/{curStat.total} results entered</span>
+          {config.round_state==="open" && (
+            <span style={{fontSize:12,padding:"2px 8px",borderRadius:999,fontWeight:600,
+              background:"rgba(16,185,129,0.12)",color:C.green,border:`1px solid ${C.green}`}}>
+              🟢 predictions open
+            </span>
+          )}
+          {config.round_state==="closed" && (
+            <span style={{fontSize:12,padding:"2px 8px",borderRadius:999,fontWeight:600,
+              background:"rgba(239,68,68,0.1)",color:C.red,border:`1px solid ${C.red}`}}>
+              🔒 predictions closed
+            </span>
+          )}
+          {config.round_state==="idle" && (
+            <span style={{fontSize:12,padding:"2px 8px",borderRadius:999,fontWeight:600,
+              background:"rgba(148,163,184,0.1)",color:C.muted,border:`1px solid ${C.border}`}}>
+              ⏸️ not started
+            </span>
+          )}
+        </div>
+
+        {/* Open / Close predictions */}
+        <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginBottom:14}}>
+          {config.round_state!=="open" && (
+            <Btn green onClick={()=>setRoundState("open")}>🟢 Open predictions</Btn>
+          )}
+          {config.round_state==="open" && (
+            <Btn red onClick={()=>confirm("Close predictions for this stage?")&&setRoundState("closed")}>🔒 Close predictions</Btn>
+          )}
+          <span style={{fontSize:12,color:C.muted}}>
+            {config.round_state==="open"
+              ? "Users can enter and edit predictions."
+              : config.round_state==="closed"
+              ? "Predictions locked. Enter results in the Results tab."
+              : "Open to let users fill in predictions."}
           </span>
         </div>
 
-        {/* Open next stage button */}
+        {/* Advance to next stage */}
         {currentStage < 6 ? (
           canOpenNextStage ? (
-            <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",
+              borderTop:`1px solid ${C.border}`,paddingTop:12}}>
               <Btn green onClick={openNextStage}>
-                🎯 Open Stage {currentStage + 1} — {STAGES[currentStage].name}
+                🎯 Advance to Stage {currentStage + 1} — {STAGES[currentStage].name}
               </Btn>
               <span style={{fontSize:12,color:C.muted}}>
-                All results in. Users will be able to fill predictions for Stage {currentStage + 1}.
+                All results entered. Users will be able to fill Stage {currentStage + 1} predictions.
               </span>
             </div>
           ) : (
-            <div style={{fontSize:12,color:C.muted,padding:"8px 12px",background:C.panel2,borderRadius:6}}>
-              ⏳ Enter all {curStat.total} Stage {currentStage} results ({curStat.done} of {curStat.total} done)
-              to unlock Stage {currentStage + 1} predictions for users.
+            <div style={{fontSize:12,color:C.muted,padding:"8px 12px",background:C.panel2,borderRadius:6,
+              borderTop:`1px solid ${C.border}`,marginTop:2,paddingTop:10}}>
+              ⏳ Enter all {curStat.total} Stage {currentStage} results ({curStat.done}/{curStat.total} done) to unlock Stage {currentStage + 1}.
             </div>
           )
         ) : (
-          <span style={{fontSize:13,color:C.green,fontWeight:600}}>🏆 All stages open — tournament complete!</span>
+          <div style={{borderTop:`1px solid ${C.border}`,paddingTop:12}}>
+            <span style={{fontSize:13,color:C.green,fontWeight:600}}>🏆 All stages complete — tournament done!</span>
+          </div>
         )}
       </div>
 
@@ -1088,11 +1098,10 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
   const rowBorder= `1px solid ${isLive?"rgba(239,68,68,0.35)":isFinal?"rgba(16,185,129,0.25)":C.border}`;
 
   return (
-    <div style={{display:"grid",gridTemplateColumns:"28px 26px 1fr 44px 12px 44px 1fr auto",
+    <div style={{display:"grid",gridTemplateColumns:"28px 1fr 44px 12px 44px 1fr auto",
       alignItems:"center",gap:5,padding:"5px 8px",borderRadius:6,
       background:rowBg,border:rowBorder,marginBottom:3,fontSize:13}}>
       <span style={{color:C.muted,fontSize:11}}>#{match.n}</span>
-      <span style={{background:C.border,color:C.text,padding:"1px 5px",borderRadius:4,fontSize:11,textAlign:"center"}}>{match.g}</span>
       <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12,
         color:winA===true?C.accent:winA===false?C.muted:C.text,fontWeight:winA===true?700:400}}>
         {flag(match.a)} {match.a}
