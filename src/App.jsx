@@ -1921,94 +1921,68 @@ export default function App() {
     const myLbEntry=leaderboard.find(e=>e.entry_id===activeEntryId);
     const rstate=config.round_state;
     const rs= rstate==="open"
-      ? {text:"🟢 Round OPEN", color:C.green, border:"rgba(16,185,129,0.4)", bg:"rgba(16,185,129,0.08)"}
+      ? {text:"🟢 Round OPEN", color:C.green}
       : rstate==="closed"
-      ? {text:"🔒 Round CLOSED", color:C.red,   border:"rgba(239,68,68,0.4)", bg:"rgba(239,68,68,0.08)"}
-      : {text:"⏸️ Round idle",   color:C.muted, border:C.border,             bg:C.panel2};
+      ? {text:"🔒 Round CLOSED", color:C.red}
+      : {text:"⏸️ Round idle",   color:C.muted};
+    // Quick lookup of total per entry, for tab subtitles
+    const lbByEntry = Object.fromEntries(leaderboard.map(e => [e.entry_id, e]));
     return (
       <div>
-        {/* ── Compact header row ── */}
-        <div style={{
-          display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",
-          background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,
-          padding:"10px 14px",marginBottom:12,
-        }}>
-          <span style={{fontFamily:"var(--c-font-display)",fontSize:22,letterSpacing:1,color:C.accent,lineHeight:1}}>
-            {(user?.name||"").toUpperCase()}'S PREDICTIONS
-          </span>
-          <span style={{
-            display:"inline-flex",alignItems:"center",gap:6,padding:"3px 10px",borderRadius:999,
-            fontSize:12,fontWeight:600,color:rs.color,border:`1px solid ${rs.border}`,background:rs.bg,
-          }}>{rs.text}</span>
-          {activeEntry?.submitted_at&&(
-            <span style={{
-              display:"inline-flex",alignItems:"center",gap:6,padding:"3px 10px",borderRadius:999,
-              fontSize:12,fontWeight:600,color:C.green,border:"1px solid rgba(16,185,129,0.4)",background:"rgba(16,185,129,0.08)",
-            }}>✓ Submitted</span>
-          )}
-          <span style={{flex:1}}/>
-          {myLbEntry?(
-            <span style={{
-              display:"inline-flex",alignItems:"baseline",gap:8,
-              background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 12px",fontSize:12,color:C.muted,
-            }}>
-              <b style={{color:C.accent,fontSize:18,fontFamily:"monospace",fontWeight:700}}>{myLbEntry.total}</b>
-              pts · {myLbEntry.scored_matches}/{matches.length} scored
-              {myLbEntry.winner_bonus>0&&<span style={{color:C.green,fontWeight:600}}>· 🏆 +10</span>}
-            </span>
-          ):(
-            <span style={{fontSize:12,color:C.muted}}>
-              {filledCount}/{openMatches.length} filled
-            </span>
-          )}
-        </div>
-
-        {/* Entry tab bar */}
+        {/* ── Option D: tabs carry name + score; no separate big header ── */}
         {entries.length>0&&(
-          <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+          <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap",alignItems:"stretch"}}>
             {entries.map(e=>{
               const isActive=e.id===activeEntryId;
               const submitted=!!e.submitted_at;
               const filled=(e.predictions||[]).filter(p=>matchStageObj(p.match_n).n<=openStage&&p.score_a!=null&&p.score_b!=null).length;
+              const lbE = lbByEntry[e.id];
               const isRenaming=renamingEntryId===e.id;
+              const subtitle = lbE
+                ? `${lbE.total} pts · ${lbE.scored_matches}/${matches.length}`
+                : submitted ? "submitted — waiting for results"
+                : `${filled}/${openMatches.length} filled`;
               return(
                 <div key={e.id} onClick={()=>!isRenaming&&switchEntry(e.id)} style={{
-                  padding:"5px 10px",borderRadius:6,cursor:isRenaming?"default":"pointer",
+                  padding:"8px 14px",borderRadius:10,cursor:isRenaming?"default":"pointer",
                   background:isActive?C.accent:C.panel2,
                   color:isActive?"#1a1a1a":C.text,
                   border:`1px solid ${isActive?C.accent:C.border}`,
-                  fontWeight:isActive?700:400,fontSize:13,
-                  display:"flex",alignItems:"center",gap:5,
+                  display:"flex",flexDirection:"column",gap:3,minWidth:130,
+                  transition:"all .15s",
                 }}>
-                  {isRenaming?(
-                    <input
-                      autoFocus
-                      value={renameVal}
-                      onChange={ev=>setRenameVal(ev.target.value)}
-                      onBlur={()=>commitRename(e.id)}
-                      onKeyDown={ev=>{if(ev.key==="Enter")commitRename(e.id);if(ev.key==="Escape"){setRenamingEntryId(null);}}}
-                      onClick={ev=>ev.stopPropagation()}
-                      style={{
-                        background:"transparent",border:"none",outline:"none",
-                        color:isActive?"#1a1a1a":C.text,fontWeight:"inherit",fontSize:"inherit",
-                        width:Math.max(60,renameVal.length*8)+"px",minWidth:60,maxWidth:160,
-                      }}
-                    />
-                  ):(
-                    <>
-                      <span>{e.name}</span>
-                      {isActive&&editable&&!submitted&&(
-                        <span onClick={ev=>startRename(ev,e)} title="Rename" style={{
-                          fontSize:11,opacity:0.6,cursor:"pointer",lineHeight:1,
-                          padding:"1px 3px",borderRadius:3,
-                        }}>✎</span>
-                      )}
-                    </>
-                  )}
-                  {submitted
-                    ?<span style={{background:"rgba(16,185,129,0.2)",color:isActive?"#0a6644":C.green,fontSize:10,padding:"1px 5px",borderRadius:4,fontWeight:700}}>✓</span>
-                    :<span style={{background:"rgba(0,0,0,0.15)",color:isActive?"#333":C.muted,fontSize:10,padding:"1px 5px",borderRadius:4}}>{filled}/{openMatches.length}</span>
-                  }
+                  <div style={{display:"flex",alignItems:"center",gap:6,fontSize:14,fontWeight:isActive?700:600}}>
+                    {isRenaming?(
+                      <input
+                        autoFocus
+                        value={renameVal}
+                        onChange={ev=>setRenameVal(ev.target.value)}
+                        onBlur={()=>commitRename(e.id)}
+                        onKeyDown={ev=>{if(ev.key==="Enter")commitRename(e.id);if(ev.key==="Escape"){setRenamingEntryId(null);}}}
+                        onClick={ev=>ev.stopPropagation()}
+                        style={{
+                          background:"transparent",border:"none",outline:"none",
+                          color:isActive?"#1a1a1a":C.text,fontWeight:"inherit",fontSize:"inherit",
+                          width:Math.max(60,renameVal.length*8)+"px",minWidth:60,maxWidth:160,
+                        }}
+                      />
+                    ):(
+                      <>
+                        <span>{e.name}</span>
+                        {submitted&&<span style={{fontSize:11,color:isActive?"#0a6644":C.green,fontWeight:700}}>✓</span>}
+                        {isActive&&editable&&!submitted&&(
+                          <span onClick={ev=>startRename(ev,e)} title="Rename" style={{
+                            fontSize:11,opacity:0.55,cursor:"pointer",lineHeight:1,padding:"1px 3px",borderRadius:3,
+                          }}>✎</span>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  <div style={{fontSize:11,fontFamily:"monospace",
+                    color:isActive?"rgba(26,26,26,0.7)":C.muted,
+                    fontWeight:isActive?600:400}}>
+                    {subtitle}
+                  </div>
                 </div>
               );
             })}
@@ -2052,6 +2026,11 @@ export default function App() {
           </div>
         )}
 
+        {/* Slim round-status line (Option D) */}
+        <div style={{fontSize:12,color:rs.color,marginBottom:12,display:"flex",alignItems:"center",gap:6}}>
+          {rs.text}
+        </div>
+
         {/* Entry controls */}
         {activeEntry&&(
           <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
@@ -2089,6 +2068,27 @@ export default function App() {
             <TeamPicker value={myWinner} onChange={saveWinner} teams={teams} disabled={!editable||!!activeEntry?.submitted_at} placeholder="Choose a team…"/>
           )}
           {config.tournament_winner&&<span style={{color:C.muted,fontSize:13}}>🏆 actual: <b style={{color:C.accent}}>{withFlag(config.tournament_winner)}</b></span>}
+          <span style={{flex:1,minWidth:0}}/>
+          {/* Total points pill — visible whenever the selected form has a leaderboard entry */}
+          {myLbEntry&&(
+            <div style={{
+              display:"inline-flex",alignItems:"baseline",gap:8,
+              background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,
+              padding:"6px 12px",fontSize:12,color:C.muted,
+            }} title={activeEntry?`Total for "${activeEntry.name}"`:""}>
+              <span style={{color:C.muted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",fontSize:10}}>Total</span>
+              <b style={{color:C.accent,fontSize:20,fontFamily:"monospace",fontWeight:700,lineHeight:1}}>{myLbEntry.total}</b>
+              <span>pts · {myLbEntry.scored_matches}/{matches.length} scored</span>
+              {myLbEntry.winner_bonus>0&&<span style={{color:C.green,fontWeight:600}}>· 🏆 +10</span>}
+              {myLbEntry.live_matches_count>0&&(
+                <span style={{
+                  display:"inline-flex",alignItems:"center",gap:3,marginLeft:4,
+                  background:"rgba(239,68,68,0.12)",color:C.red,
+                  border:"1px solid rgba(239,68,68,0.3)",padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,
+                }}><span className="live-dot"/>+{myLbEntry.live_points} LIVE</span>
+              )}
+            </div>
+          )}
         </div>
 
         {!predsLoaded&&config.round_state==="open"&&(
