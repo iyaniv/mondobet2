@@ -1475,9 +1475,10 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
   // Timezone (localStorage)
   const [tz, setTz] = useState(() => localStorage.getItem("mb_timezone") || "auto");
 
-  // Rivals (localStorage — array of user IDs)
+  // Rivals (localStorage — array of user IDs, keyed per user)
+  const rivalsKey = `mb_rivals_${user?.id}`;
   const [rivals, setRivals] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("mb_rivals") || "[]"); }
+    try { return JSON.parse(localStorage.getItem(`mb_rivals_${user?.id}`) || "[]"); }
     catch { return []; }
   });
 
@@ -1493,7 +1494,7 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
   function toggleRival(uid) {
     const next = rivals.includes(uid) ? rivals.filter(r=>r!==uid) : [...rivals, uid];
     setRivals(next);
-    localStorage.setItem("mb_rivals", JSON.stringify(next));
+    localStorage.setItem(rivalsKey, JSON.stringify(next));
   }
 
   async function saveName(e) {
@@ -2188,7 +2189,7 @@ export default function App() {
   // ── Leaderboard ───────────────────────────────────────────────────────────
   function LeaderboardView(){
     const winnerKnown=!!config.tournament_winner;
-    const myRivals = (() => { try { return JSON.parse(localStorage.getItem("mb_rivals")||"[]"); } catch { return []; } })();
+    const myRivals = (() => { try { return JSON.parse(localStorage.getItem(`mb_rivals_${user?.id}`)||"[]"); } catch { return []; } })();
     const [rivalsOnly, setRivalsOnly] = useState(false);
 
     // ── Simulate mode ──────────────────────────────────────────────────────
