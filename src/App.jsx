@@ -2057,6 +2057,34 @@ export default function App() {
       showToast("Saved ✓");
     }
 
+    // Random fill — only the current stage's empty / no-score-yet predictions.
+    // Past stages stay locked; matches with an admin-entered result/live are
+    // skipped (you can't predict a played match). Uses 0–3 per side.
+    async function randomFillCurrentStage() {
+      if (!editable || !activeEntry || activeEntry.submitted_at) return;
+      const stage = STAGES.find(s => s.n === openStage);
+      if (!stage) return;
+      const todo = matches.filter(m =>
+        m.n >= stage.first && m.n <= stage.last
+        && !results[m.n] && !liveMatches[m.n]
+        && (myPreds[m.n]?.[0] == null || myPreds[m.n]?.[1] == null)
+      );
+      if (todo.length === 0) {
+        showToast("Nothing left to fill in this stage", "warn");
+        return;
+      }
+      if (!confirm(`Fill ${todo.length} match${todo.length===1?"":"es"} in ${stage.name} with random scores? (you can still edit any of them)`)) return;
+      const rand = () => Math.floor(Math.random() * 4);
+      let ok = 0;
+      for (const m of todo) {
+        try {
+          await savePred(m.n, {score_a: rand(), score_b: rand()});
+          ok++;
+        } catch(e) { console.error("randomFill", m.n, e); }
+      }
+      showToast(`Filled ${ok}/${todo.length} match${todo.length===1?"":"es"} 🎲`);
+    }
+
     async function saveWinner(team){
       const prev=myWinner;
       setMyWinner(team||null);
@@ -2277,6 +2305,16 @@ export default function App() {
                   </span>
                 )}
               </>
+            )}
+            {editable&&!activeEntry.submitted_at&&(
+              <button onClick={randomFillCurrentStage}
+                title="Fill empty matches in the current stage with random scores"
+                style={{
+                  padding:"6px 12px",borderRadius:6,fontSize:12,fontWeight:600,
+                  background:"transparent",color:C.accent,border:`1px solid ${C.accent}`,cursor:"pointer",
+                }}>
+                🎲 Random fill
+              </button>
             )}
             {!activeEntry.submitted_at&&entries.length>1&&editable&&(
               <Btn ghost red onClick={()=>deleteEntryById(activeEntry.id)}>Delete</Btn>
