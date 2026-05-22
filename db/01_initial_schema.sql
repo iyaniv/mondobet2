@@ -1,82 +1,129 @@
 -- =============================================================================
--- WC2026 Predictions — Initial Schema (consolidated, current)
--- Run this on a fresh Neon / PostgreSQL database.
--- The FastAPI app also auto-creates these via SQLAlchemy create_all on startup,
--- so this script is the authoritative reference and a manual-setup alternative.
+-- WC2026 Predictions — Full Schema (current, v9 multi-entry)
+-- =============================================================================
+-- Run this on a FRESH Neon / PostgreSQL database to create the entire schema
+-- in one go. Equivalent to running 01 + 02 + 03 + 04 + 05 + 06 sequentially.
 --
--- Includes all columns added by later migrations (03_add_data_source,
--- 04_add_phone, 05_add_current_stage). The numbered migration files
--- remain in this folder for existing databases to upgrade incrementally.
+-- The FastAPI app also auto-creates these via SQLAlchemy create_all() on
+-- startup, so this script is the authoritative reference and a manual-setup
+-- alternative. Existing databases should run the numbered migration files
+-- (02_…, 03_…, etc.) to upgrade incrementally instead of dropping their data.
+--
+-- Layout:
+--   • round_state_enum
+--   • users               (auth + locked tournament winner)
+--   • entries             (each user can have many betting cards / forms)
+--   • predictions         (one row per entry × match)
+--   • results             (admin-entered final scores)
+--   • winner_picks        (one tournament winner pick per entry)
+--   • game_config         (singleton, round + current_stage state)
+--   • live_matches        (in-play scores + is_live visibility flag)
+--   • seed admin user     (email "admin", password "Admin")
 -- =============================================================================
 
+-- ── Extensions ────────────────────────────────────────────────────────────────
+-- gen_random_uuid() is used as entries.id default.
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- ── Enum type ─────────────────────────────────────────────────────────────────
-CREATE TYPE round_state_enum AS ENUM ('idle', 'open', 'closed');
+DO $$ BEGIN
+    CREATE TYPE round_state_enum AS ENUM ('idle', 'open', 'closed');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ── Users ─────────────────────────────────────────────────────────────────────
-CREATE TABLE users (
-    id            SERIAL PRIMARY KEY,
-    name          VARCHAR(100)  NOT NULL,
-    email         VARCHAR(200)  NOT NULL,
-    password_hash VARCHAR(200)  NOT NULL,
-    phone         VARCHAR(50)   NOT NULL DEFAULT '',
-    is_admin      BOOLEAN       NOT NULL DEFAULT FALSE,
-    has_paid      BOOLEAN       NOT NULL DEFAULT FALSE,
-    created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+CREATE TABLE IF NOT EXISTS users (
+    id             SERIAL PRIMARY KEY,
+    name           VARCHAR(100)  NOT NULL,
+    email          VARCHAR(200)  NOT NULL,
+    password_hash  VARCHAR(200)  NOT NULL,
+    phone          VARCHAR(50)   NOT NULL DEFAULT '',
+    is_admin       BOOLEAN       NOT NULL DEFAULT FALSE,
+    has_paid       BOOLEAN       NOT NULL DEFAULT FALSE,
+    -- The tournament winner the user committed to with their first stage-1
+    -- submission. Once set, it can't change (per game rules).
+    locked_winner  VARCHAR(100),
+    created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_users_email UNIQUE (email)
 );
-CREATE INDEX ix_users_email ON users (email);
+CREATE INDEX IF NOT EXISTS ix_users_email ON users (email);
+
+-- ── Entries (multi-form per user) ─────────────────────────────────────────────
+-- Each row is one "betting card" / "form". A user can have several, each with
+-- its own set of predictions and its own winner pick (subject to locked_winner).
+CREATE TABLE IF NOT EXISTS entries (
+    id                 UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id            INT          NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    name               VARCHAR(100) NOT NULL,
+    created_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    -- Legacy single submission timestamp — the earliest stage submission.
+    -- Kept for back-compat; the source of truth is stages_submitted below.
+    submitted_at       TIMESTAMPTZ,
+    -- Per-stage submission state. Keys are stage numbers (1..6), values are
+    -- ISO timestamps. Example: {"1": "2026-06-01T10:00:00Z"}.
+    stages_submitted   JSONB        NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS ix_entries_user_id ON entries (user_id);
 
 -- ── Predictions ───────────────────────────────────────────────────────────────
--- One row per (user, match).  score_a / score_b are NULL until the user saves.
-CREATE TABLE predictions (
-    id       SERIAL PRIMARY KEY,
-    user_id  INT       NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    match_n  INT       NOT NULL,
-    score_a  SMALLINT,
-    score_b  SMALLINT,
-    CONSTRAINT uq_user_match UNIQUE (user_id, match_n)
+-- One row per (entry, match). score_a / score_b are NULL until the user fills.
+CREATE TABLE IF NOT EXISTS predictions (
+    id        SERIAL    PRIMARY KEY,
+    entry_id  UUID      NOT NULL REFERENCES entries (id) ON DELETE CASCADE,
+    match_n   INT       NOT NULL,
+    score_a   SMALLINT,
+    score_b   SMALLINT,
+    CONSTRAINT uq_entry_match UNIQUE (entry_id, match_n)
 );
-CREATE INDEX ix_predictions_user_id ON predictions (user_id);
+CREATE INDEX IF NOT EXISTS ix_predictions_entry_id ON predictions (entry_id);
 
 -- ── Results ───────────────────────────────────────────────────────────────────
--- Admin-entered final scores.  match_n is the primary key (0 or 1 row per match).
-CREATE TABLE results (
-    match_n INT      PRIMARY KEY,
-    score_a SMALLINT NOT NULL,
-    score_b SMALLINT NOT NULL
+-- Admin-entered final scores. match_n is the primary key (0 or 1 row per match).
+CREATE TABLE IF NOT EXISTS results (
+    match_n  INT      PRIMARY KEY,
+    score_a  SMALLINT NOT NULL,
+    score_b  SMALLINT NOT NULL
 );
 
 -- ── Winner picks ──────────────────────────────────────────────────────────────
--- One optional row per user — the team they think will win the tournament.
-CREATE TABLE winner_picks (
-    user_id INT          PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
-    team    VARCHAR(100) NOT NULL
+-- One row per entry — the team that entry thinks will win the tournament.
+CREATE TABLE IF NOT EXISTS winner_picks (
+    entry_id  UUID         PRIMARY KEY REFERENCES entries (id) ON DELETE CASCADE,
+    team      VARCHAR(100) NOT NULL
 );
 
 -- ── Game config (singleton, id = 1) ──────────────────────────────────────────
-CREATE TABLE game_config (
-    id                INT              PRIMARY KEY DEFAULT 1,
-    round_state       round_state_enum NOT NULL    DEFAULT 'idle',
-    tournament_winner VARCHAR(100),
-    data_source       VARCHAR(20)      NOT NULL    DEFAULT 'manual',
-    current_stage     INTEGER          NOT NULL    DEFAULT 1
+CREATE TABLE IF NOT EXISTS game_config (
+    id                 INT              PRIMARY KEY DEFAULT 1,
+    round_state        round_state_enum NOT NULL    DEFAULT 'idle',
+    tournament_winner  VARCHAR(100),
+    data_source        VARCHAR(20)      NOT NULL    DEFAULT 'manual',
+    -- Highest stage open for user predictions (1..6).
+    current_stage      INTEGER          NOT NULL    DEFAULT 1
 );
 -- Bootstrap the singleton so the app never has to INSERT manually.
-INSERT INTO game_config (id, round_state) VALUES (1, 'idle');
+INSERT INTO game_config (id, round_state) VALUES (1, 'idle')
+ON CONFLICT (id) DO NOTHING;
+
+-- ── Live matches ──────────────────────────────────────────────────────────────
+-- Admin updates these during a match. Cleared (DELETE) when the admin clicks
+-- FINAL (and a row appears in `results`).
+--   is_live = TRUE  → admin pressed ▶ LIVE, shown to users as LIVE NOW
+--   is_live = FALSE → score saved, ranking already updated, but no LIVE badge
+CREATE TABLE IF NOT EXISTS live_matches (
+    match_n     INT         PRIMARY KEY,
+    score_a     SMALLINT    NOT NULL DEFAULT 0,
+    score_b     SMALLINT    NOT NULL DEFAULT 0,
+    minute      SMALLINT    NOT NULL DEFAULT 0,
+    is_live     BOOLEAN     NOT NULL DEFAULT FALSE,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 -- ── Seed: admin user ─────────────────────────────────────────────────────────
 -- Default credentials: email = "admin", password = "Admin"
--- Change the password via the API or update the hash here before running.
+-- Change the password via the API (or update the hash below) before running.
 -- Hash generated with bcrypt rounds=12.
 INSERT INTO users (name, email, password_hash, is_admin, has_paid)
-VALUES ('Admin', 'admin', '$2b$12$nFtMypk9K0Yj/S0fhYoa7OLggWbnoYvKg1QYK/QgzdzEwvuimSRtW', TRUE, FALSE);
-
--- ── Live matches ──────────────────────────────────────────────────────────────
--- Admin updates these during a match; cleared (DELETE) when admin clicks FINAL.
-CREATE TABLE live_matches (
-    match_n    INT         PRIMARY KEY,
-    score_a    SMALLINT    NOT NULL DEFAULT 0,
-    score_b    SMALLINT    NOT NULL DEFAULT 0,
-    minute     SMALLINT    NOT NULL DEFAULT 0,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+VALUES ('Admin', 'admin', '$2b$12$nFtMypk9K0Yj/S0fhYoa7OLggWbnoYvKg1QYK/QgzdzEwvuimSRtW', TRUE, FALSE)
+ON CONFLICT (email) DO NOTHING;

@@ -10,7 +10,7 @@ from sqlalchemy import (
     Boolean, DateTime, Enum, ForeignKey, Integer,
     SmallInteger, String, UniqueConstraint, func,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -58,6 +58,12 @@ class Entry(Base):
     )
     submitted_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    # Per-stage submission timestamps: {"1": "2026-06-01T...", "2": null, ...}
+    # Source of truth — submitted_at stays as the earliest stage timestamp
+    # for back-compat with code that hasn't been migrated yet.
+    stages_submitted: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
     )
 
     user: Mapped["User"] = relationship("User", back_populates="entries")
@@ -126,6 +132,11 @@ class LiveMatch(Base):
     score_a: Mapped[int] = mapped_column(SmallInteger, default=0, nullable=False)
     score_b: Mapped[int] = mapped_column(SmallInteger, default=0, nullable=False)
     minute: Mapped[int] = mapped_column(SmallInteger, default=0, nullable=False)
+    # TRUE only when admin pressed ▶ LIVE in the Results tab. Saved-but-not-LIVE
+    # scores still feed the leaderboard; the flag controls the LIVE badge.
+    is_live: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
