@@ -1144,24 +1144,20 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
 
   const [resA, setResA] = useState(isLive ? String(liveData.score_a) : isFinal ? String(result[0]) : "");
   const [resB, setResB] = useState(isLive ? String(liveData.score_b) : isFinal ? String(result[1]) : "");
-  const [min,  setMin]  = useState(isLive ? String(liveData.minute)  : "");
 
   useEffect(() => {
-    if (liveData) { setResA(String(liveData.score_a)); setResB(String(liveData.score_b)); setMin(String(liveData.minute)); }
-    else if (result) { setResA(String(result[0])); setResB(String(result[1])); setMin(""); }
-    else { setResA(""); setResB(""); setMin(""); }
-  }, [liveData?.score_a, liveData?.score_b, liveData?.minute, result?.[0], result?.[1]]);
+    if (liveData) { setResA(String(liveData.score_a)); setResB(String(liveData.score_b)); }
+    else if (result) { setResA(String(result[0])); setResB(String(result[1])); }
+    else { setResA(""); setResB(""); }
+  }, [liveData?.score_a, liveData?.score_b, result?.[0], result?.[1]]);
 
+  // Typing a score saves as LIVE (not final). Inputs stay editable until the
+  // admin clicks ✓ FINAL. Final marking is the only way to lock the row.
   async function handleBlur(side, val) {
     const a = side===0 ? val : resA, b = side===1 ? val : resB;
     if (a===""&&b==="") return;
     const sa=Number(a)||0, sb=Number(b)||0;
-    if (isLive) await onUpdateLive(match.n, {score_a:sa, score_b:sb, minute:Number(min)||0});
-    else        await onSaveResult(match.n, {score_a:a===""?null:sa, score_b:b===""?null:sb});
-  }
-  async function handleMinBlur(val) {
-    if (!isLive) return;
-    await onUpdateLive(match.n, {score_a:Number(resA)||0, score_b:Number(resB)||0, minute:Number(val)||0});
+    await onUpdateLive(match.n, {score_a:sa, score_b:sb, minute:liveData?.minute||0});
   }
 
   const effA = Number(resA||0), effB = Number(resB||0);
@@ -1186,29 +1182,28 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
     </div>
   );
 
-  // Controls (LIVE button / minute + FINAL / done dot)
+  // Controls: while a score is in motion (live) show ✓ FINAL to lock it.
+  // For a not-yet-started match show a small LIVE indicator (optional —
+  // typing a score also moves the row into LIVE state automatically).
+  // For an already-final match show a small green dot.
   const controls = (
     <div style={{display:"flex",gap:4,alignItems:"center"}}>
-      {isLive && <>
-        <input type="number" inputMode="numeric" min={0} max={120} value={min} placeholder="0"
-          onChange={e=>setMin(e.target.value)} onBlur={e=>handleMinBlur(e.target.value)}
-          style={{...numInput,width:34,border:"1px solid rgba(239,68,68,0.4)"}}/>
-        <span style={{fontSize:10,color:C.red}}>′</span>
-        <button onClick={()=>onFinalize(match.n)} style={{
-          background:C.green,color:"white",border:0,padding:"2px 8px",
-          borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>
-          ✓ FINAL
-        </button>
-      </>}
-      {!isLive && !isFinal && (
-        <button onClick={()=>onGoLive(match.n)} style={{
-          background:"transparent",border:`1px solid ${C.red}`,color:C.red,
-          padding:"2px 8px",borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
-          <span className="live-dot" style={{marginRight:4}}/> LIVE
-        </button>
+      {isLive && (
+        <>
+          <span style={{display:"inline-flex",alignItems:"center",gap:4,
+            color:C.red,fontSize:11,fontWeight:600,marginRight:4}}>
+            <span className="live-dot"/> LIVE
+          </span>
+          <button onClick={()=>onFinalize(match.n)} style={{
+            background:C.green,color:"white",border:0,padding:"2px 8px",
+            borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>
+            ✓ FINAL
+          </button>
+        </>
       )}
       {!isLive && isFinal && (
-        <span style={{width:8,height:8,borderRadius:"50%",background:C.green,display:"inline-block"}}/>
+        <span style={{width:8,height:8,borderRadius:"50%",background:C.green,display:"inline-block"}}
+              title="Final result"/>
       )}
     </div>
   );
