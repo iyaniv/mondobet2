@@ -1998,23 +1998,30 @@ export default function App() {
                         </>
                       )}
                     </div>
-                    <div style={{fontSize:12,fontFamily:"monospace",
-                      color:isActive?C.muted:"rgba(107,122,153,0.85)",
-                      display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                      {rankBadge && (
+                    {lbE ? (
+                      <div style={{display:"flex",alignItems:"baseline",gap:10,marginTop:2}}>
                         <span title={`Rank ${rank} of ${leaderboard.length}`}
                           style={{
+                            fontSize:rank<=3?20:16,
                             fontFamily:rank<=3?"inherit":"monospace",
-                            color:rank<=3?C.accent:(isActive?C.muted:"rgba(107,122,153,0.85)"),
-                            fontWeight:rank<=3?700:600,
+                            color:rank<=3?C.accent:(isActive?C.text:C.muted),
+                            fontWeight:700,lineHeight:1,
                           }}>{rankBadge}</span>
-                      )}
-                      {rankBadge && <span style={{opacity:0.6}}>·</span>}
-                      {lbE
-                        ? <span>{lbE.total} pts · {lbE.scored_matches}/{matches.length}</span>
-                        : <span>{submitted?"waiting for results":`${filled}/${openMatches.length} filled`}</span>
-                      }
-                    </div>
+                        <span style={{
+                          fontFamily:"monospace",fontWeight:700,
+                          fontSize:18,color:C.accent,lineHeight:1,
+                        }}>{lbE.total}</span>
+                        <span style={{
+                          fontSize:11,color:isActive?C.muted:"rgba(107,122,153,0.85)",
+                          letterSpacing:".5px",textTransform:"uppercase",fontWeight:600,
+                        }}>pts</span>
+                      </div>
+                    ) : (
+                      <div style={{fontSize:12,fontFamily:"monospace",
+                        color:isActive?C.muted:"rgba(107,122,153,0.85)"}}>
+                        {submitted?"waiting for results":`${filled}/${openMatches.length} filled`}
+                      </div>
+                    )}
                   </div>
                 );
               })}
