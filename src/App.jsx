@@ -1809,6 +1809,7 @@ export default function App() {
   // ── My Predictions ────────────────────────────────────────────────────────
   function MyPredictions(){
     const editable=config.round_state==="open";
+    const useSidebar = !useIsMobile(820);  // sidebar when wide enough; horizontal pills otherwise
     const activeEntry=entries.find(e=>e.id===activeEntryId)||entries[0]||null;
     const openStage = config.current_stage || 1;
     const openMatches = matches.filter(m => matchStageObj(m.n).n <= openStage);
@@ -1929,107 +1930,158 @@ export default function App() {
     const lbByEntry = Object.fromEntries(leaderboard.map(e => [e.entry_id, e]));
     return (
       <div>
-        {/* ── Option D: tabs carry name + score; no separate big header ── */}
-        {entries.length>0&&(
-          <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap",alignItems:"stretch"}}>
-            {entries.map(e=>{
-              const isActive=e.id===activeEntryId;
-              const submitted=!!e.submitted_at;
-              const filled=(e.predictions||[]).filter(p=>matchStageObj(p.match_n).n<=openStage&&p.score_a!=null&&p.score_b!=null).length;
-              const lbE = lbByEntry[e.id];
-              const isRenaming=renamingEntryId===e.id;
-              const subtitle = lbE
-                ? `${lbE.total} pts · ${lbE.scored_matches}/${matches.length}`
-                : submitted ? "submitted — waiting for results"
-                : `${filled}/${openMatches.length} filled`;
-              return(
-                <div key={e.id} onClick={()=>!isRenaming&&switchEntry(e.id)} style={{
-                  padding:"8px 14px",borderRadius:10,cursor:isRenaming?"default":"pointer",
-                  background:isActive?C.accent:C.panel2,
-                  color:isActive?"#1a1a1a":C.text,
-                  border:`1px solid ${isActive?C.accent:C.border}`,
-                  display:"flex",flexDirection:"column",gap:3,minWidth:130,
-                  transition:"all .15s",
-                }}>
-                  <div style={{display:"flex",alignItems:"center",gap:6,fontSize:14,fontWeight:isActive?700:600}}>
-                    {isRenaming?(
-                      <input
-                        autoFocus
-                        value={renameVal}
-                        onChange={ev=>setRenameVal(ev.target.value)}
-                        onBlur={()=>commitRename(e.id)}
-                        onKeyDown={ev=>{if(ev.key==="Enter")commitRename(e.id);if(ev.key==="Escape"){setRenamingEntryId(null);}}}
-                        onClick={ev=>ev.stopPropagation()}
-                        style={{
-                          background:"transparent",border:"none",outline:"none",
-                          color:isActive?"#1a1a1a":C.text,fontWeight:"inherit",fontSize:"inherit",
-                          width:Math.max(60,renameVal.length*8)+"px",minWidth:60,maxWidth:160,
-                        }}
-                      />
-                    ):(
-                      <>
-                        <span>{e.name}</span>
-                        {submitted&&<span style={{fontSize:11,color:isActive?"#0a6644":C.green,fontWeight:700}}>✓</span>}
-                        {isActive&&editable&&!submitted&&(
-                          <span onClick={ev=>startRename(ev,e)} title="Rename" style={{
-                            fontSize:11,opacity:0.55,cursor:"pointer",lineHeight:1,padding:"1px 3px",borderRadius:3,
-                          }}>✎</span>
+        {/* Slim round-status line on top */}
+        <div style={{fontSize:12,color:rs.color,marginBottom:12,display:"flex",alignItems:"center",gap:6,fontWeight:600}}>
+          {rs.text}
+        </div>
+
+        {/* Option A: vertical sidebar (wide screens) / horizontal pills (mobile) */}
+        <div style={useSidebar
+          ? {display:"grid",gridTemplateColumns:"220px 1fr",gap:18,alignItems:"start"}
+          : {}}>
+
+          {/* ── Sidebar / horizontal forms list ── */}
+          {entries.length>0&&(
+            <aside style={useSidebar
+              ? {position:"sticky",top:12,display:"flex",flexDirection:"column",gap:4}
+              : {display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"stretch"}}>
+              {useSidebar&&(
+                <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:".5px",
+                  padding:"2px 10px 6px",fontWeight:600}}>My forms ({entries.length})</div>
+              )}
+              {entries.map(e=>{
+                const isActive=e.id===activeEntryId;
+                const submitted=!!e.submitted_at;
+                const filled=(e.predictions||[]).filter(p=>matchStageObj(p.match_n).n<=openStage&&p.score_a!=null&&p.score_b!=null).length;
+                const lbE = lbByEntry[e.id];
+                const isRenaming=renamingEntryId===e.id;
+                const subtitle = lbE
+                  ? `${lbE.total} pts · ${lbE.scored_matches}/${matches.length}`
+                  : submitted ? "waiting for results"
+                  : `${filled}/${openMatches.length} filled`;
+                if (useSidebar) {
+                  return (
+                    <div key={e.id} onClick={()=>!isRenaming&&switchEntry(e.id)} style={{
+                      padding:"9px 12px",borderRadius:6,cursor:isRenaming?"default":"pointer",
+                      background:isActive?"rgba(163,230,53,0.12)":"transparent",
+                      borderLeft:`3px solid ${isActive?C.accent:"transparent"}`,
+                      transition:"all .12s",display:"flex",flexDirection:"column",gap:2,
+                    }}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,
+                        fontSize:13,fontWeight:isActive?700:500,
+                        color:isActive?C.accent:C.text}}>
+                        {isRenaming?(
+                          <input autoFocus value={renameVal}
+                            onChange={ev=>setRenameVal(ev.target.value)}
+                            onBlur={()=>commitRename(e.id)}
+                            onKeyDown={ev=>{if(ev.key==="Enter")commitRename(e.id);if(ev.key==="Escape"){setRenamingEntryId(null);}}}
+                            onClick={ev=>ev.stopPropagation()}
+                            style={{background:"transparent",border:"none",outline:"none",
+                              color:C.text,fontWeight:"inherit",fontSize:"inherit",width:"100%"}}/>
+                        ):(
+                          <>
+                            <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.name}</span>
+                            {submitted&&<span style={{fontSize:11,color:C.green,fontWeight:700}}>✓</span>}
+                            {isActive&&editable&&!submitted&&(
+                              <span onClick={ev=>startRename(ev,e)} title="Rename" style={{
+                                fontSize:11,opacity:0.55,cursor:"pointer",lineHeight:1,padding:"1px 3px",borderRadius:3,
+                              }}>✎</span>
+                            )}
+                          </>
                         )}
-                      </>
-                    )}
+                      </div>
+                      <div style={{fontSize:11,fontFamily:"monospace",
+                        color:isActive?C.muted:"rgba(107,122,153,0.75)"}}>
+                        {subtitle}
+                      </div>
+                    </div>
+                  );
+                }
+                // Mobile/horizontal card
+                return (
+                  <div key={e.id} onClick={()=>!isRenaming&&switchEntry(e.id)} style={{
+                    padding:"8px 14px",borderRadius:10,cursor:isRenaming?"default":"pointer",
+                    background:isActive?C.accent:C.panel2,
+                    color:isActive?"#1a1a1a":C.text,
+                    border:`1px solid ${isActive?C.accent:C.border}`,
+                    display:"flex",flexDirection:"column",gap:3,minWidth:130,transition:"all .15s",
+                  }}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,fontSize:14,fontWeight:isActive?700:600}}>
+                      {isRenaming?(
+                        <input autoFocus value={renameVal}
+                          onChange={ev=>setRenameVal(ev.target.value)}
+                          onBlur={()=>commitRename(e.id)}
+                          onKeyDown={ev=>{if(ev.key==="Enter")commitRename(e.id);if(ev.key==="Escape"){setRenamingEntryId(null);}}}
+                          onClick={ev=>ev.stopPropagation()}
+                          style={{background:"transparent",border:"none",outline:"none",
+                            color:isActive?"#1a1a1a":C.text,fontWeight:"inherit",fontSize:"inherit",
+                            width:Math.max(60,renameVal.length*8)+"px",minWidth:60,maxWidth:160}}/>
+                      ):(
+                        <>
+                          <span>{e.name}</span>
+                          {submitted&&<span style={{fontSize:11,color:isActive?"#0a6644":C.green,fontWeight:700}}>✓</span>}
+                          {isActive&&editable&&!submitted&&(
+                            <span onClick={ev=>startRename(ev,e)} title="Rename" style={{
+                              fontSize:11,opacity:0.55,cursor:"pointer",lineHeight:1,padding:"1px 3px",borderRadius:3,
+                            }}>✎</span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    <div style={{fontSize:11,fontFamily:"monospace",
+                      color:isActive?"rgba(26,26,26,0.7)":C.muted,fontWeight:isActive?600:400}}>
+                      {subtitle}
+                    </div>
                   </div>
-                  <div style={{fontSize:11,fontFamily:"monospace",
-                    color:isActive?"rgba(26,26,26,0.7)":C.muted,
-                    fontWeight:isActive?600:400}}>
-                    {subtitle}
-                  </div>
-                </div>
-              );
-            })}
-            {editable&&Object.keys(results).length===0&&(
-              <div style={{position:"relative"}}>
-                <button onClick={()=>setShowNewMenu(v=>!v)} title="Add form" style={{
-                  padding:"4px 10px",borderRadius:6,cursor:"pointer",
-                  background:showNewMenu?C.panel2:"transparent",color:C.muted,
-                  border:`1px solid ${showNewMenu?C.accent:C.border}`,fontSize:18,lineHeight:1,
-                }}>＋</button>
-                {showNewMenu&&(
-                  <div style={{
-                    position:"absolute",top:"calc(100% + 6px)",left:0,zIndex:100,
-                    background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,
-                    minWidth:180,boxShadow:"0 4px 16px rgba(0,0,0,0.4)",overflow:"hidden",
-                  }}
-                  onMouseLeave={()=>setShowNewMenu(false)}
-                  >
-                    <div style={{padding:"6px 12px",fontSize:11,color:C.muted,borderBottom:`1px solid ${C.border}`,fontWeight:600,letterSpacing:"0.05em",textTransform:"uppercase"}}>Add form</div>
-                    <button onClick={()=>createEntry(null)} style={{
-                      display:"block",width:"100%",textAlign:"left",padding:"9px 14px",
-                      background:"transparent",border:"none",color:C.text,cursor:"pointer",fontSize:13,
+                );
+              })}
+
+              {/* Add form button */}
+              {editable&&Object.keys(results).length===0&&(
+                <div style={useSidebar?{position:"relative",marginTop:4}:{position:"relative"}}>
+                  <button onClick={()=>setShowNewMenu(v=>!v)} title="Add form" style={useSidebar?{
+                    padding:"7px 12px",borderRadius:6,cursor:"pointer",width:"100%",textAlign:"left",
+                    background:showNewMenu?C.panel2:"transparent",color:C.muted,
+                    border:`1px dashed ${showNewMenu?C.accent:C.border}`,fontSize:13,
+                  }:{
+                    padding:"4px 10px",borderRadius:6,cursor:"pointer",
+                    background:showNewMenu?C.panel2:"transparent",color:C.muted,
+                    border:`1px solid ${showNewMenu?C.accent:C.border}`,fontSize:18,lineHeight:1,
+                  }}>{useSidebar?"＋ Add form":"＋"}</button>
+                  {showNewMenu&&(
+                    <div style={{
+                      position:"absolute",top:"calc(100% + 6px)",left:0,zIndex:100,
+                      background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,
+                      minWidth:180,boxShadow:"0 4px 16px rgba(0,0,0,0.4)",overflow:"hidden",
                     }}
-                    onMouseEnter={e=>e.currentTarget.style.background=C.panel}
-                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-                    >New empty form</button>
-                    {entries.length>0&&<div style={{height:1,background:C.border}}/>}
-                    {entries.map(src=>(
-                      <button key={src.id} onClick={()=>createEntry(src.id)} style={{
+                    onMouseLeave={()=>setShowNewMenu(false)}>
+                      <div style={{padding:"6px 12px",fontSize:11,color:C.muted,borderBottom:`1px solid ${C.border}`,fontWeight:600,letterSpacing:"0.05em",textTransform:"uppercase"}}>Add form</div>
+                      <button onClick={()=>createEntry(null)} style={{
                         display:"block",width:"100%",textAlign:"left",padding:"9px 14px",
                         background:"transparent",border:"none",color:C.text,cursor:"pointer",fontSize:13,
                       }}
                       onMouseEnter={e=>e.currentTarget.style.background=C.panel}
                       onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-                      >Copy from <strong>{src.name}</strong></button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+                      >New empty form</button>
+                      {entries.length>0&&<div style={{height:1,background:C.border}}/>}
+                      {entries.map(src=>(
+                        <button key={src.id} onClick={()=>createEntry(src.id)} style={{
+                          display:"block",width:"100%",textAlign:"left",padding:"9px 14px",
+                          background:"transparent",border:"none",color:C.text,cursor:"pointer",fontSize:13,
+                        }}
+                        onMouseEnter={e=>e.currentTarget.style.background=C.panel}
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                        >Copy from <strong>{src.name}</strong></button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </aside>
+          )}
 
-        {/* Slim round-status line (Option D) */}
-        <div style={{fontSize:12,color:rs.color,marginBottom:12,display:"flex",alignItems:"center",gap:6}}>
-          {rs.text}
-        </div>
+          {/* ── Main column ── */}
+          <main style={{minWidth:0}}>
 
         {/* Entry controls */}
         {activeEntry&&(
@@ -2156,6 +2208,9 @@ export default function App() {
             </div>
           );
         })}
+
+          </main>
+        </div>
       </div>
     );
   }
@@ -2165,6 +2220,16 @@ export default function App() {
     const winnerKnown=!!config.tournament_winner;
     const myRivals = (() => { try { return JSON.parse(localStorage.getItem(`mb_rivals_${user?.id}`)||"[]"); } catch { return []; } })();
     const [rivalsOnly, setRivalsOnly] = useState(false);
+
+    // Track hovered row for the "jump-to-form" affordance
+    const [hoveredRow, setHoveredRow] = useState(null);
+    // "Bets by participant" tab is accessible to everyone once any result exists
+    const canJumpToParticipant = !!user && (user.is_admin || Object.keys(results).length > 0);
+    const jumpToParticipant = (row) => {
+      if (!canJumpToParticipant) return;
+      setViewEntryId(row.entry_id || row.user_id);
+      setTab("byuser");
+    };
 
     // ── Simulate mode ──────────────────────────────────────────────────────
     // Unplayed matches the user has predicted (excluding live — already counted)
@@ -2268,6 +2333,7 @@ export default function App() {
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:14,minWidth:320}}>
                 <thead><tr style={{background:C.panel2}}>
                   {["#","Name","Points","Winner pick"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Points"?"center":"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}
+                  {canJumpToParticipant&&<th style={{padding:"8px 6px",width:28,borderBottom:`1px solid ${C.border}`}}/>}
                 </tr></thead>
                 <tbody>
                   {filteredLb.map((row)=>{
@@ -2282,11 +2348,22 @@ export default function App() {
                     let winnerCell;
                     if(winnerKnown)winnerCell=row.winner_pick?<>{withFlag(row.winner_pick)}{row.winner_bonus>0&&<span style={{color:C.green}}> +10</span>}</>:"—";
                     else winnerCell=row.winner_pick?withFlag(row.winner_pick):"—";
+                    const rowKey=row.entry_id||row.user_id;
+                    const isHovered=hoveredRow===rowKey;
+                    const baseBg=isSim?"rgba(99,102,241,0.06)":rowBg;
+                    const hoverBg=isMe?"rgba(163,230,53,0.22)":isRival?"rgba(163,230,53,0.15)":"rgba(163,230,53,0.08)";
                     return (
-                      <tr key={row.entry_id||row.user_id} style={{
-                        background:isSim?"rgba(99,102,241,0.06)":rowBg,
-                        borderLeft: isMe ? `3px solid ${C.accent}` : isRival ? `3px solid ${C.accent}` : "3px solid transparent",
-                      }}>
+                      <tr key={rowKey}
+                          onMouseEnter={canJumpToParticipant?()=>setHoveredRow(rowKey):undefined}
+                          onMouseLeave={canJumpToParticipant?()=>setHoveredRow(null):undefined}
+                          onClick={canJumpToParticipant?()=>jumpToParticipant(row):undefined}
+                          title={canJumpToParticipant?"View this form's predictions":undefined}
+                          style={{
+                            background:(canJumpToParticipant&&isHovered)?hoverBg:baseBg,
+                            borderLeft: isMe ? `3px solid ${C.accent}` : isRival ? `3px solid ${C.accent}` : "3px solid transparent",
+                            cursor:canJumpToParticipant?"pointer":"default",
+                            transition:"background .12s",
+                          }}>
                         <td style={td}><b>{globalRank}</b></td>
                         <td style={td}>{row.name}
                           {isMe&&<span style={{background:C.indigo,color:"white",fontSize:10,padding:"1px 5px",borderRadius:4,marginLeft:6}}>YOU</span>}
@@ -2298,6 +2375,11 @@ export default function App() {
                           {!isSim&&row.live_matches_count>0&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(239,68,68,0.12)",color:C.red,border:"1px solid rgba(239,68,68,0.3)",padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}><span className="live-dot"/>+{row.live_points} LIVE</span>}
                         </td>
                         <td style={td}>{winnerCell}</td>
+                        {canJumpToParticipant&&(
+                          <td style={{...td,textAlign:"right",color:isHovered?C.accent:C.muted,fontSize:16,opacity:isHovered?1:0.35,transition:"all .12s",width:28,paddingRight:12}}>
+                            →
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
