@@ -1281,6 +1281,15 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
 // causing React to unmount+remount the whole tree and reset AdminMatchRow inputs.
 // ─────────────────────────────────────────────────────────────────────────────
 function AdminResults({ config, matches, results, liveMatches, setResults, refreshLb, refreshLive, showToast }) {
+  const currentStage = config.current_stage || 1;
+  // Stages before the current one start collapsed (results already entered)
+  const [collapsedStages, setCollapsedStages] = useState(
+    () => new Set(STAGES.filter(s => s.n < currentStage).map(s => s.n))
+  );
+  const toggleStage = n => setCollapsedStages(prev => {
+    const next = new Set(prev); next.has(n) ? next.delete(n) : next.add(n); return next;
+  });
+
   async function saveResult(matchN, data) {
     await api.setResult(matchN, data);
     if (data.score_a != null && data.score_b != null)
@@ -1339,29 +1348,45 @@ function AdminResults({ config, matches, results, liveMatches, setResults, refre
         const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last);
         if (stageMatches.length === 0) return null;
         const done = stageMatches.filter(m => results[m.n] != null).length;
-        const isCurrent = (config.current_stage||1) === s.n;
+        const isCurrent = currentStage === s.n;
+        const isCollapsed = collapsedStages.has(s.n);
         return (
           <div key={s.n}>
-            <SectionHeader>
-              {isCurrent && <span style={{color:C.indigo,marginRight:6}}>▶</span>}
-              Stage {s.n}: {s.name}
-              <span style={{marginLeft:8,fontSize:12,fontWeight:400,color:C.muted}}>
-                {done}/{stageMatches.length} results
+            <div onClick={() => toggleStage(s.n)} style={{
+              background:C.panel2, padding:"8px 12px", borderRadius:6,
+              margin:"16px 0 6px", fontWeight:600, color:C.indigo, fontSize:14,
+              cursor:"pointer", display:"flex", alignItems:"center",
+              justifyContent:"space-between", userSelect:"none",
+            }}>
+              <span>
+                {isCurrent && <span style={{marginRight:6}}>▶</span>}
+                Stage {s.n}: {s.name}
+                <span style={{marginLeft:8,fontSize:12,fontWeight:400,color:C.muted}}>
+                  {done}/{stageMatches.length} results
+                </span>
+                {done === stageMatches.length && stageMatches.length > 0 && (
+                  <span style={{marginLeft:8,fontSize:11,color:C.green,fontWeight:600}}>✓ complete</span>
+                )}
               </span>
-            </SectionHeader>
-            <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10,marginBottom:8}}>
-              {stageMatches.map(m => (
-                <AdminMatchRow key={m.n}
-                  match={m}
-                  result={results[m.n] ?? null}
-                  liveData={liveMatches[m.n] ?? null}
-                  onSaveResult={saveResult}
-                  onGoLive={goLive}
-                  onUpdateLive={updateLive}
-                  onFinalize={finalizeLive}
-                />
-              ))}
+              <span style={{fontSize:13,color:C.muted,lineHeight:1}}>
+                {isCollapsed ? "▸" : "▾"}
+              </span>
             </div>
+            {!isCollapsed && (
+              <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10,marginBottom:8}}>
+                {stageMatches.map(m => (
+                  <AdminMatchRow key={m.n}
+                    match={m}
+                    result={results[m.n] ?? null}
+                    liveData={liveMatches[m.n] ?? null}
+                    onSaveResult={saveResult}
+                    onGoLive={goLive}
+                    onUpdateLive={updateLive}
+                    onFinalize={finalizeLive}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         );
       })}
@@ -2158,6 +2183,7 @@ export default function App() {
   function LeaderboardView(){
     const winnerKnown=!!config.tournament_winner;
     const myRivals = (() => { try { return JSON.parse(localStorage.getItem("mb_rivals")||"[]"); } catch { return []; } })();
+    const [rivalsOnly, setRivalsOnly] = useState(false);
 
     // ── Simulate mode ──────────────────────────────────────────────────────
     // Find this user's leaderboard entry (prefer active entry tab)
@@ -2187,6 +2213,11 @@ export default function App() {
           .sort((a,b) => b.total - a.total)
       : leaderboard;
 
+    // Rivals filter — always keeps current user in view
+    const filteredLb = rivalsOnly
+      ? displayLb.filter(row => row.user_id===user?.id || myRivals.includes(row.user_id))
+      : displayLb;
+
     return (
       <div>
         <LiveNowSection liveMatches={liveMatches} matches={matches}/>
@@ -2194,21 +2225,38 @@ export default function App() {
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
           marginBottom:12,flexWrap:"wrap",gap:8}}>
           <h1 style={{color:C.accent,fontSize:20,margin:0}}>🏆 Leaderboard</h1>
-          {canSim&&(
-            <div style={{display:"flex",background:C.panel,border:`1px solid ${C.border}`,
-              borderRadius:6,overflow:"hidden",fontSize:12}}>
-              <button onClick={()=>setSimMode(false)} style={{
-                padding:"4px 12px",border:"none",cursor:"pointer",
-                background:!simMode?C.accent:"transparent",
-                color:!simMode?"#1a1a1a":C.muted,fontWeight:!simMode?700:400,transition:"all .15s",
-              }}>Actual</button>
-              <button onClick={()=>setSimMode(true)} style={{
-                padding:"4px 12px",border:"none",cursor:"pointer",
-                background:simMode?C.accent:"transparent",
-                color:simMode?"#1a1a1a":C.muted,fontWeight:simMode?700:400,transition:"all .15s",
-              }}>Simulate</button>
-            </div>
-          )}
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            {myRivals.length>0&&(
+              <div style={{display:"flex",background:C.panel,border:`1px solid ${C.border}`,
+                borderRadius:6,overflow:"hidden",fontSize:12}}>
+                <button onClick={()=>setRivalsOnly(false)} style={{
+                  padding:"4px 12px",border:"none",cursor:"pointer",
+                  background:!rivalsOnly?C.accent:"transparent",
+                  color:!rivalsOnly?"#1a1a1a":C.muted,fontWeight:!rivalsOnly?700:400,transition:"all .15s",
+                }}>All</button>
+                <button onClick={()=>setRivalsOnly(true)} style={{
+                  padding:"4px 12px",border:"none",cursor:"pointer",
+                  background:rivalsOnly?C.accent:"transparent",
+                  color:rivalsOnly?"#1a1a1a":C.muted,fontWeight:rivalsOnly?700:400,transition:"all .15s",
+                }}>★ Rivals</button>
+              </div>
+            )}
+            {canSim&&(
+              <div style={{display:"flex",background:C.panel,border:`1px solid ${C.border}`,
+                borderRadius:6,overflow:"hidden",fontSize:12}}>
+                <button onClick={()=>setSimMode(false)} style={{
+                  padding:"4px 12px",border:"none",cursor:"pointer",
+                  background:!simMode?C.accent:"transparent",
+                  color:!simMode?"#1a1a1a":C.muted,fontWeight:!simMode?700:400,transition:"all .15s",
+                }}>Actual</button>
+                <button onClick={()=>setSimMode(true)} style={{
+                  padding:"4px 12px",border:"none",cursor:"pointer",
+                  background:simMode?C.accent:"transparent",
+                  color:simMode?"#1a1a1a":C.muted,fontWeight:simMode?700:400,transition:"all .15s",
+                }}>Simulate</button>
+              </div>
+            )}
+          </div>
         </div>
 
         {simMode&&simExtraPts>0&&(
@@ -2224,16 +2272,26 @@ export default function App() {
         {leaderboard.length===0
           ?<div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>No participants yet.</div>
           :(
+            <>
+            {rivalsOnly&&filteredLb.length===0&&(
+              <div style={{textAlign:"center",padding:"30px 20px",color:C.muted,fontSize:14}}>
+                No rivals yet — add them from the Settings tab.
+              </div>
+            )}
+            {filteredLb.length>0&&(
             <div className="lb-table-wrap" style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:14,minWidth:320}}>
                 <thead><tr style={{background:C.panel2}}>
                   {["#","Name","Points","Winner pick"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Points"?"center":"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}
                 </tr></thead>
                 <tbody>
-                  {displayLb.map((row,i)=>{
+                  {filteredLb.map((row)=>{
+                    // Always show global rank (position in the unfiltered display list)
+                    const globalRank = displayLb.indexOf(row) + 1;
                     const isMe=row.user_id===user?.id;
                     const isRival=!isMe&&myRivals.includes(row.user_id);
                     const isSim=simMode&&!!row._simExtra;
+                    const i = globalRank - 1;
                     const rowBg=i===0?"rgba(163,230,53,0.12)":i===1?"rgba(163,230,53,0.07)":i===2?"rgba(163,230,53,0.03)":isRival?"rgba(163,230,53,0.05)":"transparent";
                     let winnerCell;
                     if(winnerKnown)winnerCell=row.winner_pick?<>{withFlag(row.winner_pick)}{row.winner_bonus>0&&<span style={{color:C.green}}> +10</span>}</>:"—";
@@ -2243,7 +2301,7 @@ export default function App() {
                         background:isSim?"rgba(99,102,241,0.06)":rowBg,
                         borderLeft: isMe ? `3px solid ${C.accent}` : isRival ? `3px solid ${C.accent}` : "3px solid transparent",
                       }}>
-                        <td style={td}><b>{i+1}</b></td>
+                        <td style={td}><b>{globalRank}</b></td>
                         <td style={td}>{row.name}
                           {isMe&&<span style={{background:C.indigo,color:"white",fontSize:10,padding:"1px 5px",borderRadius:4,marginLeft:6}}>YOU</span>}
                           {isRival&&!isMe&&<span style={{background:"transparent",border:`1px solid ${C.accent}`,color:C.accent,fontSize:10,padding:"1px 5px",borderRadius:4,marginLeft:6}}>★ RIVAL</span>}
@@ -2260,6 +2318,8 @@ export default function App() {
                 </tbody>
               </table>
             </div>
+            )}
+            </>
           )}
       </div>
     );
