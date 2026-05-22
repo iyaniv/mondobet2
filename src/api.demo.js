@@ -296,7 +296,7 @@ function buildInitialState() {
 }
 
 // ── Persistence ──────────────────────────────────────────────────────────────
-const STORAGE_KEY = "mb_demo_v4";
+const STORAGE_KEY = "mb_demo_v5";
 function loadState() {
   try { const s=localStorage.getItem(STORAGE_KEY); if(s) return JSON.parse(s); } catch{}
   return buildInitialState();
@@ -308,7 +308,7 @@ function save(s) {
 let S = loadState();
 
 window._resetDemo = () => {
-  ["mb_demo_v1","mb_demo_v2","mb_demo_v3","mb_demo_v4","wc2026_token"].forEach(k=>localStorage.removeItem(k));
+  ["mb_demo_v1","mb_demo_v2","mb_demo_v3","mb_demo_v4","mb_demo_v5","wc2026_token"].forEach(k=>localStorage.removeItem(k));
   location.reload();
 };
 
