@@ -2134,9 +2134,8 @@ export default function App() {
                 );
               })}
 
-              {/* Add form button — available while the round is open and the
-                  current (first open) stage still has unplayed matches. */}
-              {editable&&matches.filter(m=>matchStageObj(m.n).n===openStage&&!results[m.n]&&!liveMatches[m.n]).length>0&&(
+              {/* Add form button — available whenever the round is open. */}
+              {editable&&(
                 <div style={{position:"relative",display:"flex",alignItems:"stretch"}}>
                   <button onClick={()=>setShowNewMenu(v=>!v)} title="Add form" style={{
                     padding:"10px 16px",borderRadius:6,cursor:"pointer",
