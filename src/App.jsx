@@ -2024,8 +2024,17 @@ export default function App() {
     const activeEntry=entries.find(e=>e.id===activeEntryId)||entries[0]||null;
     const openStage = config.current_stage || 1;
     const openMatches = matches.filter(m => matchStageObj(m.n).n <= openStage);
-    const filledCount = openMatches.filter(m => myPreds[m.n]?.[0] != null && myPreds[m.n]?.[1] != null).length;
-    const canSubmit = filledCount === openMatches.length && (myWinner||lockedWinner) != null && !activeEntry?.submitted_at;
+    // Submit only requires the matches the user CAN actually predict — the
+    // current stage's matches that don't yet have a result. Past stages and
+    // matches the admin already scored are read-only, so they shouldn't gate
+    // submission for a freshly-created form.
+    const submittableMatches = matches.filter(m =>
+      matchStageObj(m.n).n === openStage
+      && !results[m.n]
+      && !liveMatches[m.n]
+    );
+    const filledCount = submittableMatches.filter(m => myPreds[m.n]?.[0] != null && myPreds[m.n]?.[1] != null).length;
+    const canSubmit = filledCount === submittableMatches.length && submittableMatches.length > 0 && (myWinner||lockedWinner) != null && !activeEntry?.submitted_at;
     const [submitting,setSubmitting]=useState(false);
     const [renamingEntryId,setRenamingEntryId]=useState(null);
     const [renameVal,setRenameVal]=useState("");
@@ -2183,7 +2192,13 @@ export default function App() {
               {entries.map(e=>{
                 const isActive=e.id===activeEntryId;
                 const submitted=!!e.submitted_at;
-                const filled=(e.predictions||[]).filter(p=>matchStageObj(p.match_n).n<=openStage&&p.score_a!=null&&p.score_b!=null).length;
+                // Count predictions for matches in the current stage that are
+                // still editable (no result, not live) — same scope as Submit.
+                const filled=(e.predictions||[]).filter(p=>
+                  matchStageObj(p.match_n).n===openStage
+                  && !results[p.match_n] && !liveMatches[p.match_n]
+                  && p.score_a!=null && p.score_b!=null
+                ).length;
                 const lbE = lbByEntry[e.id];
                 const rank = lbE ? leaderboard.indexOf(lbE) + 1 : null;
                 const rankBadge = rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":rank?`#${rank}`:null;
@@ -2243,7 +2258,7 @@ export default function App() {
                     ) : (
                       <div style={{fontSize:12,fontFamily:"monospace",
                         color:isActive?C.muted:"rgba(107,122,153,0.85)"}}>
-                        {submitted?"waiting for results":`${filled}/${openMatches.length} filled`}
+                        {submitted?"waiting for results":`${filled}/${submittableMatches.length} filled`}
                       </div>
                     )}
                   </div>
@@ -2301,7 +2316,7 @@ export default function App() {
                 </Btn>
                 {!canSubmit&&(
                   <span style={{fontSize:11,color:C.muted}}>
-                    {filledCount<openMatches.length?`${filledCount}/${openMatches.length} filled`:"Winner pick needed"}
+                    {filledCount<submittableMatches.length?`${filledCount}/${submittableMatches.length} filled`:"Winner pick needed"}
                   </span>
                 )}
               </>
