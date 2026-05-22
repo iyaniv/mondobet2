@@ -836,10 +836,7 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
                             </td>
                             <td style={{...td,textAlign:"right",fontFamily:"monospace",fontWeight:700}}>
                               {entry.points!=null
-                                ?<span style={{display:"inline-flex",alignItems:"center",gap:4,color:C.accent}}>
-                                  {entry.points}
-                                  {entry.live_points>0&&<span style={{background:"rgba(239,68,68,0.12)",color:C.red,border:"1px solid rgba(239,68,68,0.3)",padding:"1px 5px",borderRadius:4,fontSize:10,fontWeight:700}}>{entry.live_points} LIVE</span>}
-                                </span>
+                                ?<span style={{color:C.accent}}>{entry.points}</span>
                                 :<span style={{color:C.muted}}>—</span>}
                             </td>
                             <td style={{...td,textAlign:"center"}}>
@@ -1440,46 +1437,70 @@ function AdminResults({ config, matches, results, liveMatches, setResults, refre
 
 // LiveNowSection — shown at the top of the Leaderboard when matches are in play
 function LiveNowSection({ liveMatches, matches }) {
-  // Only show matches the admin explicitly marked LIVE (is_live === true).
-  // "Saved but not yet LIVE" scores affect ranking but do not appear here.
-  const live = Object.entries(liveMatches).filter(([,ld]) => ld?.is_live);
-  if (live.length === 0) return null;
+  // Show every match that has an in-motion score: admin-marked-LIVE first
+  // (red, with the minute and the pulsing dot), then "saved" scores the
+  // admin has entered without flipping the LIVE switch yet (lime border).
+  const entries = Object.entries(liveMatches);
+  if (entries.length === 0) return null;
+  const liveNow = entries.filter(([,ld]) => ld?.is_live);
+  const inMotion = entries.filter(([,ld]) => !ld?.is_live);
+  const Card = ({mn, ld, shownLive}) => {
+    const m = matches.find(x=>x.n===Number(mn));
+    if(!m) return null;
+    const winA=ld.score_a>ld.score_b?true:ld.score_b>ld.score_a?false:null;
+    const accent = shownLive ? C.red : C.accent;
+    return (
+      <div key={mn} style={{background:C.panel,border:`1px solid ${accent}`,borderRadius:8,padding:"10px 14px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",marginBottom:6,fontSize:10}}>
+          <span style={{color:accent,fontWeight:700,display:"flex",alignItems:"center",gap:4}}>
+            {shownLive
+              ? <><span className="live-dot"/> LIVE {ld.minute}'</>
+              : <>● IN PROGRESS</>}
+          </span>
+          <span style={{color:C.muted}}>#{m.n}{m.g?` · ${m.g}`:""}</span>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",alignItems:"center",gap:6}}>
+          <span style={{fontSize:12,textAlign:"right",
+            color:winA===true?C.accent:winA===false?C.muted:C.text,fontWeight:winA===true?700:400}}>
+            {flag(m.a)} {m.a}
+          </span>
+          <span style={{fontSize:20,fontFamily:"monospace",fontWeight:700,color:C.text,padding:"0 6px"}}>
+            {ld.score_a}:{ld.score_b}
+          </span>
+          <span style={{fontSize:12,textAlign:"left",
+            color:winA===false?C.accent:winA===true?C.muted:C.text,fontWeight:winA===false?700:400}}>
+            {flag(m.b)} {m.b}
+          </span>
+        </div>
+      </div>
+    );
+  };
   return (
     <div style={{marginBottom:20}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-        <span className="live-dot"/>
-        <span style={{fontFamily:"var(--c-font-display)",fontSize:18,color:C.red,letterSpacing:1}}>LIVE NOW</span>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:10}}>
-        {live.map(([mn,ld])=>{
-          const m=matches.find(x=>x.n===Number(mn));
-          if(!m) return null;
-          const winA=ld.score_a>ld.score_b?true:ld.score_b>ld.score_a?false:null;
-          return (
-            <div key={mn} style={{background:C.panel,border:`1px solid ${C.red}`,borderRadius:8,padding:"10px 14px"}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:6,fontSize:10}}>
-                <span style={{color:C.red,fontWeight:700,display:"flex",alignItems:"center",gap:4}}>
-                  <span className="live-dot"/> LIVE {ld.minute}'
-                </span>
-                <span style={{color:C.muted}}>Group {m.g}</span>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",alignItems:"center",gap:6}}>
-                <span style={{fontSize:12,textAlign:"right",
-                  color:winA===true?C.accent:winA===false?C.muted:C.text,fontWeight:winA===true?700:400}}>
-                  {flag(m.a)} {m.a}
-                </span>
-                <span style={{fontSize:20,fontFamily:"monospace",fontWeight:700,color:C.text,padding:"0 6px"}}>
-                  {ld.score_a}:{ld.score_b}
-                </span>
-                <span style={{fontSize:12,textAlign:"left",
-                  color:winA===false?C.accent:winA===true?C.muted:C.text,fontWeight:winA===false?700:400}}>
-                  {flag(m.b)} {m.b}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {liveNow.length > 0 && (
+        <>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+            <span className="live-dot"/>
+            <span style={{fontFamily:"var(--c-font-display)",fontSize:18,color:C.red,letterSpacing:1}}>LIVE NOW</span>
+            <span style={{fontSize:11,color:C.muted}}>({liveNow.length})</span>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:10,marginBottom:14}}>
+            {liveNow.map(([mn,ld]) => <Card key={mn} mn={mn} ld={ld} shownLive/>)}
+          </div>
+        </>
+      )}
+      {inMotion.length > 0 && (
+        <>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+            <span style={{width:8,height:8,borderRadius:"50%",background:C.accent,display:"inline-block"}}/>
+            <span style={{fontFamily:"var(--c-font-display)",fontSize:18,color:C.accent,letterSpacing:1}}>IN PROGRESS</span>
+            <span style={{fontSize:11,color:C.muted}}>({inMotion.length})</span>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:10}}>
+            {inMotion.map(([mn,ld]) => <Card key={mn} mn={mn} ld={ld} shownLive={false}/>)}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -2195,13 +2216,6 @@ export default function App() {
               <b style={{color:C.accent,fontSize:20,fontFamily:"monospace",fontWeight:700,lineHeight:1}}>{myLbEntry.total}</b>
               <span>pts · {myLbEntry.scored_matches}/{matches.length} scored</span>
               {myLbEntry.winner_bonus>0&&<span style={{color:C.green,fontWeight:600}}>· 🏆 +10</span>}
-              {myLbEntry.live_matches_count>0&&(
-                <span style={{
-                  display:"inline-flex",alignItems:"center",gap:3,marginLeft:4,
-                  background:"rgba(239,68,68,0.12)",color:C.red,
-                  border:"1px solid rgba(239,68,68,0.3)",padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,
-                }}><span className="live-dot"/>{myLbEntry.live_points} LIVE</span>
-              )}
             </div>
           )}
         </div>
@@ -2473,7 +2487,6 @@ export default function App() {
                         <td style={{...td,textAlign:"center",color:isSim?C.indigo:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:17}}>
                           {row.total}
                           {isSim&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}>{simDiff>0?"+":""}{simDiff} sim</span>}
-                          {!isSim&&row.live_matches_count>0&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(239,68,68,0.12)",color:C.red,border:"1px solid rgba(239,68,68,0.3)",padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}><span className="live-dot"/>{row.live_points} LIVE</span>}
                         </td>
                         <td style={td}>{winnerCell}</td>
                         {canJumpToParticipant&&(
