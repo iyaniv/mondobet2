@@ -1,8 +1,12 @@
 -- =============================================================================
--- WC2026 Predictions — Initial Schema (v8)
+-- WC2026 Predictions — Initial Schema (consolidated, current)
 -- Run this on a fresh Neon / PostgreSQL database.
 -- The FastAPI app also auto-creates these via SQLAlchemy create_all on startup,
 -- so this script is the authoritative reference and a manual-setup alternative.
+--
+-- Includes all columns added by later migrations (03_add_data_source,
+-- 04_add_phone, 05_add_current_stage). The numbered migration files
+-- remain in this folder for existing databases to upgrade incrementally.
 -- =============================================================================
 
 -- ── Enum type ─────────────────────────────────────────────────────────────────
@@ -14,6 +18,7 @@ CREATE TABLE users (
     name          VARCHAR(100)  NOT NULL,
     email         VARCHAR(200)  NOT NULL,
     password_hash VARCHAR(200)  NOT NULL,
+    phone         VARCHAR(50)   NOT NULL DEFAULT '',
     is_admin      BOOLEAN       NOT NULL DEFAULT FALSE,
     has_paid      BOOLEAN       NOT NULL DEFAULT FALSE,
     created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
@@ -50,9 +55,11 @@ CREATE TABLE winner_picks (
 
 -- ── Game config (singleton, id = 1) ──────────────────────────────────────────
 CREATE TABLE game_config (
-    id               INT              PRIMARY KEY DEFAULT 1,
-    round_state      round_state_enum NOT NULL    DEFAULT 'idle',
-    tournament_winner VARCHAR(100)
+    id                INT              PRIMARY KEY DEFAULT 1,
+    round_state       round_state_enum NOT NULL    DEFAULT 'idle',
+    tournament_winner VARCHAR(100),
+    data_source       VARCHAR(20)      NOT NULL    DEFAULT 'manual',
+    current_stage     INTEGER          NOT NULL    DEFAULT 1
 );
 -- Bootstrap the singleton so the app never has to INSERT manually.
 INSERT INTO game_config (id, round_state) VALUES (1, 'idle');
