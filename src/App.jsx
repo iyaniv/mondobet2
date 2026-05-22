@@ -943,10 +943,6 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
   const openStage = config.current_stage || 1;
   const visibleStages = user?.is_admin ? STAGES : STAGES.filter(s => s.n <= openStage);
   const [activeStage, setActiveStage] = useState(openStage);
-  const hasPreds = Object.keys(myPreds||{}).some(n=>myPreds[n]?.[0]!=null);
-  const canSim = !user?.is_admin && hasPreds;
-  const [simMode, setSimMode] = useState(false);
-
   // Clamp active stage to visible list
   const effectiveStage = visibleStages.find(s => s.n === activeStage)
     ? activeStage
@@ -955,36 +951,9 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
   const stageObj = STAGES.find(s => s.n === effectiveStage) || STAGES[0];
   const stageMatchList = matches.filter(m => m.n >= stageObj.first && m.n <= stageObj.last);
 
-  // For simulate: actual results + user preds for unplayed
-  const simScores = simMode
-    ? {
-        ...results,
-        ...Object.fromEntries(
-          Object.entries(myPreds || {})
-            .filter(([n, v]) => !results[Number(n)] && v?.[0] != null)
-        ),
-      }
-    : results;
-
   const groupMatches = matches.filter(m => m.s === 1);
   const groupPlayed  = groupMatches.filter(m => results[m.n]).length;
-  const simFilled    = simMode
-    ? groupMatches.filter(m => !results[m.n] && myPreds?.[m.n]?.[0] != null).length
-    : 0;
   const knockoutDone = stageMatchList.filter(m => results[m.n]).length;
-
-  const SimToggle = () => !canSim ? null : (
-    <div style={{display:"flex",background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,overflow:"hidden",fontSize:12}}>
-      <button onClick={()=>setSimMode(false)} style={{
-        padding:"4px 12px",border:"none",cursor:"pointer",fontWeight:!simMode?700:400,
-        background:!simMode?C.accent:"transparent",color:!simMode?"#1a1a1a":C.muted,transition:"all .15s",
-      }}>Real results</button>
-      <button onClick={()=>setSimMode(true)} style={{
-        padding:"4px 12px",border:"none",cursor:"pointer",fontWeight:simMode?700:400,
-        background:simMode?C.accent:"transparent",color:simMode?"#1a1a1a":C.muted,transition:"all .15s",
-      }}>Simulate</button>
-    </div>
-  );
 
   return (
     <div>
@@ -1030,24 +999,14 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
                 updates with every result
               </span>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-              <SimToggle/>
-              <div style={{fontSize:13,color:C.muted}}>
-                <b style={{color:C.text}}>{groupPlayed}</b> / {groupMatches.length} played
-                {simFilled>0&&<> · <b style={{color:C.accent}}>{simFilled}</b> simulated</>}
-              </div>
+            <div style={{fontSize:13,color:C.muted}}>
+              <b style={{color:C.text}}>{groupPlayed}</b> / {groupMatches.length} played
             </div>
           </div>
-          {simMode&&simFilled>0&&(
-            <div style={{background:"var(--c-accent-soft)",border:`1px solid ${C.accent}`,
-              borderRadius:6,padding:"7px 14px",marginBottom:14,fontSize:13,color:C.accent}}>
-              ✨ Standings include your predictions for unplayed matches
-            </div>
-          )}
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14}}>
             {GROUPS.map(g=>(
               <GroupCard key={g} group={g} allMatches={matches} results={results}
-                simPreds={simMode?(myPreds||{}):{}} liveMatches={liveMatches}/>
+                simPreds={{}} liveMatches={liveMatches}/>
             ))}
           </div>
         </div>
@@ -1067,30 +1026,23 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
                 <b style={{color:C.text}}>{knockoutDone}</b> / {stageMatchList.length} played
               </span>
             </div>
-            <SimToggle/>
           </div>
 
           <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10}}>
             {stageMatchList.map(m => {
-              const resolvedA = resolveTeamDeep(m.a, simScores, matches);
-              const resolvedB = resolveTeamDeep(m.b, simScores, matches);
+              const resolvedA = resolveTeamDeep(m.a, results, matches);
+              const resolvedB = resolveTeamDeep(m.b, results, matches);
               const res       = results[m.n];
               const live      = liveMatches[m.n];
-              const simPred   = simMode && !res ? myPreds?.[m.n] : null;
-              const dispScore = live ? [live.score_a, live.score_b]
-                              : res  ? res
-                              : simPred ?? null;
-              const isSim     = simMode && !res && !!simPred;
+              const dispScore = live ? [live.score_a, live.score_b] : res ?? null;
               const winA      = dispScore
                 ? (dispScore[0] > dispScore[1] ? true : dispScore[0] < dispScore[1] ? false : null)
                 : null;
               const rowBg     = live ? "rgba(239,68,68,0.06)"
                               : res  ? "rgba(16,185,129,0.04)"
-                              : isSim ? "rgba(99,102,241,0.04)"
                               : C.panel2;
               const rowBd     = `1px solid ${live ? "rgba(239,68,68,0.35)"
                               : res  ? "rgba(16,185,129,0.2)"
-                              : isSim ? "rgba(99,102,241,0.25)"
                               : C.border}`;
               return (
                 <div key={m.n} style={{
@@ -1114,13 +1066,9 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
                         </div>
                       </>
                     ) : dispScore ? (
-                      <>
-                        <div style={{fontFamily:"monospace",fontWeight:700,
-                          color:isSim?C.indigo:C.green,fontSize:15}}>
-                          {dispScore[0]}:{dispScore[1]}
-                        </div>
-                        {isSim&&<div style={{fontSize:10,color:C.indigo}}>sim</div>}
-                      </>
+                      <div style={{fontFamily:"monospace",fontWeight:700,color:C.green,fontSize:15}}>
+                        {dispScore[0]}:{dispScore[1]}
+                      </div>
                     ) : (
                       <span style={{color:C.muted,fontSize:12}}>vs</span>
                     )}
