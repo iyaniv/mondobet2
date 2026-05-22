@@ -203,6 +203,7 @@ function ParticipantItem({ entry, rank, selected, onClick }) {
 
   return (
     <div onClick={onClick}
+      data-entry-id={entry.entry_id || entry.user_id}
       onMouseEnter={()=>setHov(true)}
       onMouseLeave={()=>setHov(false)}
       style={{
@@ -237,6 +238,21 @@ function ParticipantItem({ entry, rank, selected, onClick }) {
 function ParticipantPicker({ entries, value, onChange }) {
   const [search, setSearch] = useState("");
   const filtered = entries.filter(e => e.name.toLowerCase().includes(search.toLowerCase()));
+  const listRef = useRef(null);
+
+  // Scroll the selected row into view whenever `value` changes (e.g. after
+  // jumping in from the leaderboard). If the row is filtered out by search,
+  // clear the search so it becomes visible.
+  useEffect(() => {
+    if (!value || !listRef.current) return;
+    const isVisible = filtered.some(e => (e.entry_id || e.user_id) === value);
+    if (!isVisible && search) {
+      setSearch("");
+      return; // next effect run (after filter recomputes) will scroll
+    }
+    const el = listRef.current.querySelector(`[data-entry-id="${value}"]`);
+    if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [value, search]);
 
   return (
     <div style={{ border:`1px solid ${C.border}`, borderRadius:10, overflow:"hidden", background:C.panel }}>
@@ -249,7 +265,7 @@ function ParticipantPicker({ entries, value, onChange }) {
           <button onClick={()=>setSearch("")} style={{ background:"none", border:0, color:C.muted, cursor:"pointer", fontSize:13, padding:0 }}>✕</button>
         )}
       </div>
-      <div style={{ maxHeight:280, overflowY:"auto" }}>
+      <div ref={listRef} style={{ maxHeight:280, overflowY:"auto" }}>
         {filtered.length === 0
           ? <div style={{ padding:16, textAlign:"center", color:C.muted, fontSize:13 }}>No participants found</div>
           : filtered.map((e) => (
