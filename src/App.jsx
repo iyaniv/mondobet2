@@ -2024,17 +2024,26 @@ export default function App() {
     const activeEntry=entries.find(e=>e.id===activeEntryId)||entries[0]||null;
     const openStage = config.current_stage || 1;
     const openMatches = matches.filter(m => matchStageObj(m.n).n <= openStage);
+    // Each entry now tracks per-stage submission. The "submitted_at" legacy
+    // field is just the earliest stage submission; the source of truth is
+    // activeEntry.stages_submitted[stage].
+    const stagesSubmitted = activeEntry?.stages_submitted || {};
+    const currentStageSubmitted = !!stagesSubmitted[openStage];
     // Submit only requires the matches the user CAN actually predict — the
-    // current stage's matches that don't yet have a result. Past stages and
-    // matches the admin already scored are read-only, so they shouldn't gate
-    // submission for a freshly-created form.
+    // current stage's matches that don't yet have a result.
     const submittableMatches = matches.filter(m =>
       matchStageObj(m.n).n === openStage
       && !results[m.n]
       && !liveMatches[m.n]
     );
     const filledCount = submittableMatches.filter(m => myPreds[m.n]?.[0] != null && myPreds[m.n]?.[1] != null).length;
-    const canSubmit = filledCount === submittableMatches.length && submittableMatches.length > 0 && (myWinner||lockedWinner) != null && !activeEntry?.submitted_at;
+    // Winner pick is required only on stage 1 submission.
+    const winnerNeededForSubmit = openStage === 1 && !(myWinner || lockedWinner);
+    const canSubmit = filledCount === submittableMatches.length
+                   && submittableMatches.length > 0
+                   && !winnerNeededForSubmit
+                   && !currentStageSubmitted
+                   && editable;
     const [submitting,setSubmitting]=useState(false);
     const [renamingEntryId,setRenamingEntryId]=useState(null);
     const [renameVal,setRenameVal]=useState("");
@@ -2145,9 +2154,13 @@ export default function App() {
       try{
         await api.submitEntry(activeEntryId);
         const now=new Date().toISOString();
-        setEntries(es=>es.map(e=>e.id===activeEntryId?{...e,submitted_at:now}:e));
-        if(!lockedWinner)setLockedWinner(myWinner);
-        showToast("Form submitted! 🎉");
+        setEntries(es=>es.map(e=>e.id!==activeEntryId?e:{
+          ...e,
+          submitted_at: e.submitted_at || now,
+          stages_submitted: {...(e.stages_submitted||{}), [openStage]: now},
+        }));
+        if(openStage===1 && !lockedWinner) setLockedWinner(myWinner);
+        showToast(`Stage ${openStage} submitted! 🎉`);
         refreshLb();
       }catch(e){showToast(e.message,"err");}
       finally{setSubmitting(false);}
@@ -2191,7 +2204,8 @@ export default function App() {
             <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"stretch"}}>
               {entries.map(e=>{
                 const isActive=e.id===activeEntryId;
-                const submitted=!!e.submitted_at;
+                const stageSub = !!(e.stages_submitted||{})[openStage];
+                const submitted=stageSub; // visual "✓" follows the current stage
                 // Count predictions for matches in the current stage that are
                 // still editable (no result, not live) — same scope as Submit.
                 const filled=(e.predictions||[]).filter(p=>
@@ -2258,15 +2272,20 @@ export default function App() {
                     ) : (
                       <div style={{fontSize:12,fontFamily:"monospace",
                         color:isActive?C.muted:"rgba(107,122,153,0.85)"}}>
-                        {submitted?"waiting for results":`${filled}/${submittableMatches.length} filled`}
+                        {stageSub
+                          ? `stage ${openStage} submitted`
+                          : `${filled}/${submittableMatches.length} filled · stage ${openStage}`}
                       </div>
                     )}
                   </div>
                 );
               })}
 
-              {/* Add form button — available whenever the round is open. */}
-              {editable&&(
+              {/* Add form button — only available BEFORE the first stage
+                  starts: round open + current_stage = 1 + no results yet
+                  + no live data yet. Once any match has been played, new
+                  forms would skip past stages, which is unfair. */}
+              {editable && openStage===1 && Object.keys(results).length===0 && Object.keys(liveMatches).length===0 && (
                 <div style={{position:"relative",display:"flex",alignItems:"stretch"}}>
                   <button onClick={()=>setShowNewMenu(v=>!v)} title="Add form" style={{
                     padding:"10px 16px",borderRadius:6,cursor:"pointer",
@@ -2309,19 +2328,30 @@ export default function App() {
         {/* Entry controls */}
         {activeEntry&&(
           <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-            {!activeEntry.submitted_at&&editable&&(
+            {editable&&!currentStageSubmitted&&(
               <>
                 <Btn green onClick={submitEntry} disabled={!canSubmit||submitting}>
-                  {submitting?"…":"Submit form"}
+                  {submitting?"…":`Submit stage ${openStage}`}
                 </Btn>
                 {!canSubmit&&(
                   <span style={{fontSize:11,color:C.muted}}>
-                    {filledCount<submittableMatches.length?`${filledCount}/${submittableMatches.length} filled`:"Winner pick needed"}
+                    {filledCount<submittableMatches.length
+                      ? `${filledCount}/${submittableMatches.length} filled`
+                      : winnerNeededForSubmit ? "Winner pick needed" : ""}
                   </span>
                 )}
               </>
             )}
-            {editable&&!activeEntry.submitted_at&&(
+            {editable&&currentStageSubmitted&&(
+              <span style={{
+                background:"rgba(16,185,129,0.10)",color:C.green,
+                border:"1px solid rgba(16,185,129,0.35)",
+                padding:"5px 12px",borderRadius:999,fontSize:12,fontWeight:600,
+              }}>
+                ✓ Stage {openStage} submitted
+              </span>
+            )}
+            {editable&&!currentStageSubmitted&&(
               <button onClick={randomFillCurrentStage}
                 title="Fill empty matches in the current stage with random scores"
                 style={{
@@ -2409,14 +2439,14 @@ export default function App() {
           const isCurrent = openStage === s.n;
           const isPast    = s.n < openStage;
           // A match is editable only when this is the CURRENT stage, the round
-          // is open, and the match has no result / isn't live. Past stages stay
-          // read-only even on submitted forms; newly-opened stages on a
-          // submitted form remain editable.
+          // is open, the match has no result / isn't live, AND this stage
+          // hasn't been submitted yet on the active form.
           const matchEditable = (m) =>
             isCurrent
             && editable
             && !results[m.n]
-            && !liveMatches[m.n];
+            && !liveMatches[m.n]
+            && !currentStageSubmitted;
 
           // Header colors / icon vary per stage state
           const headerColor = isPast ? C.muted : isCurrent ? C.indigo : C.muted;

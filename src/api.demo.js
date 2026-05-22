@@ -252,18 +252,21 @@ function buildInitialState() {
       9:{id:9,name:"Yaniv",  email:"yaniv@demo.com",   password:"yaniv",   phone:"+972-50-0002",  is_admin:false,has_paid:true, created_at:"2026-01-09T00:00:00Z",locked_winner:"France"},
     },
     entries:{
-      "ea1":{id:"ea1",user_id:2,name:"Alice — main",     created_at:"2026-05-01T10:00:00Z",submitted_at:"2026-05-01T10:30:00Z"},
-      "ea2":{id:"ea2",user_id:2,name:"Alice — backup",   created_at:"2026-05-01T10:15:00Z",submitted_at:"2026-05-01T10:45:00Z"},
-      "eb1":{id:"eb1",user_id:3,name:"Bob — strategy A", created_at:"2026-05-01T11:00:00Z",submitted_at:"2026-05-01T11:30:00Z"},
-      "eb2":{id:"eb2",user_id:3,name:"Bob — strategy B", created_at:"2026-05-01T11:20:00Z",submitted_at:"2026-05-01T11:50:00Z"},
-      "ec1":{id:"ec1",user_id:4,name:"Charlie",          created_at:"2026-05-01T12:00:00Z",submitted_at:"2026-05-01T12:30:00Z"},
-      "ed1":{id:"ed1",user_id:5,name:"Diana",            created_at:"2026-05-01T13:00:00Z",submitted_at:"2026-05-01T13:30:00Z"},
-      "ee1":{id:"ee1",user_id:6,name:"Eve",              created_at:"2026-05-01T14:00:00Z",submitted_at:"2026-05-01T14:30:00Z"},
-      "ef1":{id:"ef1",user_id:7,name:"Frank",            created_at:"2026-05-01T15:00:00Z",submitted_at:"2026-05-01T15:30:00Z"},
-      "ef2":{id:"ef2",user_id:7,name:"Frank — copy",     created_at:"2026-05-01T16:00:00Z",submitted_at:"2026-05-01T16:30:00Z"},
-      "eg1":{id:"eg1",user_id:8,name:"Grace",            created_at:"2026-05-01T17:00:00Z",submitted_at:"2026-05-01T17:30:00Z"},
-      "ey1":{id:"ey1",user_id:9,name:"Yaniv — A",        created_at:"2026-05-01T18:00:00Z",submitted_at:"2026-05-01T18:30:00Z"},
-      "ey2":{id:"ey2",user_id:9,name:"Yaniv — B",        created_at:"2026-05-01T19:00:00Z",submitted_at:"2026-05-01T19:30:00Z"},
+      // submitted_at = earliest stage submission (legacy fields kept for
+      // back-compat). stages_submitted is the source of truth — a map of
+      // stage_n -> iso date the user clicked Submit for THAT stage.
+      "ea1":{id:"ea1",user_id:2,name:"Alice — main",     created_at:"2026-05-01T10:00:00Z",submitted_at:"2026-05-01T10:30:00Z",stages_submitted:{1:"2026-05-01T10:30:00Z"}},
+      "ea2":{id:"ea2",user_id:2,name:"Alice — backup",   created_at:"2026-05-01T10:15:00Z",submitted_at:"2026-05-01T10:45:00Z",stages_submitted:{1:"2026-05-01T10:45:00Z"}},
+      "eb1":{id:"eb1",user_id:3,name:"Bob — strategy A", created_at:"2026-05-01T11:00:00Z",submitted_at:"2026-05-01T11:30:00Z",stages_submitted:{1:"2026-05-01T11:30:00Z"}},
+      "eb2":{id:"eb2",user_id:3,name:"Bob — strategy B", created_at:"2026-05-01T11:20:00Z",submitted_at:"2026-05-01T11:50:00Z",stages_submitted:{1:"2026-05-01T11:50:00Z"}},
+      "ec1":{id:"ec1",user_id:4,name:"Charlie",          created_at:"2026-05-01T12:00:00Z",submitted_at:"2026-05-01T12:30:00Z",stages_submitted:{1:"2026-05-01T12:30:00Z"}},
+      "ed1":{id:"ed1",user_id:5,name:"Diana",            created_at:"2026-05-01T13:00:00Z",submitted_at:"2026-05-01T13:30:00Z",stages_submitted:{1:"2026-05-01T13:30:00Z"}},
+      "ee1":{id:"ee1",user_id:6,name:"Eve",              created_at:"2026-05-01T14:00:00Z",submitted_at:"2026-05-01T14:30:00Z",stages_submitted:{1:"2026-05-01T14:30:00Z"}},
+      "ef1":{id:"ef1",user_id:7,name:"Frank",            created_at:"2026-05-01T15:00:00Z",submitted_at:"2026-05-01T15:30:00Z",stages_submitted:{1:"2026-05-01T15:30:00Z"}},
+      "ef2":{id:"ef2",user_id:7,name:"Frank — copy",     created_at:"2026-05-01T16:00:00Z",submitted_at:"2026-05-01T16:30:00Z",stages_submitted:{1:"2026-05-01T16:30:00Z"}},
+      "eg1":{id:"eg1",user_id:8,name:"Grace",            created_at:"2026-05-01T17:00:00Z",submitted_at:"2026-05-01T17:30:00Z",stages_submitted:{1:"2026-05-01T17:30:00Z"}},
+      "ey1":{id:"ey1",user_id:9,name:"Yaniv — A",        created_at:"2026-05-01T18:00:00Z",submitted_at:"2026-05-01T18:30:00Z",stages_submitted:{1:"2026-05-01T18:30:00Z"}},
+      "ey2":{id:"ey2",user_id:9,name:"Yaniv — B",        created_at:"2026-05-01T19:00:00Z",submitted_at:"2026-05-01T19:30:00Z",stages_submitted:{1:"2026-05-01T19:30:00Z"}},
     },
     predictions:{
       "ea1":genPreds(20001,1),
@@ -408,7 +411,7 @@ function userOut(u) {
   return {id:u.id,name:u.name,email:u.email,phone:u.phone||"",is_admin:u.is_admin,has_paid:u.has_paid,locked_winner:u.locked_winner||null};
 }
 function entryOut(e) {
-  return {id:e.id,name:e.name,created_at:e.created_at,submitted_at:e.submitted_at||null};
+  return {id:e.id,name:e.name,created_at:e.created_at,submitted_at:e.submitted_at||null,stages_submitted:e.stages_submitted||{}};
 }
 
 function resolveEntryId(user, entryId) {
@@ -581,17 +584,23 @@ export const api = {
     const user = requireUser();
     const entry = S.entries[id];
     if (!entry||entry.user_id!==user.id) throw new Error("Entry not found");
-    if (entry.submitted_at) return entryOut(entry);
+    const stage = S.config.current_stage || 1;
+    if (!entry.stages_submitted) entry.stages_submitted = {};
+    if (entry.stages_submitted[stage]) throw new Error(`Stage ${stage} already submitted on this form`);
+    // Verify all CURRENT-STAGE matches (without admin result/live) are filled
+    const stageMatches = MATCHES.filter(m => m.s === stage && !S.results[m.n] && !S.live[m.n]);
     const preds = S.predictions[id]||{};
-    const filled = Object.values(preds).filter(p=>p[0]!=null&&p[1]!=null).length;
-    if (filled < MATCHES.length) throw new Error(`Fill all ${MATCHES.length} predictions first (${filled} done)`);
-    if (!S.winner_picks[id]) throw new Error("Set a tournament winner pick first");
-    entry.submitted_at = new Date().toISOString();
-    // Winner lock on first submit
-    if (!user.locked_winner) {
-      user.locked_winner = S.winner_picks[id];
+    const missing = stageMatches.filter(m => preds[m.n]?.[0] == null || preds[m.n]?.[1] == null);
+    if (missing.length > 0) throw new Error(`Fill all ${stageMatches.length} stage ${stage} predictions first (${stageMatches.length-missing.length} done)`);
+    if (stage === 1 && !S.winner_picks[id]) throw new Error("Set a tournament winner pick first");
+    const now = new Date().toISOString();
+    entry.stages_submitted[stage] = now;
+    if (!entry.submitted_at) entry.submitted_at = now;
+    // Winner lock once stage 1 is submitted (winner picks are tied to stage 1)
+    if (stage === 1 && !user.locked_winner) {
+      user.locked_winner = S.winner_picks[id] || null;
       for (const e of Object.values(S.entries)) {
-        if (e.user_id===user.id && e.id!==id) S.winner_picks[e.id] = user.locked_winner;
+        if (e.user_id===user.id && e.id!==id && user.locked_winner) S.winner_picks[e.id] = user.locked_winner;
       }
     }
     save(S);
@@ -621,8 +630,6 @@ export const api = {
     if (S.config.round_state !== "open") throw new Error("Round is not open");
     const eid = resolveEntryId(user,entryId);
     if (!eid) throw new Error("No entry");
-    // Only the current stage is editable; past stages stay locked even on
-    // not-yet-submitted forms (defence-in-depth — UI already gates this).
     const match = MATCHES.find(m => m.n === Number(matchN));
     if (!match) throw new Error("Unknown match");
     if (match.s !== S.config.current_stage) {
@@ -630,6 +637,12 @@ export const api = {
     }
     if (S.results[matchN]) throw new Error("Match already has a result");
     if (S.live[matchN])    throw new Error("Match is live — cannot edit");
+    // Per-stage submission: once the user submits THIS stage on THIS form,
+    // the stage is locked for that form until a new stage opens.
+    const entry = S.entries[eid];
+    if (entry?.stages_submitted?.[match.s]) {
+      throw new Error("Stage " + match.s + " was already submitted on this form");
+    }
     if (!S.predictions[eid]) S.predictions[eid] = {};
     S.predictions[eid][matchN] = [d.score_a, d.score_b];
     save(S);
@@ -644,7 +657,8 @@ export const api = {
     const eid = resolveEntryId(user,entryId);
     if (!eid) throw new Error("No entry");
     const entry = S.entries[eid];
-    if (entry.submitted_at) throw new Error("Entry already submitted");
+    // Once stage 1 is submitted on any form, the winner pick is locked.
+    if (entry?.stages_submitted?.[1]) throw new Error("Winner pick locked once stage 1 is submitted");
     if (d.team) S.winner_picks[eid] = d.team;
     else delete S.winner_picks[eid];
     save(S);
@@ -801,6 +815,7 @@ export const initApi = {
         .sort((a,b)=>new Date(a.created_at)-new Date(b.created_at))
         .map(e=>({
           id:e.id, name:e.name, created_at:e.created_at, submitted_at:e.submitted_at||null,
+          stages_submitted: e.stages_submitted || {},
           predictions:Object.entries(S.predictions[e.id]||{}).map(([n,p])=>({match_n:Number(n),score_a:p[0],score_b:p[1]})),
           winner_pick:S.winner_picks[e.id]||null,
         }));
