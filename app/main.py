@@ -20,16 +20,12 @@ from app.routers import auth, config, entries, init, leaderboard, live, matches,
 async def _bootstrap():
     """Create tables + admin user + game config singleton on first run."""
     from app import crud
-    from app.models import GameConfig, RoundStateEnum
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
     async with AsyncSessionLocal() as db:
-        # Ensure config singleton exists
         await crud.get_config(db)
-
-        # Ensure admin user exists
         admin = await crud.get_user_by_email(db, settings.admin_email.lower())
         if not admin:
             await crud.create_user(
