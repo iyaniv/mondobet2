@@ -14,6 +14,7 @@ PostgreSQL schema for the WC2026 Predictions app. Designed for Neon but works on
 | **`04_add_phone.sql`** | Adds `users.phone`. |
 | **`05_add_current_stage.sql`** | Adds `game_config.current_stage`. |
 | **`06_add_per_stage_and_is_live.sql`** | Adds `entries.stages_submitted` (JSONB) + `live_matches.is_live` (BOOLEAN), and back-fills `stages_submitted` from `submitted_at`. |
+| **`07_update_admin_password.sql`** | Rotates the seeded admin password from `Admin` → `U2k2much!`. Idempotent. |
 
 ## Schema overview
 

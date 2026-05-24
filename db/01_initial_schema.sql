@@ -121,9 +121,9 @@ CREATE TABLE IF NOT EXISTS live_matches (
 );
 
 -- ── Seed: admin user ─────────────────────────────────────────────────────────
--- Default credentials: email = "admin", password = "Admin"
+-- Default credentials: email = "admin", password = "U2k2much!"
 -- Change the password via the API (or update the hash below) before running.
 -- Hash generated with bcrypt rounds=12.
 INSERT INTO users (name, email, password_hash, is_admin, has_paid)
-VALUES ('Admin', 'admin', '$2b$12$nFtMypk9K0Yj/S0fhYoa7OLggWbnoYvKg1QYK/QgzdzEwvuimSRtW', TRUE, FALSE)
+VALUES ('Admin', 'admin', '$2b$12$5nHOP8I/asFJZ1od8W7HHe/hV4.qfRMmNelKmwtiegToNi/tL5cVG', TRUE, FALSE)
 ON CONFLICT (email) DO NOTHING;
