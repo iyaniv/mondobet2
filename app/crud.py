@@ -394,16 +394,39 @@ async def get_participants_with_entries(db: AsyncSession) -> list[dict]:
 
 async def get_live_matches(db: AsyncSession) -> dict:
     r = await db.execute(select(LiveMatch))
-    return {m.match_n: {"score_a": m.score_a, "score_b": m.score_b, "minute": m.minute}
+    return {m.match_n: {"score_a": m.score_a, "score_b": m.score_b, "minute": m.minute,
+                        "is_live": bool(m.is_live)}
             for m in r.scalars().all()}
 
 
-async def upsert_live_match(db: AsyncSession, match_n: int, score_a: int, score_b: int, minute: int) -> LiveMatch:
+async def upsert_live_match(
+    db: AsyncSession,
+    match_n: int,
+    score_a: Optional[int] = None,
+    score_b: Optional[int] = None,
+    minute: Optional[int] = None,
+    is_live: Optional[bool] = None,
+) -> LiveMatch:
+    """PATCH-style upsert — only the fields actually passed are written.
+
+    Critical: if the caller only wants to flip `is_live`, the score is NOT
+    reset to 0. That was the silent bug where clicking ▶ LIVE was sending
+    a body without scores and the backend wiped them.
+    """
     lm = await db.get(LiveMatch, match_n)
     if lm:
-        lm.score_a = score_a; lm.score_b = score_b; lm.minute = minute
+        if score_a is not None: lm.score_a = score_a
+        if score_b is not None: lm.score_b = score_b
+        if minute  is not None: lm.minute  = minute
+        if is_live is not None: lm.is_live = is_live
     else:
-        lm = LiveMatch(match_n=match_n, score_a=score_a, score_b=score_b, minute=minute)
+        lm = LiveMatch(
+            match_n=match_n,
+            score_a=score_a if score_a is not None else 0,
+            score_b=score_b if score_b is not None else 0,
+            minute=minute   if minute  is not None else 0,
+            is_live=is_live if is_live is not None else False,
+        )
         db.add(lm)
     await db.commit()
     await db.refresh(lm)

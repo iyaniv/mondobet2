@@ -130,9 +130,12 @@ class LeaderboardEntry(BaseModel):
 # ── Live matches ──────────────────────────────────────────────────────────────
 
 class LiveMatchIn(BaseModel):
-    score_a: int = Field(0, ge=0, le=99)
-    score_b: int = Field(0, ge=0, le=99)
-    minute: int = Field(0, ge=0, le=120)
+    # All fields optional so PATCH-style partial updates don't clobber scores
+    # when the client only wants to flip the is_live flag (or vice-versa).
+    score_a: Optional[int] = Field(None, ge=0, le=99)
+    score_b: Optional[int] = Field(None, ge=0, le=99)
+    minute: Optional[int] = Field(None, ge=0, le=120)
+    is_live: Optional[bool] = None
 
 
 class LiveMatchOut(BaseModel):
@@ -140,6 +143,7 @@ class LiveMatchOut(BaseModel):
     score_a: int
     score_b: int
     minute: int
+    is_live: bool = False
 
 
 # ── User profile update ───────────────────────────────────────────────────────
