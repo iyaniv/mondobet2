@@ -12,7 +12,7 @@ from app.schemas import EntryCreate, EntryOut, EntryRename, PredictionOut
 
 router = APIRouter(prefix="/entries", tags=["entries"])
 
-TOTAL_MATCHES = len(MATCHES)
+# (per-stage submission gates the submit endpoint — no full TOTAL_MATCHES check anymore)
 
 
 @router.get("/me", response_model=list[EntryOut])
@@ -82,21 +82,38 @@ async def submit_entry(
     cfg = await crud.get_config(db)
     if cfg.round_state != RoundStateEnum.open:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Betting round is not open.")
-    if entry.submitted_at is not None:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Entry already submitted.")
-    # Gate: all matches filled
-    preds = await crud.get_entry_predictions(db, entry_id)
-    filled = sum(1 for v in preds.values() if v[0] is not None and v[1] is not None)
-    if filled < TOTAL_MATCHES:
+    # Per-stage submission: gate only the matches the user CAN actually
+    # predict for the current open stage. Past stages stay locked.
+    stage = cfg.current_stage or 1
+    if (entry.stages_submitted or {}).get(str(stage)):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            f"Fill all {TOTAL_MATCHES} matches first ({filled}/{TOTAL_MATCHES} done)."
+            f"Stage {stage} already submitted on this form.",
         )
-    # Gate: winner pick required
-    wp = await db.get(WinnerPick, entry_id)
-    if not wp and not user.locked_winner:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Pick the World Cup winner first.")
-    return await crud.submit_entry(db, entry_id, user)
+    results_map = await crud.get_all_results(db)
+    live_map = await crud.get_live_matches(db)
+    stage_matches = [
+        m for m in MATCHES
+        if m.get("s") == stage
+        and m["n"] not in results_map
+        and m["n"] not in live_map
+    ]
+    preds = await crud.get_entry_predictions(db, entry_id)
+    filled = sum(
+        1 for m in stage_matches
+        if preds.get(m["n"]) and preds[m["n"]][0] is not None and preds[m["n"]][1] is not None
+    )
+    if filled < len(stage_matches):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Fill all {len(stage_matches)} stage {stage} predictions first ({filled}/{len(stage_matches)} done)."
+        )
+    # Winner pick required only on the FIRST stage submission.
+    if stage == 1:
+        wp = await db.get(WinnerPick, entry_id)
+        if not wp and not user.locked_winner:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Pick the World Cup winner first.")
+    return await crud.submit_entry(db, entry_id, user, stage=stage)
 
 
 @router.get("/{entry_id}/predictions", response_model=list[PredictionOut])

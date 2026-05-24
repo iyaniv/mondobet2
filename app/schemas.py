@@ -61,6 +61,7 @@ class EntryOut(BaseModel):
     name: str
     created_at: datetime
     submitted_at: Optional[datetime] = None
+    stages_submitted: dict = {}
 
 
 class EntryCreate(BaseModel):
