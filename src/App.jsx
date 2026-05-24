@@ -554,28 +554,41 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
     </span>
   );
 
-  // ── Mobile: two-line layout ────────────────────────────────────────────────
-  // When a result/live score exists, the middle cell of line 1 shows the
-  // big green "✓ N:M" pill (admin-style); the user's prediction then
-  // appears as a small muted chip in the right-aligned line 2.
-  const mobileMiddle = !editable && !adminResult && effectiveScore!=null ? (
+  // ── Result chip — shown on the right when a score exists ─────────────────
+  // green ✓ for final, lime for preliminary/live, red for in-play
+  const resultChip = effectiveScore!=null ? (
     <span style={{
-      fontFamily:"monospace",fontWeight:700,fontSize:13,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",
       background:isLiveBadge?"rgba(239,68,68,0.10)":isPreliminary?"rgba(163,230,53,0.10)":"rgba(48,209,88,0.14)",
       border:`1px solid ${isLiveBadge?"rgba(239,68,68,0.4)":isPreliminary?"rgba(163,230,53,0.35)":"rgba(48,209,88,0.4)"}`,
       color:isLiveBadge?C.red:isPreliminary?C.accent:C.green,
+      padding:"1px 7px",borderRadius:4,fontWeight:700,fontFamily:"monospace",
+      fontSize:11,whiteSpace:"nowrap",
     }}>
-      {isLiveBadge ? <span className="live-dot" style={{marginRight:4}}/>
-        : isPreliminary ? "" : "✓ "}
-      {renderResultDigits(effectiveScore)}
-      {isLiveBadge && <span style={{marginLeft:4,fontSize:10}}>{liveData.minute}′</span>}
+      {isLiveBadge&&<span className="live-dot" style={{marginRight:4}}/>}
+      {!isLiveBadge&&!isPreliminary&&"✓ "}
+      {effectiveScore[0]}:{effectiveScore[1]}
+      {isLiveBadge&&<span style={{marginLeft:4,fontSize:10}}>{liveData.minute}′</span>}
+    </span>
+  ) : null;
+
+  // ── Mobile: two-line layout ────────────────────────────────────────────────
+  // Line 1 middle: always shows the participant's prediction (coloured by accuracy).
+  // Line 2: actual result chip + points.
+  const predChipStyle = effectiveScore!=null
+    ? { background:resultChipPalette?.bg||C.panel, border:`1px solid ${resultChipPalette?.border||C.border}`, color:resultChipPalette?.fg||C.text }
+    : { background:C.bg, border:`1px solid ${C.border}`, color:pred?.[0]!=null?C.text:C.muted };
+  const mobileMiddle = !editable && !adminResult ? (
+    <span style={{fontFamily:"monospace",fontWeight:700,fontSize:13,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",...predChipStyle}}>
+      {pred?.[0]!=null
+        ? (effectiveScore!=null ? renderPredDigits(pred,effectiveScore) : `${pred[0]}:${pred[1]}`)
+        : "—"}
     </span>
   ) : scoreBlock;
   if (isMobile) {
     return (
       <div data-match-n={match.n} style={{background:rowBg,border:`1px solid ${rowBorderColor}`,borderRadius:6,
         padding:"6px 8px",marginBottom:3,fontSize:12,position:"relative"}}>
-        {/* Line 1: flag+name — score — name+flag */}
+        {/* Line 1: flag+name — user's prediction — name+flag */}
         <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",
           alignItems:"center",gap:6}}>
           <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
@@ -591,18 +604,11 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
             {match.b} {flag(match.b)}
           </span>
         </div>
-        {/* Line 2: user's prediction chip + pts (only when relevant) */}
-        {((effectiveScore!=null && pred?.[0]!=null) || ptsEl) && (
+        {/* Line 2: actual result chip + pts */}
+        {(effectiveScore!=null || ptsEl) && (
           <div style={{display:"flex",gap:5,justifyContent:"flex-end",
             alignItems:"center",marginTop:4}}>
-            {effectiveScore!=null && pred?.[0]!=null && (
-              <span style={{
-                ...resultChipBaseStyle,
-                padding:"1px 7px",borderRadius:4,fontWeight:600,fontFamily:"monospace",
-                fontSize:11,whiteSpace:"nowrap"}} title="your prediction (matching digits in green)">
-                bet {renderPredDigits(pred, effectiveScore)}
-              </span>
-            )}
+            {resultChip}
             {ptsEl}
           </div>
         )}
@@ -610,7 +616,9 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
     );
   }
 
-  // ── Desktop: original single-row grid layout ───────────────────────────────
+  // ── Desktop: single-row grid layout ───────────────────────────────────────
+  // Middle (spans 3 cols): user's prediction — coloured by accuracy when a result exists.
+  // Right panel: actual result chip + points.
   return (
     <div data-match-n={match.n} style={{display:"grid",gridTemplateColumns:"28px 1fr 44px 12px 44px 1fr auto",alignItems:"center",gap:5,padding:"5px 8px",borderRadius:6,background:rowBg,border:`1px solid ${rowBorderColor}`,marginBottom:3,fontSize:13,position:"relative"}}>
       <span style={{color:C.muted,fontSize:11}}>#{match.n}</span>
@@ -620,35 +628,31 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
       }}>{flag(match.a)} {match.a}</span>
       {editable?(
         <>
-          <input type="number" inputMode="numeric" min={0} max={20} value={localA} onChange={e=>setLocalA(e.target.value)} onBlur={e=>savePred(0,e.target.value)} style={numInput}/>
+          <input type="number" inputMode="numeric" min={0} max={20} value={localA} onFocus={handleFocus} onChange={e=>setLocalA(e.target.value)} onBlur={e=>savePred(0,e.target.value)} style={numInput}/>
           <span style={{textAlign:"center",color:C.muted}}>:</span>
-          <input type="number" inputMode="numeric" min={0} max={20} value={localB} onChange={e=>setLocalB(e.target.value)} onBlur={e=>savePred(1,e.target.value)} style={numInput}/>
+          <input type="number" inputMode="numeric" min={0} max={20} value={localB} onFocus={handleFocus} onChange={e=>setLocalB(e.target.value)} onBlur={e=>savePred(1,e.target.value)} style={numInput}/>
         </>
       ):adminResult?(
         <>
-          <input type="number" inputMode="numeric" min={0} max={20} value={resA} onChange={e=>setResA(e.target.value)} onBlur={e=>saveResult(0,e.target.value)} style={numInput}/>
+          <input type="number" inputMode="numeric" min={0} max={20} value={resA} onFocus={handleFocus} onChange={e=>setResA(e.target.value)} onBlur={e=>saveResult(0,e.target.value)} style={numInput}/>
           <span style={{textAlign:"center",color:C.muted}}>:</span>
-          <input type="number" inputMode="numeric" min={0} max={20} value={resB} onChange={e=>setResB(e.target.value)} onBlur={e=>saveResult(1,e.target.value)} style={numInput}/>
+          <input type="number" inputMode="numeric" min={0} max={20} value={resB} onFocus={handleFocus} onChange={e=>setResB(e.target.value)} onBlur={e=>saveResult(1,e.target.value)} style={numInput}/>
         </>
-      ):effectiveScore!=null?(
-        // When a result/live score exists, the centre cell becomes the same
-        // big green "✓ N:M" pill that admin sees in the Results tab. The
-        // user's own prediction shifts to a small chip on the right.
+      ):(
+        // Prediction always in the centre, coloured by accuracy when result known
         <span style={{
           gridColumn:"span 3",textAlign:"center",fontFamily:"monospace",
           fontWeight:700,fontSize:15,padding:"4px 0",borderRadius:4,
-          background:isLiveBadge?"rgba(239,68,68,0.10)":isPreliminary?"rgba(163,230,53,0.10)":"rgba(48,209,88,0.14)",
-          border:`1px solid ${isLiveBadge?"rgba(239,68,68,0.4)":isPreliminary?"rgba(163,230,53,0.35)":"rgba(48,209,88,0.4)"}`,
-          color:isLiveBadge?C.red:isPreliminary?C.accent:C.green,
+          ...(effectiveScore!=null
+            ? { background:resultChipPalette?.bg||C.panel,
+                border:`1px solid ${resultChipPalette?.border||C.border}`,
+                color:resultChipPalette?.fg||C.text }
+            : { background:C.bg, border:`1px solid ${C.border}`,
+                color:pred?.[0]!=null?C.text:C.muted }),
         }}>
-          {isLiveBadge ? <span className="live-dot" style={{marginRight:6}}/>
-            : isPreliminary ? "" : "✓ "}
-          {renderResultDigits(effectiveScore)}
-          {isLiveBadge && <span style={{marginLeft:6,fontSize:11,fontWeight:600}}>{liveData.minute}′</span>}
-        </span>
-      ):(
-        <span style={{gridColumn:"span 3",textAlign:"center",fontFamily:"monospace",fontWeight:700,fontSize:15,background:C.bg,border:`1px solid ${C.border}`,borderRadius:4,padding:"4px 0",color:pred?.[0]!=null?C.text:C.muted}}>
-          {pred?.[0]!=null?`${pred[0]} : ${pred[1]}`:"—"}
+          {pred?.[0]!=null
+            ? (effectiveScore!=null ? renderPredDigits(pred,effectiveScore) : `${pred[0]} : ${pred[1]}`)
+            : "—"}
         </span>
       )}
       <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:"right",fontSize:12,
@@ -656,15 +660,9 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
         fontWeight:winnerSide===1?700:400,transition:"color .2s",
       }}>{match.b} {flag(match.b)}</span>
       <div style={{display:"flex",gap:4,alignItems:"center",justifyContent:"flex-end",minWidth:96}}>
-        {effectiveScore!=null && pred?.[0]!=null
-          ? <span style={{
-              ...resultChipBaseStyle,
-              padding:"1px 7px",borderRadius:4,fontWeight:600,fontFamily:"monospace",
-              fontSize:11,whiteSpace:"nowrap",
-            }} title="your prediction (matching digits in green)">
-              {renderPredDigits(pred, effectiveScore)}
-            </span>
-          : (effectiveScore==null && !editable && !adminResult &&
+        {effectiveScore!=null
+          ? resultChip
+          : (!editable&&!adminResult&&
               <span style={{color:C.muted,fontSize:11,fontFamily:"monospace"}}>vs</span>)
         }
         {ptsEl}
@@ -2078,8 +2076,10 @@ function ByUser({ config, leaderboard, results, liveMatches, matches, user,
       </div>
       <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>Bets by participant</h1>
       <InfoBlock>
-        Showing <b>{displayMatches.length}</b> match{displayMatches.length===1?"":"es"} for this participant
-        — every match they predicted on, plus any with a result so far ({playedCount} played).
+        Only <b>submitted</b> forms are shown here.
+        {user?.is_admin
+          ? <> Showing <b>{displayMatches.length}</b> prediction{displayMatches.length!==1?"s":""} for this form ({playedCount} with a result so far).</>
+          : <> Predictions are revealed as matches are played — {playedCount} result{playedCount!==1?"s":""} in so far.</>}
       </InfoBlock>
       <div style={{marginBottom:16}}>
         <ParticipantPicker entries={leaderboard} value={viewUserId} onChange={setViewUserId}/>
@@ -2263,7 +2263,7 @@ export default function App() {
 
   const tabs=!user?[]:user.is_admin
     ?[{id:"results",label:"Results",admin:true},{id:"tournament",label:"🏟 Tournament"},{id:"leaderboard",label:"Leaderboard"},{id:"byuser",label:"By participant"},{id:"dashboard",label:"Dashboard",admin:true},{id:"settings",label:"⚙ Settings"}]
-    :[{id:"predictions",label:"My predictions"},{id:"leaderboard",label:"Leaderboard"},...(Object.keys(results).length>0?[{id:"byuser",label:"Bets by participant"}]:[]),{id:"tournament",label:"🏟 Tournament"},{id:"settings",label:"⚙ Settings"}];
+    :[{id:"predictions",label:"My predictions"},{id:"leaderboard",label:"Leaderboard"},...(leaderboard.length>0?[{id:"byuser",label:"Bets by participant"}]:[]),{id:"tournament",label:"🏟 Tournament"},{id:"settings",label:"⚙ Settings"}];
 
   function RoundPill(){
     const map={
