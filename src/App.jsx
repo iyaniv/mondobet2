@@ -2149,8 +2149,10 @@ export default function App() {
           {rs.text}
         </div>
 
-        {/* Forms list — horizontal cards above the table */}
-        {entries.length>0&&(
+        {/* Forms list — horizontal cards above the table. Always shown when
+            editing is allowed so a brand-new user with zero forms can still
+            click "+ Add form" to create their first one. */}
+        {(entries.length>0 || (editable && openStage===1)) && (
           <div style={{marginBottom:14}}>
             <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:".5px",
               padding:"0 0 6px",fontWeight:600}}>My forms ({entries.length})</div>

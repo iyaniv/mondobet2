@@ -32,6 +32,12 @@ async def create_user(db: AsyncSession, name: str, email: str, password: str, ph
     db.add(user)
     await db.commit()
     await db.refresh(user)
+    # Non-admins get a default first form on signup so they always have
+    # something to fill in (matches the demo behaviour). Admins don't bet.
+    if not is_admin:
+        first = Entry(id=str(uuid.uuid4()), user_id=user.id, name=name)
+        db.add(first)
+        await db.commit()
     return user
 
 
