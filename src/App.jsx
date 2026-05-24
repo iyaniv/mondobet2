@@ -1529,22 +1529,6 @@ function AdminResults({ config, matches, results, liveMatches, setResults, refre
     const next = new Set(prev); next.has(n) ? next.delete(n) : next.add(n); return next;
   });
 
-  // On mount: expand the stage containing the first live match, then scroll to it
-  useEffect(() => {
-    const liveNs = Object.keys(liveMatches).map(Number).sort((a,b)=>a-b);
-    if (liveNs.length === 0) return;
-    const firstN = liveNs[0];
-    const stageN = matchStageObj(firstN).n;
-    setCollapsedStages(prev => {
-      if (!prev.has(stageN)) return prev;
-      const next = new Set(prev); next.delete(stageN); return next;
-    });
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      document.querySelector(`[data-match-n="${firstN}"]`)
-        ?.scrollIntoView({ behavior:"smooth", block:"center" });
-    }));
-  }, []);
-
   async function saveResult(matchN, data) {
     await api.setResult(matchN, data);
     if (data.score_a != null && data.score_b != null)
@@ -2059,19 +2043,6 @@ function ByUser({ config, leaderboard, results, liveMatches, matches, user,
       .finally(() => setPredsLoading(false));
   }, [viewUserId]);
 
-  // On mount: scroll to first live match (flat list — no stage collapsing needed).
-  // Also re-scroll when the selected participant changes so the live row
-  // stays in view when jumping from the leaderboard.
-  useEffect(() => {
-    const liveNs = Object.keys(liveMatches).map(Number).sort((a,b)=>a-b);
-    if (liveNs.length === 0) return;
-    // Wait one frame so predictions have rendered
-    requestAnimationFrame(() => {
-      document.querySelector(`[data-match-n="${liveNs[0]}"]`)
-        ?.scrollIntoView({ behavior:"smooth", block:"center" });
-    });
-  }, [viewUserId]);
-
   const pillMap = {
     open:   {text:"🟢 Betting round is OPEN",  bg:"rgba(16,185,129,0.1)",  color:C.green, border:`1px solid ${C.green}`},
     closed: {text:"🔒 Betting round is CLOSED",bg:"rgba(239,68,68,0.1)",   color:C.red,   border:`1px solid ${C.red}`},
@@ -2099,7 +2070,7 @@ function ByUser({ config, leaderboard, results, liveMatches, matches, user,
         <span style={{display:"inline-block",padding:"4px 14px",borderRadius:999,fontSize:13,fontWeight:600,
           background:pill.bg,color:pill.color,border:pill.border}}>{pill.text}</span>
       </div>
-      <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>Bets by participant</h1>
+      <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>By participant</h1>
       <InfoBlock>
         Only <b>submitted</b> forms are shown here.
         {user?.is_admin
@@ -2288,7 +2259,7 @@ export default function App() {
 
   const tabs=!user?[]:user.is_admin
     ?[{id:"results",label:"Results",admin:true},{id:"tournament",label:"🏟 Tournament"},{id:"leaderboard",label:"Leaderboard"},{id:"byuser",label:"By participant"},{id:"dashboard",label:"Dashboard",admin:true},{id:"settings",label:"⚙ Settings"}]
-    :[{id:"predictions",label:"My predictions"},{id:"leaderboard",label:"Leaderboard"},...(leaderboard.length>0?[{id:"byuser",label:"Bets by participant"}]:[]),{id:"tournament",label:"🏟 Tournament"},{id:"settings",label:"⚙ Settings"}];
+    :[{id:"predictions",label:"My predictions"},{id:"leaderboard",label:"Leaderboard"},...(leaderboard.length>0?[{id:"byuser",label:"By participant"}]:[]),{id:"tournament",label:"🏟 Tournament"},{id:"settings",label:"⚙ Settings"}];
 
   function RoundPill(){
     const map={
@@ -2339,22 +2310,6 @@ export default function App() {
       if(next.has(n))next.delete(n);else next.add(n);
       return next;
     });
-
-    // On mount: expand the stage containing the first live match, then scroll to it
-    useEffect(()=>{
-      const liveNs=Object.keys(liveMatches).map(Number).sort((a,b)=>a-b);
-      if(liveNs.length===0) return;
-      const firstN=liveNs[0];
-      const stageN=matchStageObj(firstN).n;
-      setCollapsedStages(prev=>{
-        if(!prev.has(stageN)) return prev;
-        const next=new Set(prev); next.delete(stageN); return next;
-      });
-      requestAnimationFrame(()=>requestAnimationFrame(()=>{
-        document.querySelector(`[data-match-n="${firstN}"]`)
-          ?.scrollIntoView({behavior:"smooth",block:"center"});
-      }));
-    },[]);
 
     function switchEntry(entryId){
       setActiveEntryId(entryId);
