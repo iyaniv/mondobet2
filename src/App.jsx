@@ -465,29 +465,25 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
   const isLiveBadge   = !!(liveData && liveData.is_live);
 
   let ptsEl=null;
-  let resultChipPalette=null;   // for the ✓ result chip
-  let partialMatchSide=null;    // which digit (0/1) to highlight in green
+  let ptsPalette=null;          // drives both the +N chip and the prediction box colour
+  let partialMatchSide=null;    // which digit (0/1) to highlight green in renderPredDigits
   if(effectiveScore&&pred?.[0]!=null&&pred?.[1]!=null){
     const p1=pred[0],p2=pred[1],r1=effectiveScore[0],r2=effectiveScore[1];
     const sign=(x)=>x===0?0:x>0?1:-1;
     const dir=sign(p1-p2)===sign(r1-r2)?5:0;
-    const goalsMatched = (p1===r1?1:0) + (p2===r2?1:0);  // 0, 1, or 2
+    const goalsMatched = (p1===r1?1:0) + (p2===r2?1:0);
     const exact = goalsMatched===2 ? 3 : (goalsMatched===1 ? 1 : 0);
     const total=dir+exact;
-    // Points chip palette — driven by total points
-    const ptsPalette = total>=5 ? GREEN : total===1 ? ORANGE : RED;
-    // Result chip palette — driven by goals matched (independent of direction)
-    resultChipPalette =
-      goalsMatched===2 ? GREEN :
-      goalsMatched===1 ? ORANGE : RED;
+    // Prediction box + points chip share one palette based on TOTAL points:
+    //   ≥5 pts → green  (direction correct, with or without goal bonus)
+    //    1 pt  → orange (one goal matched, direction wrong)
+    //    0 pts → red    (complete miss)
+    ptsPalette = total>=5 ? GREEN : total===1 ? ORANGE : RED;
     if (goalsMatched===1) partialMatchSide = p1===r1 ? 0 : 1;
     ptsEl=<span style={{background:ptsPalette.bg,color:ptsPalette.fg,border:`1px solid ${ptsPalette.border}`,padding:"1px 6px",borderRadius:4,fontWeight:700,fontFamily:"monospace",fontSize:11}}>+{total}</span>;
   } else if(roundState==="closed"&&!effectiveScore){
     ptsEl=<span style={{color:C.muted,fontSize:11}}>awaiting</span>;
   }
-  const resultChipBaseStyle = resultChipPalette
-    ? {background:resultChipPalette.bg,color:resultChipPalette.fg,border:`1px solid ${resultChipPalette.border}`}
-    : MUTED;
   const renderResultDigits = (r) => {
     if (partialMatchSide===null) return `${r[0]}:${r[1]}`;
     return (
@@ -575,7 +571,7 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
   // Line 1 middle: always shows the participant's prediction (coloured by accuracy).
   // Line 2: actual result chip + points.
   const predChipStyle = effectiveScore!=null
-    ? { background:resultChipPalette?.bg||C.panel, border:`1px solid ${resultChipPalette?.border||C.border}`, color:resultChipPalette?.fg||C.text }
+    ? { background:ptsPalette?.bg||C.panel, border:`1px solid ${ptsPalette?.border||C.border}`, color:ptsPalette?.fg||C.text }
     : { background:C.bg, border:`1px solid ${C.border}`, color:pred?.[0]!=null?C.text:C.muted };
   const mobileMiddle = !editable && !adminResult ? (
     <span style={{fontFamily:"monospace",fontWeight:700,fontSize:13,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",...predChipStyle}}>
@@ -644,9 +640,9 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
           gridColumn:"span 3",textAlign:"center",fontFamily:"monospace",
           fontWeight:700,fontSize:15,padding:"4px 0",borderRadius:4,
           ...(effectiveScore!=null
-            ? { background:resultChipPalette?.bg||C.panel,
-                border:`1px solid ${resultChipPalette?.border||C.border}`,
-                color:resultChipPalette?.fg||C.text }
+            ? { background:ptsPalette?.bg||C.panel,
+                border:`1px solid ${ptsPalette?.border||C.border}`,
+                color:ptsPalette?.fg||C.text }
             : { background:C.bg, border:`1px solid ${C.border}`,
                 color:pred?.[0]!=null?C.text:C.muted }),
         }}>
