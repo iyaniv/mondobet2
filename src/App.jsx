@@ -494,18 +494,18 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
       </>
     );
   };
-  // Colour each digit of the user's PREDICTION green if it matched the
-  // corresponding digit of the actual result. Used in the small right-side
-  // chip so users can see WHY they got the points they got.
+  // Colour each digit of the prediction: green if it matched the result, red if not.
+  // This way the box background signals overall performance (green=dir correct,
+  // orange=partial, red=miss) while the digits themselves always tell the exact story.
   const renderPredDigits = (p, r) => {
     if (!r) return `${p[0]}:${p[1]}`;
     const aMatch = p[0]===r[0];
     const bMatch = p[1]===r[1];
     return (
       <>
-        <span style={{color:aMatch?C.green:"inherit"}}>{p[0]}</span>
+        <span style={{color:aMatch?C.green:C.red}}>{p[0]}</span>
         :
-        <span style={{color:bMatch?C.green:"inherit"}}>{p[1]}</span>
+        <span style={{color:bMatch?C.green:C.red}}>{p[1]}</span>
       </>
     );
   };
