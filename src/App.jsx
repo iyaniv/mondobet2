@@ -1529,6 +1529,22 @@ function AdminResults({ config, matches, results, liveMatches, setResults, refre
     const next = new Set(prev); next.has(n) ? next.delete(n) : next.add(n); return next;
   });
 
+  // On mount: expand the stage containing the first live match, then scroll to it
+  useEffect(() => {
+    const liveNs = Object.keys(liveMatches).map(Number).sort((a,b)=>a-b);
+    if (liveNs.length === 0) return;
+    const firstN = liveNs[0];
+    const stageN = matchStageObj(firstN).n;
+    setCollapsedStages(prev => {
+      if (!prev.has(stageN)) return prev;
+      const next = new Set(prev); next.delete(stageN); return next;
+    });
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      document.querySelector(`[data-match-n="${firstN}"]`)
+        ?.scrollIntoView({ behavior:"smooth", block:"center" });
+    }));
+  }, []);
+
   async function saveResult(matchN, data) {
     await api.setResult(matchN, data);
     if (data.score_a != null && data.score_b != null)
@@ -2043,6 +2059,19 @@ function ByUser({ config, leaderboard, results, liveMatches, matches, user,
       .finally(() => setPredsLoading(false));
   }, [viewUserId]);
 
+  // On mount: scroll to first live match (flat list — no stage collapsing needed).
+  // Also re-scroll when the selected participant changes so the live row
+  // stays in view when jumping from the leaderboard.
+  useEffect(() => {
+    const liveNs = Object.keys(liveMatches).map(Number).sort((a,b)=>a-b);
+    if (liveNs.length === 0) return;
+    // Wait one frame so predictions have rendered
+    requestAnimationFrame(() => {
+      document.querySelector(`[data-match-n="${liveNs[0]}"]`)
+        ?.scrollIntoView({ behavior:"smooth", block:"center" });
+    });
+  }, [viewUserId]);
+
   const pillMap = {
     open:   {text:"🟢 Betting round is OPEN",  bg:"rgba(16,185,129,0.1)",  color:C.green, border:`1px solid ${C.green}`},
     closed: {text:"🔒 Betting round is CLOSED",bg:"rgba(239,68,68,0.1)",   color:C.red,   border:`1px solid ${C.red}`},
@@ -2310,6 +2339,22 @@ export default function App() {
       if(next.has(n))next.delete(n);else next.add(n);
       return next;
     });
+
+    // On mount: expand the stage containing the first live match, then scroll to it
+    useEffect(()=>{
+      const liveNs=Object.keys(liveMatches).map(Number).sort((a,b)=>a-b);
+      if(liveNs.length===0) return;
+      const firstN=liveNs[0];
+      const stageN=matchStageObj(firstN).n;
+      setCollapsedStages(prev=>{
+        if(!prev.has(stageN)) return prev;
+        const next=new Set(prev); next.delete(stageN); return next;
+      });
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        document.querySelector(`[data-match-n="${firstN}"]`)
+          ?.scrollIntoView({behavior:"smooth",block:"center"});
+      }));
+    },[]);
 
     function switchEntry(entryId){
       setActiveEntryId(entryId);
