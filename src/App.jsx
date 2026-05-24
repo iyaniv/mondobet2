@@ -1948,13 +1948,29 @@ export default function App() {
   }, []);
 
   async function refreshLb(){
-    const lb=await api.getLeaderboard();setLeaderboard(lb);
-    if(user&&!user.is_admin){const e=lb.find(e=>e.user_id===user.id);if(e&&!lockedWinner)setMyWinner(e.winner_pick||null);}
-    if(user?.is_admin){
-      const [u,p]=await Promise.all([api.getUsers(),api.getAdminParticipants()]);
-      setParticipants(u);setAdminParticipants(p);
-    }
+    try {
+      const lb=await api.getLeaderboard();setLeaderboard(lb);
+      if(user&&!user.is_admin){const e=lb.find(e=>e.user_id===user.id);if(e&&!lockedWinner)setMyWinner(e.winner_pick||null);}
+      if(user?.is_admin){
+        const [u,p]=await Promise.all([api.getUsers(),api.getAdminParticipants()]);
+        setParticipants(u);setAdminParticipants(p);
+      }
+    } catch(e) { console.error("refreshLb:", e); }
   }
+
+  // ── Live-update polling ───────────────────────────────────────────────────
+  // While the user is signed in and a round is in motion (open or closed —
+  // anything other than 'idle'), poll the backend every ~10s so that all
+  // clients see admin-entered scores and the leaderboard re-sort in real
+  // time, not only after a refresh. Stops when there's nothing to update.
+  useEffect(() => {
+    if (!user) return;
+    if (config.round_state === "idle") return;
+    const tick = () => { refreshLive(); refreshLb(); };
+    const id = setInterval(tick, 10000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, config.round_state]);
 
   const tabs=!user?[]:user.is_admin
     ?[{id:"results",label:"Results",admin:true},{id:"tournament",label:"🏟 Tournament"},{id:"leaderboard",label:"Leaderboard"},{id:"byuser",label:"By participant"},{id:"dashboard",label:"Dashboard",admin:true},{id:"settings",label:"⚙ Settings"}]
