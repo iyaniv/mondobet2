@@ -542,8 +542,16 @@ export const api = {
     if (S.config.round_state !== "open") throw new Error("Round is not open");
     const existing = Object.values(S.entries).filter(e=>e.user_id===user.id);
     const names = existing.map(e=>e.name);
-    let name = d?.name?.trim() || user.name;
-    if (names.includes(name)) { let n=2; while(names.includes(`${user.name} ${n}`)) n++; name=`${user.name} ${n}`; }
+    let name = d?.name?.trim();
+    if (name) {
+      // Explicit name: reject if it collides with an existing form
+      if (names.includes(name)) throw new Error(`You already have a form named '${name}'.`);
+    } else {
+      // Auto-name: start with the user's name, then user 2, user 3, ...
+      name = user.name;
+      let n = 2;
+      while (names.includes(name)) name = `${user.name} ${n++}`;
+    }
     const eid = `entry-u${user.id}-${++S.next_entry_seq}`;
     const entry = {id:eid,user_id:user.id,name,created_at:new Date().toISOString(),submitted_at:null};
     S.entries[eid] = entry;
@@ -564,7 +572,13 @@ export const api = {
     const user = requireUser();
     const entry = S.entries[id];
     if (!entry||entry.user_id!==user.id) throw new Error("Entry not found");
-    entry.name = d.name.trim();
+    const newName = d.name.trim();
+    if (!newName) throw new Error("Name required");
+    // Reject if another form of this user already uses that name
+    const taken = Object.values(S.entries)
+      .some(e => e.user_id === user.id && e.id !== id && e.name === newName);
+    if (taken) throw new Error(`You already have a form named '${newName}'.`);
+    entry.name = newName;
     save(S);
     return entryOut(entry);
   },

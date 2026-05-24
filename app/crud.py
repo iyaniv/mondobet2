@@ -132,10 +132,19 @@ def _next_entry_name(existing_names: list, user_name: str) -> str:
     return f"{user_name} {n}"
 
 
+class DuplicateEntryName(Exception):
+    """Raised when an explicit entry name collides with another entry for the same user."""
+
+
 async def create_entry(db: AsyncSession, user_id: int, user_name: str, name: Optional[str] = None) -> Entry:
     existing = await get_user_entries(db, user_id)
     existing_names = [e.name for e in existing]
-    entry_name = name.strip() if name else _next_entry_name(existing_names, user_name)
+    if name:
+        entry_name = name.strip()
+        if entry_name in existing_names:
+            raise DuplicateEntryName(f"You already have a form named '{entry_name}'.")
+    else:
+        entry_name = _next_entry_name(existing_names, user_name)
     entry = Entry(id=str(uuid.uuid4()), user_id=user_id, name=entry_name)
     db.add(entry)
     await db.commit()
@@ -147,7 +156,12 @@ async def rename_entry(db: AsyncSession, entry_id: str, name: str) -> Optional[E
     entry = await db.get(Entry, entry_id)
     if not entry:
         return None
-    entry.name = name.strip()
+    new_name = name.strip()
+    # Reject if another entry on this user already uses that name.
+    others = await get_user_entries(db, entry.user_id)
+    if any(e.id != entry_id and e.name == new_name for e in others):
+        raise DuplicateEntryName(f"You already have a form named '{new_name}'.")
+    entry.name = new_name
     await db.commit()
     await db.refresh(entry)
     return entry

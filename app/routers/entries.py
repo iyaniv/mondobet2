@@ -29,7 +29,10 @@ async def create_entry(
     cfg = await crud.get_config(db)
     if cfg.round_state != RoundStateEnum.open:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Betting round is not open.")
-    entry = await crud.create_entry(db, user.id, user.name, data.name)
+    try:
+        entry = await crud.create_entry(db, user.id, user.name, data.name)
+    except crud.DuplicateEntryName as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(e))
     if data.copy_from_entry_id:
         src = await crud.get_entry(db, data.copy_from_entry_id)
         if src and src.user_id == user.id:
@@ -52,7 +55,10 @@ async def rename_entry(
     entry = await crud.get_entry(db, entry_id)
     if not entry or entry.user_id != user.id:
         raise HTTPException(404, "Entry not found.")
-    return await crud.rename_entry(db, entry_id, data.name)
+    try:
+        return await crud.rename_entry(db, entry_id, data.name)
+    except crud.DuplicateEntryName as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(e))
 
 
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)

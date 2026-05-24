@@ -473,7 +473,7 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
   ) : scoreBlock;
   if (isMobile) {
     return (
-      <div style={{background:rowBg,border:`1px solid ${rowBorderColor}`,borderRadius:6,
+      <div data-match-n={match.n} style={{background:rowBg,border:`1px solid ${rowBorderColor}`,borderRadius:6,
         padding:"6px 8px",marginBottom:3,fontSize:12,position:"relative"}}>
         {/* Line 1: flag+name — score — name+flag */}
         <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",
@@ -512,7 +512,7 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
 
   // ── Desktop: original single-row grid layout ───────────────────────────────
   return (
-    <div style={{display:"grid",gridTemplateColumns:"28px 1fr 44px 12px 44px 1fr auto",alignItems:"center",gap:5,padding:"5px 8px",borderRadius:6,background:rowBg,border:`1px solid ${rowBorderColor}`,marginBottom:3,fontSize:13,position:"relative"}}>
+    <div data-match-n={match.n} style={{display:"grid",gridTemplateColumns:"28px 1fr 44px 12px 44px 1fr auto",alignItems:"center",gap:5,padding:"5px 8px",borderRadius:6,background:rowBg,border:`1px solid ${rowBorderColor}`,marginBottom:3,fontSize:13,position:"relative"}}>
       <span style={{color:C.muted,fontSize:11}}>#{match.n}</span>
       <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12,
         color:winnerSide===0?C.accent:winnerSide===1?C.muted:C.text,
@@ -2452,6 +2452,64 @@ export default function App() {
             Loading your predictions…
           </div>
         )}
+
+        {/* Jump-to-live banner — appears when any of the user's submittable
+            matches has been marked live by the admin. One click and the
+            first live match scrolls into view. */}
+        {(() => {
+          const liveNums = Object.entries(liveMatches)
+            .filter(([,ld]) => ld?.is_live)
+            .map(([n]) => Number(n))
+            .sort((a,b) => a - b);
+          if (liveNums.length === 0) return null;
+          const jumpTo = (n) => {
+            // Make sure the stage containing this match is expanded so the
+            // scroll target actually exists in the DOM.
+            const stageN = matchStageObj(n).n;
+            setCollapsedStages(prev => {
+              if (!prev.has(stageN)) return prev;
+              const next = new Set(prev); next.delete(stageN); return next;
+            });
+            // requestAnimationFrame so the DOM has updated after the toggle.
+            requestAnimationFrame(() => {
+              const el = document.querySelector(`[data-match-n="${n}"]`);
+              if (el) {
+                el.scrollIntoView({block:"center",behavior:"smooth"});
+                el.animate(
+                  [{boxShadow:"0 0 0 2px "+C.red},{boxShadow:"0 0 0 0 transparent"}],
+                  {duration:1400,easing:"ease-out"}
+                );
+              }
+            });
+          };
+          return (
+            <div style={{
+              display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",
+              background:"rgba(239,68,68,0.08)",border:`1px solid rgba(239,68,68,0.35)`,
+              borderRadius:8,padding:"7px 12px",marginBottom:10,
+            }}>
+              <span style={{display:"inline-flex",alignItems:"center",gap:6,color:C.red,fontWeight:600,fontSize:13}}>
+                <span className="live-dot"/>
+                {liveNums.length} match{liveNums.length===1?"":"es"} live now
+              </span>
+              <span style={{flex:1,minWidth:0}}/>
+              {liveNums.slice(0,4).map(n => (
+                <button key={n} onClick={()=>jumpTo(n)} style={{
+                  background:"transparent",border:`1px solid ${C.red}`,color:C.red,
+                  padding:"3px 9px",borderRadius:999,fontSize:11,fontWeight:600,cursor:"pointer",
+                  fontFamily:"monospace",
+                }}>#{n}</button>
+              ))}
+              <button onClick={()=>jumpTo(liveNums[0])} style={{
+                background:C.red,color:"#fff",border:0,padding:"5px 12px",borderRadius:999,
+                fontSize:12,fontWeight:700,cursor:"pointer",
+              }}>
+                Jump to live →
+              </button>
+            </div>
+          );
+        })()}
+
         {STAGES.map(s => {
           const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last);
           if (stageMatches.length === 0) return null;
