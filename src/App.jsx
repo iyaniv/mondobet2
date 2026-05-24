@@ -403,17 +403,41 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
   const [resB,   setResB]   = useState(result?.[1]!=null?String(result[1]):"");
   const isMobile = useIsMobile();
 
-  useEffect(()=>{setLocalA(pred?.[0]!=null?String(pred[0]):"");setLocalB(pred?.[1]!=null?String(pred[1]):"");},[pred?.[0],pred?.[1]]);
-  useEffect(()=>{setResA(result?.[0]!=null?String(result[0]):"");setResB(result?.[1]!=null?String(result[1]):"");},[result?.[0],result?.[1]]);
+  // Race protection — auto-save + the 10s background poll both refresh
+  // props that drive the input value. Skip syncing while the user has an
+  // input focused, or while our own save is still in flight, so neither
+  // background event wipes the value the user just typed.
+  const editingRef    = useRef(false);
+  const pendingSaveRef = useRef(false);
+  const handleFocus   = () => { editingRef.current = true; };
+
+  useEffect(()=>{
+    if (editingRef.current || pendingSaveRef.current) return;
+    setLocalA(pred?.[0]!=null?String(pred[0]):"");
+    setLocalB(pred?.[1]!=null?String(pred[1]):"");
+  },[pred?.[0],pred?.[1]]);
+  useEffect(()=>{
+    if (editingRef.current || pendingSaveRef.current) return;
+    setResA(result?.[0]!=null?String(result[0]):"");
+    setResB(result?.[1]!=null?String(result[1]):"");
+  },[result?.[0],result?.[1]]);
 
   async function savePred(side,val) {
+    editingRef.current = false;
     const a=side===0?val:localA, b=side===1?val:localB;
     if(a===""||b==="") return;
-    try { await onSave(match.n,{score_a:Number(a),score_b:Number(b)}); } catch(e){console.error(e);}
+    pendingSaveRef.current = true;
+    try { await onSave(match.n,{score_a:Number(a),score_b:Number(b)}); }
+    catch(e){console.error(e);}
+    finally { pendingSaveRef.current = false; }
   }
   async function saveResult(side,val) {
+    editingRef.current = false;
     const a=side===0?val:resA, b=side===1?val:resB;
-    try { await onResultSave(match.n,{score_a:a===""?null:Number(a),score_b:b===""?null:Number(b)}); } catch(e){console.error(e);}
+    pendingSaveRef.current = true;
+    try { await onResultSave(match.n,{score_a:a===""?null:Number(a),score_b:b===""?null:Number(b)}); }
+    catch(e){console.error(e);}
+    finally { pendingSaveRef.current = false; }
   }
 
   // Two independent chips with their own colour rules:
@@ -510,18 +534,18 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
   const scoreBlock = editable ? (
     <div style={{display:"flex",alignItems:"center",gap:3,justifyContent:"center"}}>
       <input type="number" inputMode="numeric" min={0} max={20} value={localA}
-        onChange={e=>setLocalA(e.target.value)} onBlur={e=>savePred(0,e.target.value)} style={numInput}/>
+        onFocus={handleFocus} onChange={e=>setLocalA(e.target.value)} onBlur={e=>savePred(0,e.target.value)} style={numInput}/>
       <span style={{color:C.muted,fontSize:13}}>:</span>
       <input type="number" inputMode="numeric" min={0} max={20} value={localB}
-        onChange={e=>setLocalB(e.target.value)} onBlur={e=>savePred(1,e.target.value)} style={numInput}/>
+        onFocus={handleFocus} onChange={e=>setLocalB(e.target.value)} onBlur={e=>savePred(1,e.target.value)} style={numInput}/>
     </div>
   ) : adminResult ? (
     <div style={{display:"flex",alignItems:"center",gap:3,justifyContent:"center"}}>
       <input type="number" inputMode="numeric" min={0} max={20} value={resA}
-        onChange={e=>setResA(e.target.value)} onBlur={e=>saveResult(0,e.target.value)} style={numInput}/>
+        onFocus={handleFocus} onChange={e=>setResA(e.target.value)} onBlur={e=>saveResult(0,e.target.value)} style={numInput}/>
       <span style={{color:C.muted,fontSize:13}}>:</span>
       <input type="number" inputMode="numeric" min={0} max={20} value={resB}
-        onChange={e=>setResB(e.target.value)} onBlur={e=>saveResult(1,e.target.value)} style={numInput}/>
+        onFocus={handleFocus} onChange={e=>setResB(e.target.value)} onBlur={e=>saveResult(1,e.target.value)} style={numInput}/>
     </div>
   ) : (
     <span style={{fontFamily:"monospace",fontWeight:700,fontSize:14,
@@ -714,7 +738,7 @@ function AuthView({ roundState, onSuccess }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // ADMIN DASHBOARD — outside App so TeamPicker never remounts on App re-renders
 // ─────────────────────────────────────────────────────────────────────────────
-function AdminDashboard({ config, setConfig, matches, teams, results, setResults, liveMatches={}, refreshLive, participants, setParticipants, adminParticipants, setAdminParticipants, leaderboard, showToast, refreshLb }) {
+function AdminDashboard({ config, setConfig, matches, teams, results, participants, setParticipants, adminParticipants, setAdminParticipants, leaderboard, showToast, refreshLb }) {
   const [expandedUsers,setExpandedUsers]=useState(new Set());
   const tableData=adminParticipants.length>0?adminParticipants:null;
   const statData=tableData||participants;
@@ -902,85 +926,6 @@ function AdminDashboard({ config, setConfig, matches, teams, results, setResults
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap",marginBottom:20,position:"relative",zIndex:10}}>
         <TeamPicker value={config.tournament_winner||null} onChange={setWinner} teams={teams} clearable placeholder="— no winner set —"/>
         <span style={{color:C.muted,fontSize:12,alignSelf:"center"}}>Awards +10 pts to everyone who picked correctly.</span>
-      </div>
-
-      {/* Testing / Reset tools — admin testing helpers only */}
-      <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>🧪 Testing tools</h2>
-      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,marginBottom:20}}>
-        <p style={{margin:"0 0 12px",fontSize:13,color:C.muted}}>
-          Quick helpers for running through the demo end-to-end. Both actions
-          touch only admin-entered scores — predictions, entries, users, winner
-          picks and stage state are left as they are.
-        </p>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
-          {STAGES.map(s => {
-            const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last);
-            if (stageMatches.length === 0) return null;
-            const empty = stageMatches.filter(m => !results[m.n] && !liveMatches[m.n]).length;
-            const disabled = empty === 0;
-            return (
-              <button key={s.n}
-                onClick={async () => {
-                  if (disabled) return;
-                  const ok = await confirmDialog({
-                    title: `Random-fill Stage ${s.n}?`,
-                    message: `Fill ${empty} match${empty===1?"":"es"} in ${s.name} with random scores (0–3 each side) as FINAL results. This counts toward all submitted users' totals.`,
-                    confirmLabel: "Fill randomly",
-                    danger: false,
-                  });
-                  if (!ok) return;
-                  const rand = () => Math.floor(Math.random() * 4);  // 0..3
-                  let filled = 0;
-                  for (const m of stageMatches) {
-                    if (results[m.n] || liveMatches[m.n]) continue;
-                    const sa = rand(), sb = rand();
-                    try {
-                      await api.setResult(m.n, {score_a: sa, score_b: sb});
-                      setResults?.(r => ({...r, [m.n]: [sa, sb]}));
-                      filled++;
-                    } catch(e) { console.error("random-fill", m.n, e); }
-                  }
-                  if (typeof refreshLive === "function") await refreshLive();
-                  await refreshLb();
-                  showToast(`Random-filled ${filled} match${filled===1?"":"es"} 🎲`);
-                }}
-                disabled={disabled}
-                title={disabled ? "Stage already fully resulted" : `Random-fill ${empty} remaining match(es)`}
-                style={{
-                  padding:"7px 12px",borderRadius:6,fontSize:12,fontWeight:600,
-                  border:`1px solid ${disabled?C.border:C.accent}`,
-                  background:disabled?"transparent":"rgba(163,230,53,0.10)",
-                  color:disabled?C.muted:C.accent,
-                  cursor:disabled?"not-allowed":"pointer",
-                }}>
-                🎲 Stage {s.n} <span style={{opacity:0.7,fontWeight:400}}>({empty} left)</span>
-              </button>
-            );
-          })}
-        </div>
-        <button
-          onClick={async () => {
-            const ok = await confirmDialog({
-              title: "Reset ALL admin-entered scores?",
-              message: "Wipes every final result AND every live record. Predictions, entries, users, winner picks and config are untouched.\n\nThere is no undo.",
-              confirmLabel: "Reset everything",
-              danger: true,
-            });
-            if (!ok) return;
-            try {
-              const r = await api.resetAllResults();
-              setResults?.({});
-              if (typeof refreshLive === "function") await refreshLive();
-              await refreshLb();
-              showToast(`Reset · ${r?.deleted?.results||0} results + ${r?.deleted?.live||0} live cleared`);
-            } catch(e) { showToast(e.message, "err"); }
-          }}
-          style={{
-            padding:"8px 14px",borderRadius:6,fontSize:13,fontWeight:700,border:0,cursor:"pointer",
-            background:C.red,color:"#fff",
-          }}>
-          🔄 Reset all results &amp; live
-        </button>
       </div>
 
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
@@ -1399,7 +1344,19 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
   const [resA, setResA] = useState(hasScore ? String(liveData.score_a) : isFinal ? String(result[0]) : "");
   const [resB, setResB] = useState(hasScore ? String(liveData.score_b) : isFinal ? String(result[1]) : "");
 
+  // Race protection — the 10s background poll + cross-tab sync both flush
+  // liveMatches state from props. Without these guards, polling could wipe
+  // what the admin just typed (before save completes) OR clobber freshly-
+  // saved values with a stale poll response that was in flight.
+  //   editingRef    — true while EITHER input is focused (user is typing)
+  //   pendingSaveRef — true while our own onUpdateLive() is in flight
+  const editingRef    = useRef(false);
+  const pendingSaveRef = useRef(false);
+
   useEffect(() => {
+    // Don't clobber the user's in-progress typing, and don't replace freshly
+    // saved data with whatever a concurrent poll happened to return.
+    if (editingRef.current || pendingSaveRef.current) return;
     if (liveData) { setResA(String(liveData.score_a)); setResB(String(liveData.score_b)); }
     else if (result) { setResA(String(result[0])); setResB(String(result[1])); }
     else { setResA(""); setResB(""); }
@@ -1409,16 +1366,23 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
   // visibly LIVE. The LIVE badge appears only when the admin explicitly
   // clicks ▶ LIVE. The row stays editable until the admin clicks ✓ FINAL.
   async function handleBlur(side, val) {
+    editingRef.current = false;   // input lost focus
     const a = side===0 ? val : resA, b = side===1 ? val : resB;
     if (a===""&&b==="") return;
     const sa=Number(a)||0, sb=Number(b)||0;
-    // Preserve current is_live state (false unless admin already toggled it)
-    await onUpdateLive(match.n, {
-      score_a:sa, score_b:sb,
-      minute: liveData?.minute || 0,
-      is_live: !!liveData?.is_live,
-    });
+    pendingSaveRef.current = true;
+    try {
+      // Preserve current is_live state (false unless admin already toggled it)
+      await onUpdateLive(match.n, {
+        score_a:sa, score_b:sb,
+        minute: liveData?.minute || 0,
+        is_live: !!liveData?.is_live,
+      });
+    } finally {
+      pendingSaveRef.current = false;
+    }
   }
+  const handleFocus = () => { editingRef.current = true; };
 
   const effA = Number(resA||0), effB = Number(resB||0);
   const winA = (hasScore||isFinal) ? (effA>effB?true:effB>effA?false:null) : null;
@@ -1445,10 +1409,12 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
   ) : (
     <div style={{display:"flex",alignItems:"center",gap:3}}>
       <input type="number" inputMode="numeric" min={0} max={20} value={resA}
+        onFocus={handleFocus}
         onChange={e=>setResA(e.target.value)} onBlur={e=>handleBlur(0,e.target.value)}
         style={{...numInput,border:`1px solid ${inputBorder}`}}/>
       <span style={{color:C.muted,fontSize:13}}>:</span>
       <input type="number" inputMode="numeric" min={0} max={20} value={resB}
+        onFocus={handleFocus}
         onChange={e=>setResB(e.target.value)} onBlur={e=>handleBlur(1,e.target.value)}
         style={{...numInput,border:`1px solid ${inputBorder}`}}/>
     </div>
@@ -1533,10 +1499,12 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
       ) : (
         <>
           <input type="number" inputMode="numeric" min={0} max={20} value={resA}
+            onFocus={handleFocus}
             onChange={e=>setResA(e.target.value)} onBlur={e=>handleBlur(0,e.target.value)}
             style={{...numInput,border:`1px solid ${inputBorder}`}}/>
           <span style={{textAlign:"center",color:C.muted}}>:</span>
           <input type="number" inputMode="numeric" min={0} max={20} value={resB}
+            onFocus={handleFocus}
             onChange={e=>setResB(e.target.value)} onBlur={e=>handleBlur(1,e.target.value)}
             style={{...numInput,border:`1px solid ${inputBorder}`}}/>
         </>
@@ -1764,7 +1732,7 @@ const TIMEZONES = [
   { label:"Tokyo",          value:"Asia/Tokyo" },
 ];
 
-function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, config, setConfig }) {
+function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, config, setConfig, matches=[], results={}, setResults, liveMatches={}, refreshLive, refreshLb }) {
   // Profile
   const [name,    setName]    = useState(user?.name || "");
   const [saving,  setSaving]  = useState(false);
@@ -1961,6 +1929,87 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
         </div>
       )}
 
+      {/* Testing tools — admin-only. Quick helpers to drive the demo. */}
+      {user?.is_admin && (
+        <div style={sectionStyle}>
+          <h2 style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:6}}>🧪 Testing tools</h2>
+          <p style={{margin:"0 0 14px",fontSize:13,color:C.muted}}>
+            Quick helpers for driving the tournament end-to-end. Both actions
+            touch only admin-entered scores — predictions, entries, users,
+            winner picks and stage state are left as they are.
+          </p>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
+            {STAGES.map(s => {
+              const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last);
+              if (stageMatches.length === 0) return null;
+              const empty = stageMatches.filter(m => !results[m.n] && !liveMatches[m.n]).length;
+              const disabled = empty === 0;
+              return (
+                <button key={s.n}
+                  onClick={async () => {
+                    if (disabled) return;
+                    const ok = await confirmDialog({
+                      title: `Random-fill Stage ${s.n}?`,
+                      message: `Fill ${empty} match${empty===1?"":"es"} in ${s.name} with random scores (0–3 each side) as FINAL results. This counts toward all submitted users' totals.`,
+                      confirmLabel: "Fill randomly",
+                      danger: false,
+                    });
+                    if (!ok) return;
+                    const rand = () => Math.floor(Math.random() * 4);
+                    let filled = 0;
+                    for (const m of stageMatches) {
+                      if (results[m.n] || liveMatches[m.n]) continue;
+                      const sa = rand(), sb = rand();
+                      try {
+                        await api.setResult(m.n, {score_a: sa, score_b: sb});
+                        setResults?.(r => ({...r, [m.n]: [sa, sb]}));
+                        filled++;
+                      } catch(e) { console.error("random-fill", m.n, e); }
+                    }
+                    if (typeof refreshLive === "function") await refreshLive();
+                    if (typeof refreshLb === "function") await refreshLb();
+                    showToast(`Random-filled ${filled} match${filled===1?"":"es"} 🎲`);
+                  }}
+                  disabled={disabled}
+                  title={disabled ? "Stage already fully resulted" : `Random-fill ${empty} remaining match(es)`}
+                  style={{
+                    padding:"7px 12px",borderRadius:6,fontSize:12,fontWeight:600,
+                    border:`1px solid ${disabled?C.border:C.accent}`,
+                    background:disabled?"transparent":"rgba(163,230,53,0.10)",
+                    color:disabled?C.muted:C.accent,
+                    cursor:disabled?"not-allowed":"pointer",
+                  }}>
+                  🎲 Stage {s.n} <span style={{opacity:0.7,fontWeight:400}}>({empty} left)</span>
+                </button>
+              );
+            })}
+          </div>
+          <button
+            onClick={async () => {
+              const ok = await confirmDialog({
+                title: "Reset ALL admin-entered scores?",
+                message: "Wipes every final result AND every live record. Predictions, entries, users, winner picks and config are untouched.\n\nThere is no undo.",
+                confirmLabel: "Reset everything",
+                danger: true,
+              });
+              if (!ok) return;
+              try {
+                const r = await api.resetAllResults();
+                setResults?.({});
+                if (typeof refreshLive === "function") await refreshLive();
+                if (typeof refreshLb === "function") await refreshLb();
+                showToast(`Reset · ${r?.deleted?.results||0} results + ${r?.deleted?.live||0} live cleared`);
+              } catch(e) { showToast(e.message, "err"); }
+            }}
+            style={{
+              padding:"8px 14px",borderRadius:6,fontSize:13,fontWeight:700,border:0,cursor:"pointer",
+              background:C.red,color:"#fff",
+            }}>
+            🔄 Reset all results &amp; live
+          </button>
+        </div>
+      )}
+
       {/* Account */}
       <div style={sectionStyle}>
         <h2 style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:14}}>Account</h2>
@@ -2008,8 +2057,18 @@ function ByUser({ config, leaderboard, results, liveMatches, matches, user,
   const pill = pillMap[config.round_state] || pillMap.idle;
 
   const selected = leaderboard.find(e => (e.entry_id||e.user_id) === viewUserId);
-  // Show any match that has a final result OR an in-motion live score
-  const playedMatches = matches.filter(m => results[m.n] || liveMatches[m.n]);
+  // Show every match for which we have something to display — either the
+  // participant has a prediction OR the match has been started/finished.
+  // For admins the backend returns the full prediction set, so they see
+  // every match the participant bet on. For non-admin viewers the backend
+  // already restricts to matches with results/live (privacy), so unplayed
+  // predictions on others won't appear regardless.
+  const displayMatches = matches.filter(m =>
+       viewUserPreds[m.n]?.[0] != null
+    || results[m.n] != null
+    || liveMatches[m.n] != null
+  );
+  const playedCount = matches.filter(m => results[m.n] || liveMatches[m.n]).length;
 
   return (
     <div>
@@ -2018,7 +2077,10 @@ function ByUser({ config, leaderboard, results, liveMatches, matches, user,
           background:pill.bg,color:pill.color,border:pill.border}}>{pill.text}</span>
       </div>
       <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>Bets by participant</h1>
-      <InfoBlock>Showing predictions for the <b>{playedMatches.length}</b> match{playedMatches.length===1?"":"es"} with results so far (final or live). Unplayed matches stay hidden until they have a score.</InfoBlock>
+      <InfoBlock>
+        Showing <b>{displayMatches.length}</b> match{displayMatches.length===1?"":"es"} for this participant
+        — every match they predicted on, plus any with a result so far ({playedCount} played).
+      </InfoBlock>
       <div style={{marginBottom:16}}>
         <ParticipantPicker entries={leaderboard} value={viewUserId} onChange={setViewUserId}/>
       </div>
@@ -2031,7 +2093,7 @@ function ByUser({ config, leaderboard, results, liveMatches, matches, user,
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10,
         opacity:predsLoading?0.5:1,transition:"opacity .25s"}}>
         {predsLoading&&<div style={{textAlign:"center",padding:16,color:C.muted,fontSize:13}}>Loading predictions…</div>}
-        {playedMatches.map(m=>(
+        {displayMatches.map(m=>(
           <MatchRow key={m.n} match={m}
             pred={viewUserPreds[m.n]??null} result={results[m.n]??null}
             liveData={liveMatches[m.n]??null}
@@ -3036,9 +3098,7 @@ export default function App() {
         {user&&tab==="dashboard"&&(
           <AdminDashboard
             config={config} setConfig={setConfig}
-            matches={matches} teams={teams}
-            results={results} setResults={setResults}
-            liveMatches={liveMatches} refreshLive={refreshLive}
+            matches={matches} teams={teams} results={results}
             participants={participants} setParticipants={setParticipants}
             adminParticipants={adminParticipants} setAdminParticipants={setAdminParticipants}
             leaderboard={leaderboard}
@@ -3050,7 +3110,7 @@ export default function App() {
           setResults={setResults} refreshLb={refreshLb} refreshLive={refreshLive} showToast={showToast}
         />}
         {user&&tab==="tournament"&&<Tournament matches={matches} results={results} liveMatches={liveMatches} myPreds={myPreds} config={config} user={user}/>}
-        {user&&tab==="settings"&&<SettingsView user={user} leaderboard={leaderboard} onLogout={doLogout} onNameUpdate={u=>{setUser(u);showToast("Name updated ✓");}} showToast={showToast} config={config} setConfig={setConfig}/>}
+        {user&&tab==="settings"&&<SettingsView user={user} leaderboard={leaderboard} onLogout={doLogout} onNameUpdate={u=>{setUser(u);showToast("Name updated ✓");}} showToast={showToast} config={config} setConfig={setConfig} matches={matches} results={results} setResults={setResults} liveMatches={liveMatches} refreshLive={refreshLive} refreshLb={refreshLb}/>}
       </div>
       {toast&&(
         <div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",background:toast.kind==="err"?C.red:toast.kind==="warn"?C.accent:C.green,color:toast.kind==="warn"?"#1a1a1a":"white",padding:"8px 16px",borderRadius:6,fontSize:14,zIndex:100,boxShadow:"0 4px 12px rgba(0,0,0,0.2)",whiteSpace:"nowrap"}}>
