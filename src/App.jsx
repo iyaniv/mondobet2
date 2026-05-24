@@ -741,6 +741,52 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
 
   // Stage management
   const currentStage = config.current_stage || 1;
+
+  // Per-form per-stage badge row — green ✓ for submitted, orange with filled/total
+  // for the current open stage, muted for future stages, red for past stages
+  // that somehow stayed unsubmitted.
+  const renderStageBadges = (entry) => {
+    const submitted   = entry.stages_submitted || {};
+    const stageFilled = entry.stage_filled || {};
+    const stageTotals = entry.stage_totals || {};
+    return (
+      <span style={{display:"inline-flex",gap:3,flexWrap:"wrap",alignItems:"center"}}>
+        {STAGES.map(s => {
+          const isSubmitted = !!(submitted[s.n] ?? submitted[String(s.n)]);
+          const isCurrent   = s.n === currentStage;
+          const isFuture    = s.n >  currentStage;
+          const filled = stageFilled[s.n] ?? stageFilled[String(s.n)] ?? 0;
+          const total  = stageTotals[s.n] ?? stageTotals[String(s.n)] ?? 0;
+          let bg, fg, border, label, title;
+          if (isSubmitted) {
+            label = `S${s.n}✓`;
+            bg = "rgba(16,185,129,0.15)"; fg = C.green; border = "rgba(16,185,129,0.4)";
+            title = `Stage ${s.n} — ${s.name}: submitted`;
+          } else if (isCurrent) {
+            label = `S${s.n} ${filled}/${total}`;
+            bg = "rgba(245,158,11,0.10)"; fg = "#f59e0b"; border = "rgba(245,158,11,0.35)";
+            title = `Stage ${s.n} — ${s.name}: ${filled}/${total} filled, not submitted`;
+          } else if (isFuture) {
+            label = `S${s.n}`;
+            bg = "transparent"; fg = C.muted; border = C.border;
+            title = `Stage ${s.n} — ${s.name}: not yet open`;
+          } else {
+            label = `S${s.n}!`;
+            bg = "rgba(239,68,68,0.10)"; fg = C.red; border = "rgba(239,68,68,0.35)";
+            title = `Stage ${s.n} — ${s.name}: past stage not submitted`;
+          }
+          return (
+            <span key={s.n} title={title} style={{
+              padding:"1px 5px",borderRadius:3,fontSize:10,fontWeight:700,fontFamily:"monospace",
+              background:bg,color:fg,border:`1px solid ${border}`,whiteSpace:"nowrap",lineHeight:1.5,
+            }}>
+              {label}
+            </span>
+          );
+        })}
+      </span>
+    );
+  };
   const stageStats = STAGES.map(s => {
     const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last);
     const done = stageMatches.filter(m => results[m.n] != null).length;
@@ -958,10 +1004,6 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
                   const uEntries=u.entries||[];
                   const multi=uEntries.length>1;
                   const expanded=expandedUsers.has(u.id);
-                  const formsText=[
-                    u.submitted_count>0?`${u.submitted_count} submitted`:"",
-                    u.draft_count>0?`${u.draft_count} draft`:"",
-                  ].filter(Boolean).join(" · ")||"no forms";
                   return (
                     <Fragment key={u.id}>
                       {/* User row */}
@@ -976,7 +1018,14 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
                           <div style={{fontSize:11,color:C.muted,marginTop:1}}>{u.email}</div>
                         </td>
                         <td style={td}>
-                          <span style={{fontWeight:600}}>{formsText}</span>
+                          {uEntries.length===0
+                            ? <span style={{color:C.muted}}>no forms</span>
+                            : multi
+                              ? <span style={{fontSize:12,color:C.muted}}>
+                                  <b style={{color:C.text}}>{uEntries.length}</b> form{uEntries.length===1?"":"s"} — click to expand
+                                </span>
+                              : renderStageBadges(uEntries[0])
+                          }
                         </td>
                         <td style={{...td,textAlign:"right",color:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:14}}>
                           {u.best_total??0}
@@ -988,22 +1037,16 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
                       {/* Entry sub-rows — only for multi-form users when expanded */}
                       {multi&&expanded&&uEntries.map(entry=>{
                         const isDraft=!entry.submitted_at;
-                        const badge=isDraft
-                          ?<span style={{marginLeft:7,padding:"1px 7px",borderRadius:4,fontSize:11,fontWeight:700,background:"rgba(245,158,11,0.15)",color:"#f59e0b",border:"1px solid rgba(245,158,11,0.35)"}}>DRAFT</span>
-                          :<span style={{marginLeft:7,padding:"1px 7px",borderRadius:4,fontSize:11,fontWeight:700,background:"rgba(245,158,11,0.15)",color:"#f59e0b",border:"1px solid rgba(245,158,11,0.35)"}}>{entry.filled}/{entry.total_matches}</span>;
                         return (
                           <tr key={entry.id} style={{background:C.bg,borderTop:`1px solid ${C.border}`}}>
                             <td style={td}/>
                             <td style={{...td,paddingLeft:28}}>
                               <span style={{color:C.muted,marginRight:4}}>↳</span>
                               <span style={{fontWeight:500}}>{entry.name}</span>
-                              {badge}
+                              {entry.winner_pick&&<span style={{marginLeft:8,color:C.muted,fontSize:11}}>· winner: <b style={{color:C.accent}}>{withFlag(entry.winner_pick)}</b></span>}
                             </td>
                             <td style={td}>
-                              <span style={{color:C.muted,fontSize:12}}>
-                                {entry.filled}/{entry.total_matches} matches filled
-                                {entry.winner_pick&&<> · winner: <b style={{color:C.accent}}>{withFlag(entry.winner_pick)}</b></>}
-                              </span>
+                              {renderStageBadges(entry)}
                             </td>
                             <td style={{...td,textAlign:"right",fontFamily:"monospace",fontWeight:700}}>
                               {entry.points!=null

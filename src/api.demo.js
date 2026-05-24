@@ -459,6 +459,9 @@ function computeLeaderboard(resultsOverride=null, tournamentWinnerOverride=null)
 
 // ── Admin participants computation ───────────────────────────────────────────
 function computeAdminParticipants() {
+  const matchStageLookup = Object.fromEntries(MATCHES.map(m=>[m.n,m.s]));
+  const stageTotals = {};
+  for (const m of MATCHES) stageTotals[m.s] = (stageTotals[m.s]||0) + 1;
   return Object.values(S.users).filter(u=>!u.is_admin).map(user=>{
     const userEntries = Object.values(S.entries)
       .filter(e=>e.user_id===user.id)
@@ -467,12 +470,19 @@ function computeAdminParticipants() {
       const preds = S.predictions[e.id]||{};
       const wp    = S.winner_picks[e.id]||null;
       const filled = Object.values(preds).filter(p=>p[0]!=null&&p[1]!=null).length;
+      // Per-stage filled counts
+      const stageFilled = Object.fromEntries(Object.keys(stageTotals).map(s=>[s,0]));
+      for (const [n,p] of Object.entries(preds)) {
+        if (p[0]==null||p[1]==null) continue;
+        const s = matchStageLookup[Number(n)];
+        if (s!=null) stageFilled[s] = (stageFilled[s]||0) + 1;
+      }
       let points=null,livePoints=0;
       if (e.submitted_at) {
         const t=calcTotals(preds,S.results,S.live,wp,S.config.tournament_winner);
         points=t.total; livePoints=t.live_points;
       }
-      return {id:e.id,name:e.name,submitted_at:e.submitted_at||null,filled,total_matches:MATCHES.length,winner_pick:wp,locked_winner:user.locked_winner||null,points,live_points:livePoints};
+      return {id:e.id,name:e.name,submitted_at:e.submitted_at||null,stages_submitted:e.stages_submitted||{},stage_filled:stageFilled,stage_totals:stageTotals,filled,total_matches:MATCHES.length,winner_pick:wp,locked_winner:user.locked_winner||null,points,live_points:livePoints};
     });
     const submittedCount = userEntries.filter(e=>e.submitted_at).length;
     const draftCount = userEntries.length - submittedCount;

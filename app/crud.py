@@ -355,10 +355,22 @@ async def get_participants_with_entries(db: AsyncSession) -> list[dict]:
         user_entries = all_entries_map.get(user.id, [])
         entries_data = []
         best_total = 0
+        match_stage_lookup = {m["n"]: m["s"] for m in MATCHES}
+        stage_totals = {}
+        for m in MATCHES:
+            stage_totals[m["s"]] = stage_totals.get(m["s"], 0) + 1
         for entry in user_entries:
             preds = all_preds.get(entry.id, {})
             winner_pick = all_winners.get(entry.id)
             filled = sum(1 for v in preds.values() if v[0] is not None and v[1] is not None)
+            # Per-stage filled counts
+            stage_filled = {s: 0 for s in stage_totals}
+            for n, v in preds.items():
+                if v[0] is None or v[1] is None:
+                    continue
+                s = match_stage_lookup.get(n)
+                if s is not None:
+                    stage_filled[s] += 1
             is_submitted = entry.submitted_at is not None
             totals = user_totals(preds, all_results, winner_pick, cfg.tournament_winner, live_map) if is_submitted else None
             pts = totals["total"] if totals else None
@@ -368,6 +380,9 @@ async def get_participants_with_entries(db: AsyncSession) -> list[dict]:
                 "id": entry.id,
                 "name": entry.name,
                 "submitted_at": entry.submitted_at.isoformat() if entry.submitted_at else None,
+                "stages_submitted": entry.stages_submitted or {},
+                "stage_filled": stage_filled,
+                "stage_totals": stage_totals,
                 "filled": filled,
                 "total_matches": len(MATCHES),
                 "winner_pick": winner_pick,
