@@ -624,7 +624,10 @@ export const api = {
     await delay();
     const user = requireUser();
     const entry = S.entries[id];
-    if (!entry||entry.user_id!==user.id) throw new Error("Entry not found");
+    if (!entry) throw new Error("Entry not found");
+    const viewingOwn = entry.user_id === user.id;
+    // Admin or own: see all. Others: see all if submitted.
+    if (!user.is_admin && !viewingOwn && !entry.submitted_at) return [];
     return Object.entries(S.predictions[id]||{}).map(([n,p])=>({match_n:Number(n),score_a:p[0],score_b:p[1]}));
   },
 
@@ -686,17 +689,12 @@ export const api = {
       .filter(e=>e.user_id===Number(uid)&&e.submitted_at)
       .sort((a,b)=>new Date(a.submitted_at)-new Date(b.submitted_at))[0]?.id;
     if (!eid) return [];
+    const entry = S.entries[eid];
     const allPreds = Object.entries(S.predictions[eid]||{}).map(([n,p])=>({match_n:Number(n),score_a:p[0],score_b:p[1]}));
-    // Admin or own entry: return all; others: only played matches
+    // Admin or own entry: see all. Others: see all if the entry is submitted.
     const viewingOwn = Number(uid) === caller.id;
-    if (caller.is_admin || viewingOwn) return allPreds;
-    // Match has a score = final OR in-motion (live, regardless of is_live).
-    // Unplayed matches stay hidden — peeking at others' picks isn't allowed.
-    const played = new Set([
-      ...Object.keys(S.results).map(Number),
-      ...Object.keys(S.live).map(Number),
-    ]);
-    return allPreds.filter(p => played.has(p.match_n));
+    if (caller.is_admin || viewingOwn || entry?.submitted_at) return allPreds;
+    return [];
   },
 
   // ── Admin

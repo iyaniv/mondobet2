@@ -115,27 +115,25 @@ async def user_predictions(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return predictions filtered by what is visible:
+    """Return predictions:
     - Admin or own entry: all predictions.
-    - Other user: only predictions for matches that already have results.
+    - Other user's submitted entry: all predictions (publicly visible after submit).
+    - Other user's unsubmitted entry: nothing.
     """
     if entry_id:
+        entry = await crud.get_entry(db, entry_id)
+        if not entry:
+            return []
         preds = await crud.get_entry_predictions(db, entry_id)
     else:
         entries = await crud.get_user_entries(db, user_id)
         submitted = [e for e in entries if e.submitted_at is not None]
         if not submitted:
             return []
-        preds = await crud.get_entry_predictions(db, submitted[0].id)
+        entry = submitted[0]
+        preds = await crud.get_entry_predictions(db, entry.id)
 
     viewing_own = (user_id == current_user.id)
-    if current_user.is_admin or viewing_own:
+    if current_user.is_admin or viewing_own or entry.submitted_at:
         return [PredictionOut(match_n=n, score_a=v[0], score_b=v[1]) for n, v in preds.items()]
-
-    # For other users: reveal predictions for any match that has a score —
-    # final OR in-motion (live). Matches that haven't been played at all
-    # stay hidden so users can't peek at each other's still-secret picks.
-    results_map = await crud.get_all_results(db)
-    live_map = await crud.get_live_matches(db)
-    played = set(results_map.keys()) | set(live_map.keys())
-    return [PredictionOut(match_n=n, score_a=v[0], score_b=v[1]) for n, v in preds.items() if n in played]
+    return []

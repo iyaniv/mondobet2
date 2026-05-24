@@ -2072,10 +2072,7 @@ function ByUser({ config, leaderboard, results, liveMatches, matches, user,
       </div>
       <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>By participant</h1>
       <InfoBlock>
-        Only <b>submitted</b> forms are shown here.
-        {user?.is_admin
-          ? <> Showing <b>{displayMatches.length}</b> prediction{displayMatches.length!==1?"s":""} for this form ({playedCount} with a result so far).</>
-          : <> Predictions are revealed as matches are played — {playedCount} result{playedCount!==1?"s":""} in so far.</>}
+        Only <b>submitted</b> forms are shown here. Showing <b>{displayMatches.length}</b> prediction{displayMatches.length!==1?"s":""} for this form ({playedCount} with a result so far).
       </InfoBlock>
       <div style={{marginBottom:16}}>
         <ParticipantPicker entries={leaderboard} value={viewUserId} onChange={setViewUserId}/>

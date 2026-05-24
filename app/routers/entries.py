@@ -133,9 +133,7 @@ async def entry_predictions(
         raise HTTPException(404, "Entry not found.")
     preds = await crud.get_entry_predictions(db, entry_id)
     viewing_own = (entry.user_id == current_user.id)
-    if current_user.is_admin or viewing_own:
+    # Admin or own: see all. Others: see all if the entry is submitted.
+    if current_user.is_admin or viewing_own or entry.submitted_at:
         return [PredictionOut(match_n=n, score_a=v[0], score_b=v[1]) for n, v in preds.items()]
-    # Other user's entry: only return predictions for matches with results
-    results_map = await crud.get_all_results(db)
-    played = set(results_map.keys())
-    return [PredictionOut(match_n=n, score_a=v[0], score_b=v[1]) for n, v in preds.items() if n in played]
+    return []
