@@ -48,15 +48,40 @@ async def set_prediction(
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if match_n not in MATCH_INDEX:
+    """Save / update a prediction.
+
+    Users can keep editing predictions for the CURRENT open stage until that
+    stage's matches have a real result or admin marks them live. Editing
+    after Submit is allowed — it invalidates THIS stage's submission flag
+    on the entry, so the user has to click Submit again to re-confirm.
+    """
+    match = MATCH_INDEX.get(match_n)
+    if not match:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Match not found.")
     cfg = await crud.get_config(db)
     if cfg.round_state != RoundStateEnum.open:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Betting round is not open.")
+    # Only current-stage matches are editable. Past stages stay locked,
+    # future ones aren't open yet.
+    match_stage = match.get("s") if isinstance(match, dict) else getattr(match, "s", None)
+    if match_stage != cfg.current_stage:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "This stage is closed for predictions.")
+    # Defence in depth: if admin already entered a result or live score for
+    # this match, the user can't re-predict it.
+    results_map = await crud.get_all_results(db)
+    if match_n in results_map:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Match already has a result.")
+    live_map = await crud.get_live_matches(db)
+    if match_n in live_map:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Match is live — cannot edit.")
     entry = await _resolve_entry(entry_id, user, db)
-    if entry.submitted_at is not None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Entry already submitted.")
     pred = await crud.upsert_prediction(db, entry.id, match_n, data.score_a, data.score_b)
+    # Editing invalidates this stage's submission — user must re-Submit.
+    stages = dict(entry.stages_submitted or {})
+    if str(match_stage) in stages:
+        del stages[str(match_stage)]
+        entry.stages_submitted = stages
+        await db.commit()
     return PredictionOut(match_n=pred.match_n, score_a=pred.score_a, score_b=pred.score_b)
 
 
@@ -67,16 +92,20 @@ async def set_winner_pick(
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Set / change the tournament winner pick for the active entry.
+
+    Editable while stage 1 is still the current open stage. Once admin
+    advances `current_stage` past 1, the pick is locked.
+    """
     cfg = await crud.get_config(db)
     if cfg.round_state != RoundStateEnum.open:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Betting round is not open.")
-    # Locked winner always overrides the request body
-    team = user.locked_winner if user.locked_winner is not None else data.team
+    if (cfg.current_stage or 1) > 1:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Winner pick locked — stage 1 has closed.")
     entry = await _resolve_entry(entry_id, user, db)
-    if entry.submitted_at is not None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Entry already submitted.")
-    await crud.upsert_winner_pick(db, entry.id, team)
-    return {"team": team, "locked": user.locked_winner is not None}
+    await crud.upsert_winner_pick(db, entry.id, data.team)
+    locked = (cfg.current_stage or 1) > 1
+    return {"team": data.team, "locked": locked}
 
 
 @router.get("/user/{user_id}", response_model=list[PredictionOut])

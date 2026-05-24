@@ -83,13 +83,11 @@ async def submit_entry(
     if cfg.round_state != RoundStateEnum.open:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Betting round is not open.")
     # Per-stage submission: gate only the matches the user CAN actually
-    # predict for the current open stage. Past stages stay locked.
+    # predict for the current open stage. Past stages stay locked. Re-
+    # submitting the same stage is allowed — users may edit their picks
+    # after Submit, which invalidates the stage flag in set_prediction
+    # and forces them to come back here to re-confirm.
     stage = cfg.current_stage or 1
-    if (entry.stages_submitted or {}).get(str(stage)):
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            f"Stage {stage} already submitted on this form.",
-        )
     results_map = await crud.get_all_results(db)
     live_map = await crud.get_live_matches(db)
     stage_matches = [
@@ -111,7 +109,7 @@ async def submit_entry(
     # Winner pick required only on the FIRST stage submission.
     if stage == 1:
         wp = await db.get(WinnerPick, entry_id)
-        if not wp and not user.locked_winner:
+        if not wp:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Pick the World Cup winner first.")
     return await crud.submit_entry(db, entry_id, user, stage=stage)
 

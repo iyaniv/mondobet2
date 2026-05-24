@@ -163,43 +163,30 @@ async def delete_entry(db: AsyncSession, entry_id: str) -> bool:
 
 
 async def submit_entry(db: AsyncSession, entry_id: str, user: User, stage: int = 1) -> Optional[Entry]:
-    """Mark THIS stage submitted on the given entry.
+    """Mark THIS stage submitted on the given entry — idempotent on re-submit.
 
     Per-stage submissions: each stage gets its own timestamp recorded in
     entry.stages_submitted = {"1": iso, "2": iso, ...}. submitted_at stays
-    as the earliest stage timestamp for back-compat.
+    as the EARLIEST stage timestamp for back-compat.
 
-    Winner lock: only the FIRST stage-1 submission locks the user's winner.
+    Re-submission is allowed: the timestamp simply updates. Users can edit
+    their predictions after Submit (set_prediction clears the stage flag),
+    then click Submit again to re-confirm — the same path runs.
+
+    Winner lock used to fan out user.locked_winner on first stage-1 submit.
+    That mechanism is gone now: the winner pick is editable until admin
+    advances current_stage past 1, gated by set_winner_pick itself. We
+    leave user.locked_winner alone (kept for back-compat).
     """
     entry = await db.get(Entry, entry_id)
     if not entry:
         return None
-    stages = dict(entry.stages_submitted or {})
-    if str(stage) in stages:
-        return entry  # already submitted — no-op
-
     now = datetime.now(timezone.utc)
+    stages = dict(entry.stages_submitted or {})
     stages[str(stage)] = now.isoformat()
     entry.stages_submitted = stages
     if entry.submitted_at is None:
         entry.submitted_at = now
-
-    # Winner lock fires only when stage 1 is submitted for the first time.
-    if stage == 1 and user.locked_winner is None:
-        wp = await db.get(WinnerPick, entry_id)
-        if wp:
-            user.locked_winner = wp.team
-            # Fan-out: stamp the locked winner onto every other entry
-            other_entries = await get_user_entries(db, user.id)
-            for e in other_entries:
-                if e.id == entry_id:
-                    continue
-                other_wp = await db.get(WinnerPick, e.id)
-                if other_wp:
-                    other_wp.team = wp.team
-                else:
-                    db.add(WinnerPick(entry_id=e.id, team=wp.team))
-
     await db.commit()
     await db.refresh(entry)
     return entry

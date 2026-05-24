@@ -2097,16 +2097,29 @@ export default function App() {
     async function savePred(matchN,data){
       await api.setPrediction(matchN,data,activeEntryId);
       setMyPreds(p=>({...p,[matchN]:[data.score_a,data.score_b]}));
-      setEntries(es=>es.map(e=>e.id!==activeEntryId?e:{...e,predictions:[...(e.predictions||[]).filter(p=>p.match_n!==matchN),{match_n:matchN,score_a:data.score_a,score_b:data.score_b}]}));
-      showToast("Saved ✓");
+      // Editing a prediction invalidates this stage's submission — user has
+      // to re-click "Submit stage N" to confirm the changes. Mirror the
+      // server (set_prediction clears the same key) in local state so the
+      // Submit button reappears immediately.
+      const stageOfMatch = matchStageObj(matchN).n;
+      setEntries(es=>es.map(e=>{
+        if (e.id !== activeEntryId) return e;
+        const preds = [...(e.predictions||[]).filter(p=>p.match_n!==matchN),
+                       {match_n:matchN,score_a:data.score_a,score_b:data.score_b}];
+        const stagesSub = {...(e.stages_submitted||{})};
+        delete stagesSub[stageOfMatch];
+        delete stagesSub[String(stageOfMatch)];
+        return {...e, predictions: preds, stages_submitted: stagesSub};
+      }));
+      showToast("Saved · re-submit to confirm");
     }
 
     // Random fill — fills the given stage's empty / no-score-yet predictions
     // with random 0-3 scores. Won't touch matches that already have a result
-    // or a live score. Only callable when the stage is currently editable.
+    // or a live score. Available while the stage is current and round is open
+    // — re-submission is allowed, so it's fine even after Submit.
     async function randomFillStage(stageN) {
       if (!editable || !activeEntry) return;
-      if ((activeEntry.stages_submitted||{})[stageN]) return;
       const stage = STAGES.find(s => s.n === stageN);
       if (!stage) return;
       const todo = matches.filter(m =>
@@ -2399,16 +2412,21 @@ export default function App() {
         {config.round_state==="open"&&<InfoBlock>✏️ <b>Round is open.</b> Predictions save automatically when you leave each field.<br/><b>Scoring:</b> 5 pts correct direction · +3 exact · +1 partial · 10 pts tournament winner.</InfoBlock>}
         {config.round_state==="closed"&&<InfoBlock>🔒 <b>Round closed.</b> Points appear once the admin enters results.</InfoBlock>}
 
-        {/* Winner pick */}
+        {/* Winner pick — editable while stage 1 is still the current open
+            stage. Once admin advances past stage 1 the pick is locked. */}
+        {(() => {
+          const winnerLocked = openStage > 1 || !editable;
+          const shownWinner  = myWinner || lockedWinner;
+          return (
         <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:12,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:16,position:"relative",zIndex:10}}>
           <label style={{color:C.text,fontSize:14,flexShrink:0}}>🏆 Tournament winner pick (+10 pts):</label>
-          {lockedWinner?(
+          {winnerLocked ? (
             <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <span style={{fontSize:14,color:C.text,fontWeight:600}}>{withFlag(lockedWinner)}</span>
+              <span style={{fontSize:14,color:C.text,fontWeight:600}}>{shownWinner?withFlag(shownWinner):"—"}</span>
               <span style={{background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"2px 8px",borderRadius:4,fontSize:11,fontWeight:700}}>🔒 locked</span>
             </div>
           ):(
-            <TeamPicker value={myWinner} onChange={saveWinner} teams={teams} disabled={!editable||!!activeEntry?.submitted_at} placeholder="Choose a team…"/>
+            <TeamPicker value={myWinner} onChange={saveWinner} teams={teams} disabled={false} placeholder="Choose a team…"/>
           )}
           {config.tournament_winner&&<span style={{color:C.muted,fontSize:13}}>🏆 actual: <b style={{color:C.accent}}>{withFlag(config.tournament_winner)}</b></span>}
           <span style={{flex:1,minWidth:0}}/>
@@ -2426,6 +2444,8 @@ export default function App() {
             </div>
           )}
         </div>
+          );
+        })()}
 
         {!predsLoaded&&config.round_state==="open"&&(
           <div style={{textAlign:"center",padding:"10px",color:C.muted,fontSize:13,marginBottom:8}}>
@@ -2466,15 +2486,16 @@ export default function App() {
           const stageDone   = stageMatches.filter(m => results[m.n]).length;
           const isCurrent = openStage === s.n;
           const isPast    = s.n < openStage;
-          // A match is editable only when this is the CURRENT stage, the round
-          // is open, the match has no result / isn't live, AND this stage
-          // hasn't been submitted yet on the active form.
+          // A match is editable while its stage is the current open one,
+          // the round is open, and the match has no result / isn't live.
+          // Editing after Submit is now allowed — savePred invalidates the
+          // stage submission so the user has to click Submit again. The
+          // backend mirrors the same rule.
           const matchEditable = (m) =>
             isCurrent
             && editable
             && !results[m.n]
-            && !liveMatches[m.n]
-            && !currentStageSubmitted;
+            && !liveMatches[m.n];
 
           // Header colors / icon vary per stage state
           const headerColor = isPast ? C.muted : isCurrent ? C.indigo : C.muted;

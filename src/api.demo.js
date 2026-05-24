@@ -589,7 +589,9 @@ export const api = {
     if (!entry||entry.user_id!==user.id) throw new Error("Entry not found");
     const stage = S.config.current_stage || 1;
     if (!entry.stages_submitted) entry.stages_submitted = {};
-    if (entry.stages_submitted[stage]) throw new Error(`Stage ${stage} already submitted on this form`);
+    // Re-submission is allowed — the timestamp simply updates. Users can
+    // edit their predictions after Submit, which clears the stage flag in
+    // setPrediction; then they click Submit again to re-confirm.
     // Verify all CURRENT-STAGE matches (without admin result/live) are filled
     const stageMatches = MATCHES.filter(m => m.s === stage && !S.results[m.n] && !S.live[m.n]);
     const preds = S.predictions[id]||{};
@@ -599,13 +601,6 @@ export const api = {
     const now = new Date().toISOString();
     entry.stages_submitted[stage] = now;
     if (!entry.submitted_at) entry.submitted_at = now;
-    // Winner lock once stage 1 is submitted (winner picks are tied to stage 1)
-    if (stage === 1 && !user.locked_winner) {
-      user.locked_winner = S.winner_picks[id] || null;
-      for (const e of Object.values(S.entries)) {
-        if (e.user_id===user.id && e.id!==id && user.locked_winner) S.winner_picks[e.id] = user.locked_winner;
-      }
-    }
     save(S);
     return entryOut(entry);
   },
@@ -640,14 +635,15 @@ export const api = {
     }
     if (S.results[matchN]) throw new Error("Match already has a result");
     if (S.live[matchN])    throw new Error("Match is live — cannot edit");
-    // Per-stage submission: once the user submits THIS stage on THIS form,
-    // the stage is locked for that form until a new stage opens.
-    const entry = S.entries[eid];
-    if (entry?.stages_submitted?.[match.s]) {
-      throw new Error("Stage " + match.s + " was already submitted on this form");
-    }
     if (!S.predictions[eid]) S.predictions[eid] = {};
     S.predictions[eid][matchN] = [d.score_a, d.score_b];
+    // Editing invalidates THIS stage's submission on THIS form — the user
+    // has to re-click Submit to confirm. Other stages are unaffected.
+    const entry = S.entries[eid];
+    if (entry && entry.stages_submitted) {
+      delete entry.stages_submitted[match.s];
+      delete entry.stages_submitted[String(match.s)];
+    }
     save(S);
     return {match_n:matchN,score_a:d.score_a,score_b:d.score_b};
   },
@@ -656,12 +652,11 @@ export const api = {
     await delay(30);
     const user = requireUser();
     if (S.config.round_state !== "open") throw new Error("Round is not open");
-    if (user.locked_winner) throw new Error("Winner is locked after first submission");
+    // Winner pick is editable while stage 1 is the current open stage.
+    // Once admin advances past stage 1, the pick is implicitly locked.
+    if ((S.config.current_stage || 1) > 1) throw new Error("Winner pick locked — stage 1 has closed");
     const eid = resolveEntryId(user,entryId);
     if (!eid) throw new Error("No entry");
-    const entry = S.entries[eid];
-    // Once stage 1 is submitted on any form, the winner pick is locked.
-    if (entry?.stages_submitted?.[1]) throw new Error("Winner pick locked once stage 1 is submitted");
     if (d.team) S.winner_picks[eid] = d.team;
     else delete S.winner_picks[eid];
     save(S);
