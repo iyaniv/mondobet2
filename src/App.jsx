@@ -398,6 +398,21 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
       </>
     );
   };
+  // Colour each digit of the user's PREDICTION green if it matched the
+  // corresponding digit of the actual result. Used in the small right-side
+  // chip so users can see WHY they got the points they got.
+  const renderPredDigits = (p, r) => {
+    if (!r) return `${p[0]}:${p[1]}`;
+    const aMatch = p[0]===r[0];
+    const bMatch = p[1]===r[1];
+    return (
+      <>
+        <span style={{color:aMatch?C.green:"inherit"}}>{p[0]}</span>
+        :
+        <span style={{color:bMatch?C.green:"inherit"}}>{p[1]}</span>
+      </>
+    );
+  };
 
   let winnerSide = null;
   if (effectiveScore) {
@@ -482,10 +497,10 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
             alignItems:"center",marginTop:4}}>
             {effectiveScore!=null && pred?.[0]!=null && (
               <span style={{
-                background:C.panel2,color:C.muted,border:`1px solid ${C.border}`,
+                ...resultChipBaseStyle,
                 padding:"1px 7px",borderRadius:4,fontWeight:600,fontFamily:"monospace",
-                fontSize:11,whiteSpace:"nowrap"}} title="your prediction">
-                bet {pred[0]}:{pred[1]}
+                fontSize:11,whiteSpace:"nowrap"}} title="your prediction (matching digits in green)">
+                bet {renderPredDigits(pred, effectiveScore)}
               </span>
             )}
             {ptsEl}
@@ -543,10 +558,12 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
       <div style={{display:"flex",gap:4,alignItems:"center",justifyContent:"flex-end",minWidth:96}}>
         {effectiveScore!=null && pred?.[0]!=null
           ? <span style={{
-              background:C.panel2,color:C.muted,border:`1px solid ${C.border}`,
+              ...resultChipBaseStyle,
               padding:"1px 7px",borderRadius:4,fontWeight:600,fontFamily:"monospace",
               fontSize:11,whiteSpace:"nowrap",
-            }} title="your prediction">{pred[0]}:{pred[1]}</span>
+            }} title="your prediction (matching digits in green)">
+              {renderPredDigits(pred, effectiveScore)}
+            </span>
           : (effectiveScore==null && !editable && !adminResult &&
               <span style={{color:C.muted,fontSize:11,fontFamily:"monospace"}}>vs</span>)
         }
