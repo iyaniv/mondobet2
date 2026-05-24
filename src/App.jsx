@@ -440,6 +440,22 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
   );
 
   // ── Mobile: two-line layout ────────────────────────────────────────────────
+  // When a result/live score exists, the middle cell of line 1 shows the
+  // big green "✓ N:M" pill (admin-style); the user's prediction then
+  // appears as a small muted chip in the right-aligned line 2.
+  const mobileMiddle = !editable && !adminResult && effectiveScore!=null ? (
+    <span style={{
+      fontFamily:"monospace",fontWeight:700,fontSize:13,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",
+      background:isLiveBadge?"rgba(239,68,68,0.10)":isPreliminary?"rgba(163,230,53,0.10)":"rgba(48,209,88,0.14)",
+      border:`1px solid ${isLiveBadge?"rgba(239,68,68,0.4)":isPreliminary?"rgba(163,230,53,0.35)":"rgba(48,209,88,0.4)"}`,
+      color:isLiveBadge?C.red:isPreliminary?C.accent:C.green,
+    }}>
+      {isLiveBadge ? <span className="live-dot" style={{marginRight:4}}/>
+        : isPreliminary ? "" : "✓ "}
+      {renderResultDigits(effectiveScore)}
+      {isLiveBadge && <span style={{marginLeft:4,fontSize:10}}>{liveData.minute}′</span>}
+    </span>
+  ) : scoreBlock;
   if (isMobile) {
     return (
       <div style={{background:rowBg,border:`1px solid ${rowBorderColor}`,borderRadius:6,
@@ -452,7 +468,7 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
             fontWeight:winnerSide===0?700:400}}>
             {flag(match.a)} {match.a}
           </span>
-          {scoreBlock}
+          {mobileMiddle}
           <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
             textAlign:"right",
             color:winnerSide===1?C.accent:winnerSide===0?C.muted:C.text,
@@ -460,18 +476,16 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
             {match.b} {flag(match.b)}
           </span>
         </div>
-        {/* Line 2: result badge + pts (only when relevant) */}
-        {(effectiveScore!=null||ptsEl)&&(
+        {/* Line 2: user's prediction chip + pts (only when relevant) */}
+        {((effectiveScore!=null && pred?.[0]!=null) || ptsEl) && (
           <div style={{display:"flex",gap:5,justifyContent:"flex-end",
             alignItems:"center",marginTop:4}}>
-            {effectiveScore!=null&&(
-              <span style={{...resultChipBaseStyle,padding:"1px 7px",
-                borderRadius:4,fontWeight:700,fontFamily:"monospace",
-                fontSize:11,whiteSpace:"nowrap"}}>
-                {isLiveBadge ? <span className="live-dot" style={{marginRight:4}}/>
-                  : isPreliminary ? "" : "✓ "}
-                {renderResultDigits(effectiveScore)}
-                {isLiveBadge && <span style={{marginLeft:4,fontSize:10}}>{liveData.minute}′</span>}
+            {effectiveScore!=null && pred?.[0]!=null && (
+              <span style={{
+                background:C.panel2,color:C.muted,border:`1px solid ${C.border}`,
+                padding:"1px 7px",borderRadius:4,fontWeight:600,fontFamily:"monospace",
+                fontSize:11,whiteSpace:"nowrap"}} title="your prediction">
+                bet {pred[0]}:{pred[1]}
               </span>
             )}
             {ptsEl}
@@ -501,6 +515,22 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
           <span style={{textAlign:"center",color:C.muted}}>:</span>
           <input type="number" inputMode="numeric" min={0} max={20} value={resB} onChange={e=>setResB(e.target.value)} onBlur={e=>saveResult(1,e.target.value)} style={numInput}/>
         </>
+      ):effectiveScore!=null?(
+        // When a result/live score exists, the centre cell becomes the same
+        // big green "✓ N:M" pill that admin sees in the Results tab. The
+        // user's own prediction shifts to a small chip on the right.
+        <span style={{
+          gridColumn:"span 3",textAlign:"center",fontFamily:"monospace",
+          fontWeight:700,fontSize:15,padding:"4px 0",borderRadius:4,
+          background:isLiveBadge?"rgba(239,68,68,0.10)":isPreliminary?"rgba(163,230,53,0.10)":"rgba(48,209,88,0.14)",
+          border:`1px solid ${isLiveBadge?"rgba(239,68,68,0.4)":isPreliminary?"rgba(163,230,53,0.35)":"rgba(48,209,88,0.4)"}`,
+          color:isLiveBadge?C.red:isPreliminary?C.accent:C.green,
+        }}>
+          {isLiveBadge ? <span className="live-dot" style={{marginRight:6}}/>
+            : isPreliminary ? "" : "✓ "}
+          {renderResultDigits(effectiveScore)}
+          {isLiveBadge && <span style={{marginLeft:6,fontSize:11,fontWeight:600}}>{liveData.minute}′</span>}
+        </span>
       ):(
         <span style={{gridColumn:"span 3",textAlign:"center",fontFamily:"monospace",fontWeight:700,fontSize:15,background:C.bg,border:`1px solid ${C.border}`,borderRadius:4,padding:"4px 0",color:pred?.[0]!=null?C.text:C.muted}}>
           {pred?.[0]!=null?`${pred[0]} : ${pred[1]}`:"—"}
@@ -511,16 +541,13 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
         fontWeight:winnerSide===1?700:400,transition:"color .2s",
       }}>{match.b} {flag(match.b)}</span>
       <div style={{display:"flex",gap:4,alignItems:"center",justifyContent:"flex-end",minWidth:96}}>
-        {effectiveScore!=null
-          ? <span style={{...resultChipBaseStyle,padding:"1px 7px",borderRadius:4,
-              fontWeight:700,fontFamily:"monospace",fontSize:11,whiteSpace:"nowrap",
-            }}>
-              {isLiveBadge ? <span className="live-dot" style={{marginRight:4}}/>
-                : isPreliminary ? "" : "✓ "}
-              {renderResultDigits(effectiveScore)}
-              {isLiveBadge && <span style={{marginLeft:4,fontSize:10}}>{liveData.minute}′</span>}
-            </span>
-          : (!editable&&!adminResult&&
+        {effectiveScore!=null && pred?.[0]!=null
+          ? <span style={{
+              background:C.panel2,color:C.muted,border:`1px solid ${C.border}`,
+              padding:"1px 7px",borderRadius:4,fontWeight:600,fontFamily:"monospace",
+              fontSize:11,whiteSpace:"nowrap",
+            }} title="your prediction">{pred[0]}:{pred[1]}</span>
+          : (effectiveScore==null && !editable && !adminResult &&
               <span style={{color:C.muted,fontSize:11,fontFamily:"monospace"}}>vs</span>)
         }
         {ptsEl}
