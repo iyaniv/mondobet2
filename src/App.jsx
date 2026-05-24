@@ -670,11 +670,19 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
     <div>
       <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>⚙️ Admin dashboard</h1>
 
+      {(() => {
+        // Stage-aware denominator: only count matches whose stage is at or
+        // below the currently-open stage. Until admin advances past stage 1,
+        // "Results entered" reads as N/72 (group stage only), not N/104.
+        const openStage   = config?.current_stage || 1;
+        const openMatches = matches.filter(m => m.s <= openStage);
+        const resultsIn   = openMatches.filter(m => results[m.n]).length;
+        return (
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginBottom:20}}>
         {[
           {label:"Participants",    value:statData.length,                                                       color:C.accent},
           {label:"Paid",            value:`${statData.filter(u=>u.has_paid).length} / ${statData.length}`,       color:C.green},
-          {label:"Results entered", value:`${Object.keys(results).length} / ${matches.length}`,                  color:C.accent},
+          {label:`Results · stage ${openStage}`, value:`${resultsIn} / ${openMatches.length}`,                   color:C.accent},
         ].map(s=>(
           <div key={s.label} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14}}>
             <div style={{color:C.muted,fontSize:12,marginBottom:4}}>{s.label}</div>
@@ -682,6 +690,8 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
           </div>
         ))}
       </div>
+        );
+      })()}
 
       <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>🗂️ Stage control</h2>
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,marginBottom:20}}>
