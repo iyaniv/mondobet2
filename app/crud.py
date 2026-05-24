@@ -107,6 +107,18 @@ async def get_user_entries(db: AsyncSession, user_id: int) -> list[Entry]:
     return list(r.scalars().all())
 
 
+async def get_all_entries_by_user(db: AsyncSession) -> dict:
+    """Bulk fetch ALL entries and group by user_id — avoids N+1 in leaderboard.
+
+    Returns {user_id: [Entry, ...]} ordered by created_at within each user.
+    """
+    r = await db.execute(select(Entry).order_by(Entry.created_at))
+    out: dict = {}
+    for e in r.scalars().all():
+        out.setdefault(e.user_id, []).append(e)
+    return out
+
+
 async def get_entry(db: AsyncSession, entry_id: str) -> Optional[Entry]:
     return await db.get(Entry, entry_id)
 
@@ -150,16 +162,30 @@ async def delete_entry(db: AsyncSession, entry_id: str) -> bool:
     return True
 
 
-async def submit_entry(db: AsyncSession, entry_id: str, user: User) -> Optional[Entry]:
-    """Mark entry submitted and lock winner across all user entries on first submit."""
+async def submit_entry(db: AsyncSession, entry_id: str, user: User, stage: int = 1) -> Optional[Entry]:
+    """Mark THIS stage submitted on the given entry.
+
+    Per-stage submissions: each stage gets its own timestamp recorded in
+    entry.stages_submitted = {"1": iso, "2": iso, ...}. submitted_at stays
+    as the earliest stage timestamp for back-compat.
+
+    Winner lock: only the FIRST stage-1 submission locks the user's winner.
+    """
     entry = await db.get(Entry, entry_id)
-    if not entry or entry.submitted_at is not None:
-        return entry
+    if not entry:
+        return None
+    stages = dict(entry.stages_submitted or {})
+    if str(stage) in stages:
+        return entry  # already submitted — no-op
 
-    entry.submitted_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    stages[str(stage)] = now.isoformat()
+    entry.stages_submitted = stages
+    if entry.submitted_at is None:
+        entry.submitted_at = now
 
-    # Winner lock: on the user's first-ever submit, lock the winner
-    if user.locked_winner is None:
+    # Winner lock fires only when stage 1 is submitted for the first time.
+    if stage == 1 and user.locked_winner is None:
         wp = await db.get(WinnerPick, entry_id)
         if wp:
             user.locked_winner = wp.team
@@ -272,16 +298,17 @@ async def upsert_result(db: AsyncSession, match_n: int, score_a: Optional[int], 
 # ── Leaderboard ───────────────────────────────────────────────────────────────
 
 async def get_leaderboard(db: AsyncSession) -> list[LeaderboardEntry]:
-    participants = await get_participants(db)
-    all_preds    = await get_all_predictions(db)
-    all_results  = await get_all_results(db)
-    all_winners  = await get_all_winner_picks(db)
-    live_map     = await get_live_matches(db)
-    cfg          = await get_config(db)
+    participants     = await get_participants(db)
+    all_entries_map  = await get_all_entries_by_user(db)  # single bulk query
+    all_preds        = await get_all_predictions(db)
+    all_results      = await get_all_results(db)
+    all_winners      = await get_all_winner_picks(db)
+    live_map         = await get_live_matches(db)
+    cfg              = await get_config(db)
 
     rows: list[LeaderboardEntry] = []
     for user in participants:
-        user_entries = await get_user_entries(db, user.id)
+        user_entries = all_entries_map.get(user.id, [])
         for entry in user_entries:
             if entry.submitted_at is None:
                 continue  # drafts don't appear on leaderboard
@@ -314,16 +341,17 @@ async def get_leaderboard(db: AsyncSession) -> list[LeaderboardEntry]:
 
 async def get_participants_with_entries(db: AsyncSession) -> list[dict]:
     """Full participant data for the admin expandable table."""
-    participants = await get_participants(db)
-    all_preds    = await get_all_predictions(db)
-    all_results  = await get_all_results(db)
-    all_winners  = await get_all_winner_picks(db)
-    live_map     = await get_live_matches(db)
-    cfg          = await get_config(db)
+    participants    = await get_participants(db)
+    all_entries_map = await get_all_entries_by_user(db)  # single bulk query
+    all_preds       = await get_all_predictions(db)
+    all_results     = await get_all_results(db)
+    all_winners     = await get_all_winner_picks(db)
+    live_map        = await get_live_matches(db)
+    cfg             = await get_config(db)
 
     out = []
     for user in participants:
-        user_entries = await get_user_entries(db, user.id)
+        user_entries = all_entries_map.get(user.id, [])
         entries_data = []
         best_total = 0
         for entry in user_entries:

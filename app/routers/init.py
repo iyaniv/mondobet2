@@ -12,7 +12,7 @@ from app import crud
 from app.auth import decode_token
 from app.database import get_db
 from app.matches import MATCHES, STAGES, TEAMS
-from app.models import User, WinnerPick
+from app.models import Prediction, User, WinnerPick
 
 router = APIRouter(prefix="/init", tags=["init"])
 _bearer = HTTPBearer(auto_error=False)
@@ -58,22 +58,36 @@ async def bootstrap(
 
     if caller and not caller.is_admin:
         entries = await crud.get_user_entries(db, caller.id)
+        entry_ids = [e.id for e in entries]
+
+        # Batch-fetch all predictions and winner picks for this user's entries
+        # (2 queries regardless of how many entries the user has)
+        preds_rows = (await db.execute(
+            select(Prediction).where(Prediction.entry_id.in_(entry_ids))
+        )).scalars().all()
+        preds_by_entry: dict = {}
+        for p in preds_rows:
+            preds_by_entry.setdefault(p.entry_id, {})[p.match_n] = [p.score_a, p.score_b]
+
+        wp_rows = (await db.execute(
+            select(WinnerPick).where(WinnerPick.entry_id.in_(entry_ids))
+        )).scalars().all()
+        wp_by_entry = {wp.entry_id: wp.team for wp in wp_rows}
+
         entries_data = []
         for entry in entries:
-            preds = await crud.get_entry_predictions(db, entry.id)
-            wp = (await db.execute(
-                select(WinnerPick).where(WinnerPick.entry_id == entry.id)
-            )).scalar_one_or_none()
+            preds = preds_by_entry.get(entry.id, {})
             entries_data.append({
                 "id": entry.id,
                 "name": entry.name,
                 "created_at": entry.created_at.isoformat(),
                 "submitted_at": entry.submitted_at.isoformat() if entry.submitted_at else None,
+                "stages_submitted": entry.stages_submitted or {},
                 "predictions": [
                     {"match_n": n, "score_a": v[0], "score_b": v[1]}
                     for n, v in preds.items()
                 ],
-                "winner_pick": wp.team if wp else None,
+                "winner_pick": wp_by_entry.get(entry.id),
             })
         out["entries"] = entries_data
         out["locked_winner"] = caller.locked_winner
