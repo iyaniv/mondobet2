@@ -557,11 +557,12 @@ export const api = {
     S.entries[eid] = entry;
     const srcId = d?.copy_from_entry_id;
     if (srcId && S.entries[srcId]?.user_id === user.id) {
+      // Copying inherits the source's predictions and winner pick
       S.predictions[eid] = {...(S.predictions[srcId]||{})};
       if (S.winner_picks[srcId]) S.winner_picks[eid] = S.winner_picks[srcId];
     } else {
+      // Brand-new empty form: blank predictions, NO winner pre-selected
       S.predictions[eid] = {};
-      if (user.locked_winner) S.winner_picks[eid] = user.locked_winner;
     }
     save(S);
     return entryOut(entry);

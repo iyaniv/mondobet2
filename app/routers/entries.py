@@ -40,8 +40,10 @@ async def create_entry(
             wp = await db.get(WinnerPick, data.copy_from_entry_id)
             if wp:
                 await crud.upsert_winner_pick(db, entry.id, wp.team)
-    elif user.locked_winner:
-        await crud.upsert_winner_pick(db, entry.id, user.locked_winner)
+    # NEW empty forms start blank — no auto-inherit of user.locked_winner.
+    # The user picks their winner explicitly on the new form. (Old behaviour
+    # was to fan out locked_winner to every new form, but per the new
+    # "winner editable until stage 1 closes" rule, that's no longer right.)
     return entry
 
 

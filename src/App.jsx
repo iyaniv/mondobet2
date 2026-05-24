@@ -67,6 +67,82 @@ const FLAGS = {
 const flag     = (t) => FLAGS[t] || "🏳️";
 const withFlag = (t) => `${flag(t)} ${t}`;
 
+// ── Custom confirm modal ─────────────────────────────────────────────────────
+// Replaces native confirm() prompts with a themed in-app modal. Call sites use:
+//   if (await confirmDialog({ title, message, confirmLabel, danger })) { ... }
+// The modal mounts via <ConfirmHost/> at the App root.
+let _confirmHandler = null;
+function confirmDialog(opts) {
+  return new Promise(resolve => {
+    if (!_confirmHandler) { resolve(window.confirm(opts?.message || "")); return; }
+    _confirmHandler(opts || {}, resolve);
+  });
+}
+function ConfirmHost() {
+  const [state, setState] = useState(null);
+  useEffect(() => {
+    _confirmHandler = (opts, resolve) => setState({...opts, _resolve: resolve});
+    return () => { _confirmHandler = null; };
+  }, []);
+  // ESC = cancel, Enter = confirm
+  useEffect(() => {
+    if (!state) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") { state._resolve(false); setState(null); }
+      else if (e.key === "Enter") { state._resolve(true); setState(null); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [state]);
+  if (!state) return null;
+  const close = (ok) => { state._resolve(ok); setState(null); };
+  const danger = !!state.danger;
+  return (
+    <div onClick={()=>close(false)} style={{
+      position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",
+      zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",
+      padding:16,backdropFilter:"blur(4px)",
+    }}>
+      <div onClick={e=>e.stopPropagation()} style={{
+        background:C.panel,border:`1px solid ${C.border}`,borderRadius:14,
+        maxWidth:440,width:"100%",padding:20,boxShadow:"0 20px 60px rgba(0,0,0,0.55)",
+        animation:"none",
+      }}>
+        {state.title && (
+          <div style={{fontSize:17,fontWeight:700,color:C.text,marginBottom:8,
+            display:"flex",alignItems:"center",gap:8}}>
+            {danger && <span>⚠️</span>}
+            {state.title}
+          </div>
+        )}
+        {state.message && (
+          <div style={{fontSize:14,color:C.muted,whiteSpace:"pre-wrap",
+            lineHeight:1.5,marginBottom:18}}>
+            {state.message}
+          </div>
+        )}
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <button onClick={()=>close(false)} style={{
+            background:"transparent",border:`1px solid ${C.border}`,color:C.text,
+            padding:"8px 16px",borderRadius:8,fontSize:14,fontWeight:600,
+            cursor:"pointer",fontFamily:"inherit",
+          }}>
+            {state.cancelLabel || "Cancel"}
+          </button>
+          <button onClick={()=>close(true)} autoFocus style={{
+            background:danger?C.red:C.accent,
+            color:danger?"#fff":"#1a1a1a",border:0,
+            padding:"8px 18px",borderRadius:8,fontSize:14,fontWeight:700,
+            cursor:"pointer",fontFamily:"inherit",
+          }}>
+            {state.confirmLabel || "Confirm"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function initials(name) {
   const p = name.trim().split(" ");
   return p.length >= 2 ? (p[0][0] + p[p.length-1][0]).toUpperCase() : name.slice(0,2).toUpperCase();
@@ -667,7 +743,13 @@ function AdminDashboard({ config, setConfig, matches, teams, results, setResults
   }
 
   async function adminDeleteEntry(entryId, userId){
-    if(!confirm("Delete this draft form?"))return;
+    const ok = await confirmDialog({
+      title: "Delete draft form?",
+      message: "This removes the draft from the user's account. Submitted forms cannot be deleted from here.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if(!ok)return;
     try{
       await api.deleteEntry(entryId);
       setAdminParticipants(prev=>prev.map(u=>{
@@ -772,7 +854,15 @@ function AdminDashboard({ config, setConfig, matches, teams, results, setResults
             <Btn green onClick={()=>setRoundState("open")}>🟢 Open predictions</Btn>
           )}
           {config.round_state==="open" && (
-            <Btn red onClick={()=>confirm("Close predictions for this stage?")&&setRoundState("closed")}>🔒 Close predictions</Btn>
+            <Btn red onClick={async ()=>{
+              const ok = await confirmDialog({
+                title: "Close predictions for this stage?",
+                message: "Users won't be able to edit or submit their forms while predictions are closed. You can re-open them later.",
+                confirmLabel: "Close predictions",
+                danger: true,
+              });
+              if (ok) setRoundState("closed");
+            }}>🔒 Close predictions</Btn>
           )}
           <span style={{fontSize:12,color:C.muted}}>
             {config.round_state==="open"
@@ -832,21 +922,27 @@ function AdminDashboard({ config, setConfig, matches, teams, results, setResults
               <button key={s.n}
                 onClick={async () => {
                   if (disabled) return;
-                  if (!confirm(`Random-fill ${empty} match${empty===1?"":"es"} in Stage ${s.n} (${s.name}) as FINAL results?`)) return;
+                  const ok = await confirmDialog({
+                    title: `Random-fill Stage ${s.n}?`,
+                    message: `Fill ${empty} match${empty===1?"":"es"} in ${s.name} with random scores (0–3 each side) as FINAL results. This counts toward all submitted users' totals.`,
+                    confirmLabel: "Fill randomly",
+                    danger: false,
+                  });
+                  if (!ok) return;
                   const rand = () => Math.floor(Math.random() * 4);  // 0..3
-                  let ok = 0;
+                  let filled = 0;
                   for (const m of stageMatches) {
                     if (results[m.n] || liveMatches[m.n]) continue;
                     const sa = rand(), sb = rand();
                     try {
                       await api.setResult(m.n, {score_a: sa, score_b: sb});
                       setResults?.(r => ({...r, [m.n]: [sa, sb]}));
-                      ok++;
+                      filled++;
                     } catch(e) { console.error("random-fill", m.n, e); }
                   }
                   if (typeof refreshLive === "function") await refreshLive();
                   await refreshLb();
-                  showToast(`Random-filled ${ok} match${ok===1?"":"es"} 🎲`);
+                  showToast(`Random-filled ${filled} match${filled===1?"":"es"} 🎲`);
                 }}
                 disabled={disabled}
                 title={disabled ? "Stage already fully resulted" : `Random-fill ${empty} remaining match(es)`}
@@ -864,7 +960,13 @@ function AdminDashboard({ config, setConfig, matches, teams, results, setResults
         </div>
         <button
           onClick={async () => {
-            if (!confirm("⚠️  Reset ALL admin-entered scores?\n\nThis wipes every final result AND every live record. Predictions, entries, users, winner picks and config are untouched. There is no undo.")) return;
+            const ok = await confirmDialog({
+              title: "Reset ALL admin-entered scores?",
+              message: "Wipes every final result AND every live record. Predictions, entries, users, winner picks and config are untouched.\n\nThere is no undo.",
+              confirmLabel: "Reset everything",
+              danger: true,
+            });
+            if (!ok) return;
             try {
               const r = await api.resetAllResults();
               setResults?.({});
@@ -2224,8 +2326,9 @@ export default function App() {
         const entry=await api.createEntry(body);
         const src = copyFromEntryId ? entries.find(e=>e.id===copyFromEntryId) : null;
         const seedPreds = src ? (src.predictions||[]) : [];
-        const seedWinner = src ? (src.winner_pick ?? lockedWinner ?? null)
-                               : (lockedWinner ?? null);
+        // Copying inherits the source's winner pick. A brand-new empty form
+        // starts with NO winner pre-selected (user picks it themselves).
+        const seedWinner = src ? (src.winner_pick ?? null) : null;
         // Important: explicitly reset local state instead of relying on
         // switchEntry's lookup against the not-yet-updated entries list.
         // Otherwise a newly-created empty form briefly shows the previously
@@ -2274,7 +2377,13 @@ export default function App() {
     }
 
     async function deleteEntryById(entryId){
-      if(!confirm("Delete this form?"))return;
+      const ok = await confirmDialog({
+        title: "Delete this form?",
+        message: "All predictions and the winner pick on this form will be removed. This cannot be undone.",
+        confirmLabel: "Delete",
+        danger: true,
+      });
+      if(!ok)return;
       try{
         await api.deleteEntry(entryId);
         const next=entries.filter(e=>e.id!==entryId);
@@ -2948,6 +3057,7 @@ export default function App() {
           {toast.msg}
         </div>
       )}
+      <ConfirmHost/>
     </div>
   );
 }
