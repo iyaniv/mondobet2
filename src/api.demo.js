@@ -131,8 +131,11 @@ const MATCHES = [
   {n:101,s:5,g:"SF",a:"W M97",b:"W M98"},
   {n:102,s:5,g:"SF",a:"W M99",b:"W M100"},
   // ── Final & 3rd place ────────────────────────────────────────────────────
+  // Note: bracket labels are "FIN"/"3P", not "F" — Group F is a real group
+  // stage group letter, so using "F" here would collide and pull the Final
+  // into Group F's standings.
   {n:103,s:6,g:"3P",a:"L M101",b:"L M102"},
-  {n:104,s:6,g:"F", a:"W M101",b:"W M102"},
+  {n:104,s:6,g:"FIN",a:"W M101",b:"W M102"},
 ];
 // TEAMS = real country names from group stage only (for winner picker)
 const TEAMS = [...new Set(MATCHES.filter(m=>m.s===1).flatMap(m=>[m.a,m.b]))].sort();

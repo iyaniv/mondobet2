@@ -127,8 +127,11 @@ MATCHES = [
   {"n":102,"s":5,"g":"SF","t":"2026-07-15T18:00:00Z","a":"W M99","b":"W M100"},
 
   # ── Final & 3rd Place (Stage 6) ───────────────────────────────────────────
-  {"n":103,"s":6,"g":"3P","t":"2026-07-18T17:00:00Z","a":"L M101","b":"L M102"},
-  {"n":104,"s":6,"g":"F", "t":"2026-07-19T19:00:00Z","a":"W M101","b":"W M102"},
+  # Bracket labels are "FIN"/"3P", not "F" — Group F is a real group-stage
+  # group letter, so using "F" here would collide and pull the Final into
+  # Group F's standings.
+  {"n":103,"s":6,"g":"3P", "t":"2026-07-18T17:00:00Z","a":"L M101","b":"L M102"},
+  {"n":104,"s":6,"g":"FIN","t":"2026-07-19T19:00:00Z","a":"W M101","b":"W M102"},
 ]
 
 # Only real country names (group stage) go into TEAMS — used for winner picker

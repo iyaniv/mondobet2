@@ -948,7 +948,10 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
 const GROUPS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
 
 function computeGroupStandings(groupLetter, allMatches, results, simPreds={}, liveMatches={}) {
-  const gm = allMatches.filter(m => m.g === groupLetter);
+  // Stage-1 filter is defence in depth: bracket labels ("FIN"/"3P") could
+  // someday collide with a real group letter (the Final used to be tagged
+  // "F", which polluted Group F's standings until we renamed it).
+  const gm = allMatches.filter(m => m.s === 1 && m.g === groupLetter);
   const teams = [...new Set(gm.flatMap(m => [m.a, m.b]))];
   const s = {};
   teams.forEach(t => { s[t]={P:0,W:0,D:0,L:0,GF:0,GA:0,GD:0,Pts:0}; });
@@ -972,7 +975,8 @@ function computeGroupStandings(groupLetter, allMatches, results, simPreds={}, li
 }
 
 function GroupCard({ group, allMatches, results, simPreds, liveMatches={} }) {
-  const gm = allMatches.filter(m => m.g === group);
+  // Stage-1 only — see computeGroupStandings for the rationale.
+  const gm = allMatches.filter(m => m.s === 1 && m.g === group);
   const standings = computeGroupStandings(group, allMatches, results, simPreds, liveMatches);
   const played = gm.filter(m => results[m.n]).length;
 
