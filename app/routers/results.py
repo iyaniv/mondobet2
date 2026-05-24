@@ -27,3 +27,17 @@ async def set_result(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Match not found.")
     await crud.upsert_result(db, match_n, data.score_a, data.score_b)
     return {"match_n": match_n, "score_a": data.score_a, "score_b": data.score_b}
+
+
+@router.post("/reset", response_model=dict)
+async def reset_all_results(
+    _=Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin testing helper — wipes every final result AND every live record.
+
+    Predictions, entries, users, winner picks, config and stages are all
+    left untouched; only the admin-entered scores go.
+    """
+    deleted = await crud.delete_all_results_and_live(db)
+    return {"deleted": deleted}

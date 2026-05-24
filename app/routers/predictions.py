@@ -132,7 +132,10 @@ async def user_predictions(
     if current_user.is_admin or viewing_own:
         return [PredictionOut(match_n=n, score_a=v[0], score_b=v[1]) for n, v in preds.items()]
 
-    # For other users: only reveal predictions for matches with results
+    # For other users: reveal predictions for any match that has a score —
+    # final OR in-motion (live). Matches that haven't been played at all
+    # stay hidden so users can't peek at each other's still-secret picks.
     results_map = await crud.get_all_results(db)
-    played = set(results_map.keys())
+    live_map = await crud.get_live_matches(db)
+    played = set(results_map.keys()) | set(live_map.keys())
     return [PredictionOut(match_n=n, score_a=v[0], score_b=v[1]) for n, v in preds.items() if n in played]

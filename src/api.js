@@ -72,6 +72,7 @@ export const api = {
   // Admin
   updateConfig:         (d)      => request("/api/config/",                  { method: "PATCH", body: d }),
   setResult:            (n, d)   => request(`/api/results/${n}`,             { method: "PUT",   body: d }),
+  resetAllResults:      ()       => request("/api/results/reset",            { method: "POST" }),
   getUsers:             ()       => request("/api/users/"),
   patchUser:            (uid, d) => request(`/api/users/${uid}`,             { method: "PATCH", body: d }),
   updateMe:             (d)      => request("/api/users/me",                 { method: "PATCH", body: d }),

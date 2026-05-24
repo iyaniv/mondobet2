@@ -391,6 +391,19 @@ async def get_participants_with_entries(db: AsyncSession) -> list[dict]:
     return out
 
 
+async def delete_all_results_and_live(db: AsyncSession) -> dict:
+    """Wipe every Result and every LiveMatch row. Returns counts deleted.
+
+    Used by the admin "reset all results" testing helper. Predictions,
+    entries, users, winner picks, config and stages are untouched.
+    """
+    from sqlalchemy import delete as sql_delete
+    r1 = await db.execute(sql_delete(Result))
+    r2 = await db.execute(sql_delete(LiveMatch))
+    await db.commit()
+    return {"results": r1.rowcount or 0, "live": r2.rowcount or 0}
+
+
 # ── Live matches ──────────────────────────────────────────────────────────────
 
 async def get_live_matches(db: AsyncSession) -> dict:

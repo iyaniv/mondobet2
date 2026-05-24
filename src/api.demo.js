@@ -689,7 +689,12 @@ export const api = {
     // Admin or own entry: return all; others: only played matches
     const viewingOwn = Number(uid) === caller.id;
     if (caller.is_admin || viewingOwn) return allPreds;
-    const played = new Set(Object.keys(S.results).map(Number));
+    // Match has a score = final OR in-motion (live, regardless of is_live).
+    // Unplayed matches stay hidden — peeking at others' picks isn't allowed.
+    const played = new Set([
+      ...Object.keys(S.results).map(Number),
+      ...Object.keys(S.live).map(Number),
+    ]);
     return allPreds.filter(p => played.has(p.match_n));
   },
 
@@ -712,6 +717,19 @@ export const api = {
     else delete S.results[n];
     save(S);
     return {match_n:n,...d};
+  },
+
+  // Admin testing helper: wipe every final result and every live record.
+  // Predictions / entries / users / winner picks / config are untouched.
+  resetAllResults: async () => {
+    await delay();
+    requireAdmin();
+    const r = Object.keys(S.results).length;
+    const l = Object.keys(S.live).length;
+    S.results = {};
+    S.live = {};
+    save(S);
+    return {deleted:{results:r, live:l}};
   },
 
   getUsers: async () => {

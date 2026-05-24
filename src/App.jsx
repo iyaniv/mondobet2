@@ -638,7 +638,7 @@ function AuthView({ roundState, onSuccess }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // ADMIN DASHBOARD — outside App so TeamPicker never remounts on App re-renders
 // ─────────────────────────────────────────────────────────────────────────────
-function AdminDashboard({ config, setConfig, matches, teams, results, participants, setParticipants, adminParticipants, setAdminParticipants, leaderboard, showToast, refreshLb }) {
+function AdminDashboard({ config, setConfig, matches, teams, results, setResults, liveMatches={}, refreshLive, participants, setParticipants, adminParticipants, setAdminParticipants, leaderboard, showToast, refreshLb }) {
   const [expandedUsers,setExpandedUsers]=useState(new Set());
   const tableData=adminParticipants.length>0?adminParticipants:null;
   const statData=tableData||participants;
@@ -812,6 +812,73 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap",marginBottom:20,position:"relative",zIndex:10}}>
         <TeamPicker value={config.tournament_winner||null} onChange={setWinner} teams={teams} clearable placeholder="— no winner set —"/>
         <span style={{color:C.muted,fontSize:12,alignSelf:"center"}}>Awards +10 pts to everyone who picked correctly.</span>
+      </div>
+
+      {/* Testing / Reset tools — admin testing helpers only */}
+      <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>🧪 Testing tools</h2>
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,marginBottom:20}}>
+        <p style={{margin:"0 0 12px",fontSize:13,color:C.muted}}>
+          Quick helpers for running through the demo end-to-end. Both actions
+          touch only admin-entered scores — predictions, entries, users, winner
+          picks and stage state are left as they are.
+        </p>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
+          {STAGES.map(s => {
+            const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last);
+            if (stageMatches.length === 0) return null;
+            const empty = stageMatches.filter(m => !results[m.n] && !liveMatches[m.n]).length;
+            const disabled = empty === 0;
+            return (
+              <button key={s.n}
+                onClick={async () => {
+                  if (disabled) return;
+                  if (!confirm(`Random-fill ${empty} match${empty===1?"":"es"} in Stage ${s.n} (${s.name}) as FINAL results?`)) return;
+                  const rand = () => Math.floor(Math.random() * 4);  // 0..3
+                  let ok = 0;
+                  for (const m of stageMatches) {
+                    if (results[m.n] || liveMatches[m.n]) continue;
+                    const sa = rand(), sb = rand();
+                    try {
+                      await api.setResult(m.n, {score_a: sa, score_b: sb});
+                      setResults?.(r => ({...r, [m.n]: [sa, sb]}));
+                      ok++;
+                    } catch(e) { console.error("random-fill", m.n, e); }
+                  }
+                  if (typeof refreshLive === "function") await refreshLive();
+                  await refreshLb();
+                  showToast(`Random-filled ${ok} match${ok===1?"":"es"} 🎲`);
+                }}
+                disabled={disabled}
+                title={disabled ? "Stage already fully resulted" : `Random-fill ${empty} remaining match(es)`}
+                style={{
+                  padding:"7px 12px",borderRadius:6,fontSize:12,fontWeight:600,
+                  border:`1px solid ${disabled?C.border:C.accent}`,
+                  background:disabled?"transparent":"rgba(163,230,53,0.10)",
+                  color:disabled?C.muted:C.accent,
+                  cursor:disabled?"not-allowed":"pointer",
+                }}>
+                🎲 Stage {s.n} <span style={{opacity:0.7,fontWeight:400}}>({empty} left)</span>
+              </button>
+            );
+          })}
+        </div>
+        <button
+          onClick={async () => {
+            if (!confirm("⚠️  Reset ALL admin-entered scores?\n\nThis wipes every final result AND every live record. Predictions, entries, users, winner picks and config are untouched. There is no undo.")) return;
+            try {
+              const r = await api.resetAllResults();
+              setResults?.({});
+              if (typeof refreshLive === "function") await refreshLive();
+              await refreshLb();
+              showToast(`Reset · ${r?.deleted?.results||0} results + ${r?.deleted?.live||0} live cleared`);
+            } catch(e) { showToast(e.message, "err"); }
+          }}
+          style={{
+            padding:"8px 14px",borderRadius:6,fontSize:13,fontWeight:700,border:0,cursor:"pointer",
+            background:C.red,color:"#fff",
+          }}>
+          🔄 Reset all results &amp; live
+        </button>
       </div>
 
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
@@ -1849,7 +1916,7 @@ function ByUser({ config, leaderboard, results, liveMatches, matches, user,
           background:pill.bg,color:pill.color,border:pill.border}}>{pill.text}</span>
       </div>
       <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>Bets by participant</h1>
-      <InfoBlock>Showing predictions for the <b>{playedMatches.length}</b> completed match{playedMatches.length!==1?"es":""} only. Unplayed matches are hidden until their results are in.</InfoBlock>
+      <InfoBlock>Showing predictions for the <b>{playedMatches.length}</b> match{playedMatches.length===1?"":"es"} with results so far (final or live). Unplayed matches stay hidden until they have a score.</InfoBlock>
       <div style={{marginBottom:16}}>
         <ParticipantPicker entries={leaderboard} value={viewUserId} onChange={setViewUserId}/>
       </div>
@@ -2860,7 +2927,9 @@ export default function App() {
         {user&&tab==="dashboard"&&(
           <AdminDashboard
             config={config} setConfig={setConfig}
-            matches={matches} teams={teams} results={results}
+            matches={matches} teams={teams}
+            results={results} setResults={setResults}
+            liveMatches={liveMatches} refreshLive={refreshLive}
             participants={participants} setParticipants={setParticipants}
             adminParticipants={adminParticipants} setAdminParticipants={setAdminParticipants}
             leaderboard={leaderboard}
