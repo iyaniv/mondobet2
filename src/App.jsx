@@ -31,10 +31,45 @@ function resolveTeam(name, results, matches) {
   return type === 'W' ? (sa > sb ? src.a : src.b) : (sa > sb ? src.b : src.a);
 }
 
-// Recursive variant: resolves through multiple rounds using any scores map (results or sim preds)
+// Recursive variant: resolves through multiple rounds using any scores map
+// (results or sim preds). Also resolves Stage-2 slot labels: "1st A" / "2nd B"
+// (from group standings) and "Best 3rd (N)" (Nth best 3rd-place across groups).
 function resolveTeamDeep(name, scoresMap, matchList, depth = 0) {
   if (depth > 8) return name;
-  const m = name.match(/^([WL]) M(\d+)$/);
+
+  // Stage-2 group-rank slots: "1st A", "2nd B", "3rd C"
+  let m = name.match(/^(1st|2nd|3rd)\s+([A-L])$/);
+  if (m) {
+    const rank = m[1] === "1st" ? 0 : m[1] === "2nd" ? 1 : 2;
+    const gm = matchList.filter(x => x.s === 1 && x.g === m[2]);
+    if (gm.length === 0) return name;
+    // Only resolve once every group match has a final result
+    if (!gm.every(x => scoresMap[x.n] != null)) return name;
+    const standings = computeGroupStandings(m[2], matchList, scoresMap, {}, {});
+    return standings[rank]?.name || name;
+  }
+
+  // Stage-2 best-third slots: "Best 3rd (1)" .. "Best 3rd (8)"
+  m = name.match(/^Best 3rd \((\d+)\)$/);
+  if (m) {
+    const idx = Number(m[1]) - 1;
+    const groups = ["A","B","C","D","E","F","G","H","I","J","K","L"];
+    const allThirds = [];
+    for (const g of groups) {
+      const gm = matchList.filter(x => x.s === 1 && x.g === g);
+      if (gm.length === 0) continue;
+      // All groups must be fully decided before "Best 3rd" can rank them
+      if (!gm.every(x => scoresMap[x.n] != null)) return name;
+      const standings = computeGroupStandings(g, matchList, scoresMap, {}, {});
+      if (standings[2]) allThirds.push(standings[2]);
+    }
+    if (allThirds.length === 0) return name;
+    allThirds.sort((a,b)=>b.Pts-a.Pts||b.GD-a.GD||b.GF-a.GF||a.name.localeCompare(b.name));
+    return allThirds[idx]?.name || name;
+  }
+
+  // Knockout slots: "W M73" / "L M101"
+  m = name.match(/^([WL]) M(\d+)$/);
   if (!m) return name;
   const type = m[1], n = Number(m[2]);
   const src = matchList.find(x => x.n === n);
@@ -46,6 +81,17 @@ function resolveTeamDeep(name, scoresMap, matchList, depth = 0) {
   const [sa, sb] = res;
   if (sa === sb) return name;
   return type === 'W' ? (sa > sb ? teamA : teamB) : (sa > sb ? teamB : teamA);
+}
+
+// Wrap a match so its team labels are resolved (e.g. "1st A" → "Mexico").
+// Cheap object spread; safe to call on every render.
+function resolvedMatch(m, results, allMatches) {
+  if (!m || m.s === 1) return m;  // group stage already has real team names
+  return {
+    ...m,
+    a: resolveTeamDeep(m.a, results, allMatches),
+    b: resolveTeamDeep(m.b, results, allMatches),
+  };
 }
 
 const FLAGS = {
@@ -1658,7 +1704,7 @@ function AdminResults({ config, matches, results, liveMatches, setResults, refre
               <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10,marginBottom:8}}>
                 {stageMatches.map(m => (
                   <AdminMatchRow key={m.n}
-                    match={m}
+                    match={resolvedMatch(m, results, matches)}
                     result={results[m.n] ?? null}
                     liveData={liveMatches[m.n] ?? null}
                     onSaveResult={saveResult}
@@ -2130,7 +2176,7 @@ function ByUser({ config, leaderboard, results, liveMatches, matches, user,
         opacity:predsLoading?0.5:1,transition:"opacity .25s"}}>
         {predsLoading&&<div style={{textAlign:"center",padding:16,color:C.muted,fontSize:13}}>Loading predictions…</div>}
         {displayMatches.map(m=>(
-          <MatchRow key={m.n} match={m}
+          <MatchRow key={m.n} match={resolvedMatch(m, results, matches)}
             pred={viewUserPreds[m.n]??null} result={results[m.n]??null}
             liveData={liveMatches[m.n]??null}
             editable={false} adminResult={false} roundState={config.round_state}
@@ -2887,7 +2933,7 @@ export default function App() {
                   transition:"opacity .3s",marginBottom:8,
                 }}>
                   {stageMatches.map(m=>(
-                    <MatchRow key={m.n} match={m}
+                    <MatchRow key={m.n} match={resolvedMatch(m, results, matches)}
                       pred={myPreds[m.n]??null}
                       result={results[m.n]??null}
                       liveData={liveMatches[m.n]??null}
