@@ -419,6 +419,62 @@ async def delete_all_results_and_live(db: AsyncSession) -> dict:
     return {"results": r1.rowcount or 0, "live": r2.rowcount or 0}
 
 
+async def reset_user_data(db: AsyncSession) -> dict:
+    """Wipe all entries, predictions, winner picks and submission state for
+    every non-admin user.  Results, live matches, config and the user
+    accounts themselves are left intact.
+
+    Used by the admin "reset user data" testing helper.
+    """
+    from sqlalchemy import delete as sql_delete, update as sql_update
+    # Cascade via FK: deleting Entry rows also deletes Prediction + WinnerPick
+    # rows that reference them (ondelete=CASCADE on the FKs).
+    r1 = await db.execute(
+        sql_delete(Entry).where(
+            Entry.user_id.in_(
+                select(User.id).where(User.is_admin.is_(False))
+            )
+        )
+    )
+    # Clear locked_winner on all non-admin users
+    await db.execute(
+        sql_update(User)
+        .where(User.is_admin.is_(False))
+        .values(locked_winner=None)
+    )
+    # Reset config: close the round, back to stage 1, clear tournament winner
+    cfg = await get_config(db)
+    cfg.round_state = RoundStateEnum.idle
+    cfg.current_stage = 1
+    cfg.tournament_winner = None
+    await db.commit()
+    return {"entries_deleted": r1.rowcount or 0}
+
+
+async def reset_full_system(db: AsyncSession) -> dict:
+    """Delete every non-admin user (and all their data via CASCADE) plus
+    wipe results, live matches, and reset config to a clean idle state.
+
+    Admin accounts survive — they can log back in and start fresh.
+    """
+    from sqlalchemy import delete as sql_delete
+    # Delete non-admin users; Entry/Prediction/WinnerPick cascade automatically
+    r1 = await db.execute(sql_delete(User).where(User.is_admin.is_(False)))
+    r2 = await db.execute(sql_delete(Result))
+    r3 = await db.execute(sql_delete(LiveMatch))
+    # Reset config
+    cfg = await get_config(db)
+    cfg.round_state = RoundStateEnum.idle
+    cfg.current_stage = 1
+    cfg.tournament_winner = None
+    await db.commit()
+    return {
+        "users_deleted": r1.rowcount or 0,
+        "results_deleted": r2.rowcount or 0,
+        "live_deleted": r3.rowcount or 0,
+    }
+
+
 # ── Live matches ──────────────────────────────────────────────────────────────
 
 async def get_live_matches(db: AsyncSession) -> dict:

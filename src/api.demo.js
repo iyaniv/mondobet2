@@ -741,6 +741,50 @@ export const api = {
     return {deleted:{results:r, live:l}};
   },
 
+  // Wipe all entries/predictions/winner-picks for non-admin users; reset config.
+  resetUserData: async () => {
+    await delay();
+    requireAdmin();
+    let entries_deleted = 0;
+    for (const uid of Object.keys(S.users)) {
+      if (S.users[uid].is_admin) continue;
+      entries_deleted += Object.values(S.entries).filter(e=>String(e.user_id)===String(uid)).length;
+      S.users[uid].locked_winner = null;
+    }
+    S.entries = {};
+    S.preds = {};
+    S.winners = {};
+    S.config.round_state = "idle";
+    S.config.current_stage = 1;
+    S.config.tournament_winner = null;
+    save(S);
+    return {entries_deleted};
+  },
+
+  // Nuclear: delete all non-admin users + their data, wipe results/live, reset config.
+  resetFullSystem: async () => {
+    await delay();
+    requireAdmin();
+    let users_deleted = 0;
+    for (const uid of Object.keys(S.users)) {
+      if (S.users[uid].is_admin) continue;
+      delete S.users[uid];
+      users_deleted++;
+    }
+    const results_deleted = Object.keys(S.results).length;
+    const live_deleted = Object.keys(S.live).length;
+    S.entries = {};
+    S.preds = {};
+    S.winners = {};
+    S.results = {};
+    S.live = {};
+    S.config.round_state = "idle";
+    S.config.current_stage = 1;
+    S.config.tournament_winner = null;
+    save(S);
+    return {users_deleted, results_deleted, live_deleted};
+  },
+
   getUsers: async () => {
     await delay();
     requireAdmin();

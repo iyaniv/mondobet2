@@ -1007,40 +1007,6 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
           </div>
         )}
 
-        {/* Force-set stage — override without requiring all results */}
-        <div style={{borderTop:`1px solid ${C.border}`,paddingTop:12,marginTop:4}}>
-          <div style={{fontSize:11,color:C.muted,marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>
-            Force set stage
-          </div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            {STAGES.map(s=>(
-              <button key={s.n} onClick={async()=>{
-                if(s.n===currentStage)return;
-                const ok=await confirmDialog({
-                  title:`Force stage ${s.n} — ${s.name}?`,
-                  message:`This overrides the normal progression. Users will see Stage ${s.n} as the active stage regardless of results entered.`,
-                  confirmLabel:`Set Stage ${s.n}`,
-                  danger:true,
-                });
-                if(!ok)return;
-                try{
-                  const cfg=await api.updateConfig({current_stage:s.n});
-                  setConfig(cfg);
-                  showToast(`Stage set to ${s.n} — ${s.name}`);
-                }catch(e){showToast(e.message,"err");}
-              }}
-              style={{
-                padding:"4px 12px",borderRadius:6,fontSize:12,fontWeight:600,cursor:s.n===currentStage?"default":"pointer",
-                border:`1px solid ${s.n===currentStage?C.accent:C.border}`,
-                background:s.n===currentStage?"rgba(163,230,53,0.12)":C.panel2,
-                color:s.n===currentStage?C.accent:C.muted,
-                transition:"all .15s",
-              }}>
-                {s.n===currentStage?"▶ ":""}{s.n}. {s.name}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>🏆 Tournament winner</h2>
@@ -2028,84 +1994,218 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
         </div>
       )}
 
-      {/* Testing tools — admin-only. Quick helpers to drive the demo. */}
+      {/* Testing tools — admin-only */}
       {user?.is_admin && (
         <div style={sectionStyle}>
           <h2 style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:6}}>🧪 Testing tools</h2>
-          <p style={{margin:"0 0 14px",fontSize:13,color:C.muted}}>
-            Quick helpers for driving the tournament end-to-end. Both actions
-            touch only admin-entered scores — predictions, entries, users,
-            winner picks and stage state are left as they are.
+          <p style={{margin:"0 0 16px",fontSize:13,color:C.muted}}>
+            Admin-only helpers for driving the tournament end-to-end.
+            Destructive actions require double confirmation.
           </p>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
-            {STAGES.map(s => {
-              const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last);
-              if (stageMatches.length === 0) return null;
-              const empty = stageMatches.filter(m => !results[m.n] && !liveMatches[m.n]).length;
-              const disabled = empty === 0;
-              return (
-                <button key={s.n}
-                  onClick={async () => {
-                    if (disabled) return;
-                    const ok = await confirmDialog({
-                      title: `Random-fill Stage ${s.n}?`,
-                      message: `Fill ${empty} match${empty===1?"":"es"} in ${s.name} with random scores (0–3 each side) as FINAL results. This counts toward all submitted users' totals.`,
-                      confirmLabel: "Fill randomly",
-                      danger: false,
+
+          {/* ── Force set stage ── */}
+          <div style={{marginBottom:18}}>
+            <div style={{fontSize:11,color:C.muted,marginBottom:8,fontWeight:700,
+              textTransform:"uppercase",letterSpacing:"0.06em"}}>
+              Force set stage
+            </div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {STAGES.map(s=>{
+                const cur = config?.current_stage || 1;
+                const isActive = s.n === cur;
+                return (
+                  <button key={s.n} onClick={async()=>{
+                    if(isActive)return;
+                    const ok=await confirmDialog({
+                      title:`Force stage ${s.n} — ${s.name}?`,
+                      message:`Overrides normal progression. Users will see Stage ${s.n} as the active stage regardless of results entered.`,
+                      confirmLabel:`Set Stage ${s.n}`,
+                      danger:true,
                     });
-                    if (!ok) return;
-                    const rand = () => Math.floor(Math.random() * 4);
-                    let filled = 0;
-                    for (const m of stageMatches) {
-                      if (results[m.n] || liveMatches[m.n]) continue;
-                      const sa = rand(), sb = rand();
-                      try {
-                        await api.setResult(m.n, {score_a: sa, score_b: sb});
-                        setResults?.(r => ({...r, [m.n]: [sa, sb]}));
-                        filled++;
-                      } catch(e) { console.error("random-fill", m.n, e); }
-                    }
-                    if (typeof refreshLive === "function") await refreshLive();
-                    if (typeof refreshLb === "function") await refreshLb();
-                    showToast(`Random-filled ${filled} match${filled===1?"":"es"} 🎲`);
+                    if(!ok)return;
+                    try{
+                      const cfg=await api.updateConfig({current_stage:s.n});
+                      setConfig(cfg);
+                      showToast(`Stage set to ${s.n} — ${s.name}`);
+                    }catch(e){showToast(e.message,"err");}
                   }}
-                  disabled={disabled}
-                  title={disabled ? "Stage already fully resulted" : `Random-fill ${empty} remaining match(es)`}
                   style={{
-                    padding:"7px 12px",borderRadius:6,fontSize:12,fontWeight:600,
-                    border:`1px solid ${disabled?C.border:C.accent}`,
-                    background:disabled?"transparent":"rgba(163,230,53,0.10)",
-                    color:disabled?C.muted:C.accent,
-                    cursor:disabled?"not-allowed":"pointer",
+                    padding:"4px 12px",borderRadius:6,fontSize:12,fontWeight:600,
+                    cursor:isActive?"default":"pointer",
+                    border:`1px solid ${isActive?C.accent:C.border}`,
+                    background:isActive?"rgba(163,230,53,0.12)":C.panel2,
+                    color:isActive?C.accent:C.muted,
+                    transition:"all .15s",
                   }}>
-                  🎲 Stage {s.n} <span style={{opacity:0.7,fontWeight:400}}>({empty} left)</span>
-                </button>
-              );
-            })}
+                    {isActive?"▶ ":""}{s.n}. {s.name}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <button
-            onClick={async () => {
-              const ok = await confirmDialog({
-                title: "Reset ALL admin-entered scores?",
-                message: "Wipes every final result AND every live record. Predictions, entries, users, winner picks and config are untouched.\n\nThere is no undo.",
-                confirmLabel: "Reset everything",
-                danger: true,
-              });
-              if (!ok) return;
-              try {
-                const r = await api.resetAllResults();
-                setResults?.({});
-                if (typeof refreshLive === "function") await refreshLive();
-                if (typeof refreshLb === "function") await refreshLb();
-                showToast(`Reset · ${r?.deleted?.results||0} results + ${r?.deleted?.live||0} live cleared`);
-              } catch(e) { showToast(e.message, "err"); }
-            }}
-            style={{
-              padding:"8px 14px",borderRadius:6,fontSize:13,fontWeight:700,border:0,cursor:"pointer",
-              background:C.red,color:"#fff",
-            }}>
-            🔄 Reset all results &amp; live
-          </button>
+
+          {/* ── Random-fill results ── */}
+          <div style={{marginBottom:18}}>
+            <div style={{fontSize:11,color:C.muted,marginBottom:8,fontWeight:700,
+              textTransform:"uppercase",letterSpacing:"0.06em"}}>
+              Random-fill results
+            </div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {STAGES.map(s => {
+                const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last);
+                if (stageMatches.length === 0) return null;
+                const empty = stageMatches.filter(m => !results[m.n] && !liveMatches[m.n]).length;
+                const disabled = empty === 0;
+                return (
+                  <button key={s.n}
+                    onClick={async () => {
+                      if (disabled) return;
+                      const ok = await confirmDialog({
+                        title: `Random-fill Stage ${s.n}?`,
+                        message: `Fill ${empty} match${empty===1?"":"es"} in ${s.name} with random scores (0–3 each side) as FINAL results.`,
+                        confirmLabel: "Fill randomly",
+                        danger: false,
+                      });
+                      if (!ok) return;
+                      const rand = () => Math.floor(Math.random() * 4);
+                      let filled = 0;
+                      for (const m of stageMatches) {
+                        if (results[m.n] || liveMatches[m.n]) continue;
+                        const sa = rand(), sb = rand();
+                        try {
+                          await api.setResult(m.n, {score_a: sa, score_b: sb});
+                          setResults?.(r => ({...r, [m.n]: [sa, sb]}));
+                          filled++;
+                        } catch(e) { console.error("random-fill", m.n, e); }
+                      }
+                      if (typeof refreshLive === "function") await refreshLive();
+                      if (typeof refreshLb === "function") await refreshLb();
+                      showToast(`Random-filled ${filled} match${filled===1?"":"es"} 🎲`);
+                    }}
+                    disabled={disabled}
+                    title={disabled ? "Stage already fully resulted" : `Random-fill ${empty} remaining`}
+                    style={{
+                      padding:"6px 12px",borderRadius:6,fontSize:12,fontWeight:600,
+                      border:`1px solid ${disabled?C.border:C.accent}`,
+                      background:disabled?"transparent":"rgba(163,230,53,0.10)",
+                      color:disabled?C.muted:C.accent,
+                      cursor:disabled?"not-allowed":"pointer",
+                    }}>
+                    🎲 Stage {s.n} <span style={{opacity:0.7,fontWeight:400}}>({empty} left)</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Danger zone ── */}
+          <div style={{borderTop:`1px solid ${C.border}`,paddingTop:14}}>
+            <div style={{fontSize:11,color:C.red,marginBottom:10,fontWeight:700,
+              textTransform:"uppercase",letterSpacing:"0.06em"}}>
+              ⚠️ Danger zone
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+
+              {/* Reset results only */}
+              <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                <button
+                  onClick={async () => {
+                    const ok1 = await confirmDialog({
+                      title: "Reset all admin-entered scores?",
+                      message: "Wipes every final result and every live record. Predictions, entries, users, winner picks and config are untouched.",
+                      confirmLabel: "Yes, continue",
+                      danger: true,
+                    });
+                    if (!ok1) return;
+                    const ok2 = await confirmDialog({
+                      title: "Are you absolutely sure?",
+                      message: "This cannot be undone. All match results and live scores will be permanently deleted.",
+                      confirmLabel: "Delete all results",
+                      danger: true,
+                    });
+                    if (!ok2) return;
+                    try {
+                      const r = await api.resetAllResults();
+                      setResults?.({});
+                      if (typeof refreshLive === "function") await refreshLive();
+                      if (typeof refreshLb === "function") await refreshLb();
+                      showToast(`Cleared ${r?.deleted?.results||0} results + ${r?.deleted?.live||0} live`);
+                    } catch(e) { showToast(e.message, "err"); }
+                  }}
+                  style={{padding:"7px 14px",borderRadius:6,fontSize:12,fontWeight:700,
+                    border:`1px solid ${C.red}`,background:"transparent",color:C.red,cursor:"pointer"}}>
+                  🔄 Reset all results &amp; live
+                </button>
+                <span style={{fontSize:11,color:C.muted}}>Keeps all user accounts, entries and predictions.</span>
+              </div>
+
+              {/* Reset user data */}
+              <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                <button
+                  onClick={async () => {
+                    const ok1 = await confirmDialog({
+                      title: "Reset all user data?",
+                      message: "Deletes every entry, prediction and winner pick for all participants. User accounts are kept but all their forms and submissions will be gone. Config is reset to idle / stage 1.",
+                      confirmLabel: "Yes, continue",
+                      danger: true,
+                    });
+                    if (!ok1) return;
+                    const ok2 = await confirmDialog({
+                      title: "Are you absolutely sure?",
+                      message: "All entries, predictions and winner picks will be permanently deleted. Users will have to start over from scratch. This cannot be undone.",
+                      confirmLabel: "Delete all user data",
+                      danger: true,
+                    });
+                    if (!ok2) return;
+                    try {
+                      const r = await api.resetUserData();
+                      setResults?.({});
+                      if (typeof refreshLive === "function") await refreshLive();
+                      if (typeof refreshLb === "function") await refreshLb();
+                      showToast(`User data reset — ${r?.entries_deleted||0} entries deleted`);
+                    } catch(e) { showToast(e.message, "err"); }
+                  }}
+                  style={{padding:"7px 14px",borderRadius:6,fontSize:12,fontWeight:700,
+                    border:`1px solid ${C.red}`,background:"transparent",color:C.red,cursor:"pointer"}}>
+                  👤 Reset all user data
+                </button>
+                <span style={{fontSize:11,color:C.muted}}>Removes entries &amp; predictions. User accounts survive.</span>
+              </div>
+
+              {/* Full system reset */}
+              <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                <button
+                  onClick={async () => {
+                    const ok1 = await confirmDialog({
+                      title: "Full system reset?",
+                      message: "NUCLEAR OPTION: deletes every non-admin user and ALL their data (entries, predictions, winner picks). Also wipes all results and live scores. Resets config to idle / stage 1. Admin accounts are kept.",
+                      confirmLabel: "Yes, continue",
+                      danger: true,
+                    });
+                    if (!ok1) return;
+                    const ok2 = await confirmDialog({
+                      title: "This will delete ALL users and data. Last chance.",
+                      message: "All participants, their entries, predictions, and all match results will be permanently erased. Only admin accounts survive. There is absolutely no undo.",
+                      confirmLabel: "☢️ Wipe everything",
+                      danger: true,
+                    });
+                    if (!ok2) return;
+                    try {
+                      const r = await api.resetFullSystem();
+                      setResults?.({});
+                      if (typeof refreshLive === "function") await refreshLive();
+                      if (typeof refreshLb === "function") await refreshLb();
+                      showToast(`System reset — ${r?.users_deleted||0} users removed`);
+                    } catch(e) { showToast(e.message, "err"); }
+                  }}
+                  style={{padding:"7px 14px",borderRadius:6,fontSize:12,fontWeight:700,
+                    border:`1px solid ${C.red}`,background:C.red,color:"#fff",cursor:"pointer"}}>
+                  ☢️ Full system reset
+                </button>
+                <span style={{fontSize:11,color:C.muted}}>Deletes all users &amp; data. Admin accounts survive.</span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

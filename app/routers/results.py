@@ -41,3 +41,29 @@ async def reset_all_results(
     """
     deleted = await crud.delete_all_results_and_live(db)
     return {"deleted": deleted}
+
+
+@router.post("/reset-user-data", response_model=dict)
+async def reset_user_data(
+    _=Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Wipe all entries / predictions / winner picks for every non-admin user
+    and reset config (stage → 1, round → idle, no tournament winner).
+    User accounts are preserved so people can log back in.
+    """
+    result = await crud.reset_user_data(db)
+    return result
+
+
+@router.post("/reset-full-system", response_model=dict)
+async def reset_full_system(
+    _=Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Nuclear option: delete every non-admin user (cascade-deletes all their
+    entries / predictions / picks), wipe results and live, reset config.
+    Admin accounts survive.
+    """
+    result = await crud.reset_full_system(db)
+    return result
