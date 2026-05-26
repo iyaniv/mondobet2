@@ -2485,6 +2485,22 @@ function ByUser({ config, leaderboard, results, liveMatches, matches, user,
   );
   const playedCount = matches.filter(m => results[m.n] || liveMatches[m.n]).length;
 
+  // Non-admins cannot see others' bets while the round is open
+  const roundOpen = config.round_state === "open";
+  if (!user?.is_admin && roundOpen) {
+    return (
+      <div style={{textAlign:"center",padding:"60px 20px"}}>
+        <div style={{fontSize:36,marginBottom:16}}>🔒</div>
+        <div style={{fontSize:18,fontWeight:700,color:C.text,marginBottom:8}}>
+          Predictions are private while the round is open
+        </div>
+        <div style={{fontSize:14,color:C.muted}}>
+          Other participants' bets will be visible once the admin closes the round.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div style={{marginBottom:14}}>
@@ -2679,6 +2695,14 @@ export default function App() {
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, config.round_state]);
+
+  // When the round re-opens, non-admins should be redirected away from the
+  // "By participant" tab immediately (not just wait for the next render cycle
+  // to hide the nav item — they'd still see others' predictions for a moment).
+  useEffect(() => {
+    if (!user || user.is_admin) return;
+    if (config.round_state === "open" && tab === "byuser") setTab("predictions");
+  }, [config.round_state]);
 
   const tabs=!user?[]:user.is_admin
     ?[{id:"results",label:"Results",admin:true},{id:"tournament",label:"🏟 Tournament"},{id:"leaderboard",label:"Leaderboard"},{id:"byuser",label:"By participant"},{id:"dashboard",label:"Dashboard",admin:true},{id:"settings",label:"⚙ Settings"}]
