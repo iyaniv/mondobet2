@@ -2682,7 +2682,7 @@ export default function App() {
 
   const tabs=!user?[]:user.is_admin
     ?[{id:"results",label:"Results",admin:true},{id:"tournament",label:"🏟 Tournament"},{id:"leaderboard",label:"Leaderboard"},{id:"byuser",label:"By participant"},{id:"dashboard",label:"Dashboard",admin:true},{id:"settings",label:"⚙ Settings"}]
-    :[{id:"predictions",label:"My predictions"},{id:"leaderboard",label:"Leaderboard"},...(leaderboard.length>0?[{id:"byuser",label:"By participant"}]:[]),{id:"tournament",label:"🏟 Tournament"},{id:"settings",label:"⚙ Settings"}];
+    :[{id:"predictions",label:"My predictions"},{id:"leaderboard",label:"Leaderboard"},...(leaderboard.length>0&&config.round_state!=="open"?[{id:"byuser",label:"By participant"}]:[]),{id:"tournament",label:"🏟 Tournament"},{id:"settings",label:"⚙ Settings"}];
 
   function RoundPill(){
     const map={

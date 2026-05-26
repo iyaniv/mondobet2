@@ -701,9 +701,11 @@ export const api = {
     if (!eid) return [];
     const entry = S.entries[eid];
     const allPreds = Object.entries(S.predictions[eid]||{}).map(([n,p])=>({match_n:Number(n),score_a:p[0],score_b:p[1]}));
-    // Admin or own entry: see all. Others: see all if the entry is submitted.
+    // Admin or own entry: always visible.
+    // Other user: only visible when the round is NOT open (admin has closed it).
     const viewingOwn = Number(uid) === caller.id;
-    if (caller.is_admin || viewingOwn || entry?.submitted_at) return allPreds;
+    if (caller.is_admin || viewingOwn) return allPreds;
+    if (S.config.round_state !== "open" && entry?.submitted_at) return allPreds;
     return [];
   },
 

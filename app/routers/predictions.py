@@ -116,10 +116,17 @@ async def user_predictions(
     db: AsyncSession = Depends(get_db),
 ):
     """Return predictions:
-    - Admin or own entry: all predictions.
-    - Other user's submitted entry: all predictions (publicly visible after submit).
-    - Other user's unsubmitted entry: nothing.
+    - Admin or own entry: always visible.
+    - Other user: only visible when the round is NOT open (admin has closed it).
     """
+    viewing_own = (user_id == current_user.id)
+
+    # Non-admin viewing someone else's entry → only allowed when round is closed
+    if not current_user.is_admin and not viewing_own:
+        cfg = await crud.get_config(db)
+        if cfg.round_state == RoundStateEnum.open:
+            return []
+
     if entry_id:
         entry = await crud.get_entry(db, entry_id)
         if not entry:
@@ -133,7 +140,6 @@ async def user_predictions(
         entry = submitted[0]
         preds = await crud.get_entry_predictions(db, entry.id)
 
-    viewing_own = (user_id == current_user.id)
     if current_user.is_admin or viewing_own or entry.submitted_at:
         return [PredictionOut(match_n=n, score_a=v[0], score_b=v[1]) for n, v in preds.items()]
     return []
