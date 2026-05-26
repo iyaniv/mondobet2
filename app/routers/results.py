@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import crud
@@ -45,25 +47,31 @@ async def reset_all_results(
 
 @router.post("/reset-user-data", response_model=dict)
 async def reset_user_data(
+    user_id:  Optional[int] = Query(None, description="Scope to one user (keeps account)"),
+    entry_id: Optional[str] = Query(None, description="Scope to one entry"),
     _=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Wipe all entries / predictions / winner picks for every non-admin user
-    and reset config (stage → 1, round → idle, no tournament winner).
-    User accounts are preserved so people can log back in.
+    """Wipe entries / predictions / winner picks while keeping user accounts.
+
+    - entry_id → delete only that entry
+    - user_id  → delete all entries for that user
+    - neither  → delete all non-admin user data + reset config
     """
-    result = await crud.reset_user_data(db)
+    result = await crud.reset_user_data(db, user_id=user_id, entry_id=entry_id)
     return result
 
 
 @router.post("/reset-full-system", response_model=dict)
 async def reset_full_system(
+    user_id: Optional[int] = Query(None, description="Scope to one user (deletes account)"),
     _=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Nuclear option: delete every non-admin user (cascade-deletes all their
-    entries / predictions / picks), wipe results and live, reset config.
-    Admin accounts survive.
+    """Delete non-admin user(s) and all their data.
+
+    - user_id → delete only that user
+    - neither → delete every non-admin user + results + live + reset config
     """
-    result = await crud.reset_full_system(db)
+    result = await crud.reset_full_system(db, user_id=user_id)
     return result

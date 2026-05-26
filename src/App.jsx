@@ -189,6 +189,211 @@ function ConfirmHost() {
   );
 }
 
+// ── Reset picker modal ────────────────────────────────────────────────────────
+// Opens a user/entry selector before a destructive reset. Returns:
+//   { scope:"all" }
+//   { scope:"user",  userId }
+//   { scope:"entry", userId, entryId }
+//   null  — cancelled
+//
+// Usage:
+//   const sel = await resetPickerDialog({ mode:"user-data"|"delete-user" });
+//   if (!sel) return;
+//   await api.resetUserData({ userId: sel.userId, entryId: sel.entryId });
+let _resetPickerHandler = null;
+function resetPickerDialog(opts) {
+  return new Promise(resolve => {
+    if (!_resetPickerHandler) { resolve(null); return; }
+    _resetPickerHandler(opts || {}, resolve);
+  });
+}
+
+function ResetPickerHost() {
+  const [state,  setState]  = useState(null); // { mode, _resolve }
+  const [users,  setUsers]  = useState([]);   // [{id,name,entries:[{id,name}]}]
+  const [loading,setLoading]= useState(false);
+  const [scope,  setScope]  = useState("all");      // "all"|"user"|"entry"
+  const [userId, setUserId] = useState(null);
+  const [entryId,setEntryId]= useState(null);
+
+  useEffect(() => {
+    _resetPickerHandler = (opts, resolve) => {
+      setScope("all"); setUserId(null); setEntryId(null); setUsers([]);
+      setState({...opts, _resolve: resolve});
+      // Fetch users + their entries
+      setLoading(true);
+      api.getAdminParticipants()
+        .then(list => {
+          // Already grouped by user: [{id, name, entries:[{id,name}]}]
+          setUsers(list.map(u => ({
+            id: u.id,
+            name: u.name,
+            entries: (u.entries || []).map(e => ({id: e.id, name: e.name})),
+          })));
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    };
+    return () => { _resetPickerHandler = null; };
+  }, []);
+
+  useEffect(() => {
+    if (!state) return;
+    const onKey = e => { if (e.key==="Escape") close(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [state]);
+
+  if (!state) return null;
+
+  const close = (result) => { state._resolve(result); setState(null); };
+
+  const isDeleteUser = state.mode === "delete-user";
+  const title        = isDeleteUser ? "Delete user" : "Reset user data";
+  const actionLabel  = isDeleteUser ? "Delete" : "Reset";
+
+  // Derive what will be affected
+  const selectedUser  = users.find(u => u.id === userId) || null;
+  const selectedEntry = selectedUser?.entries.find(e => e.id === entryId) || null;
+
+  function confirm() {
+    if (scope === "all")  return close({ scope:"all" });
+    if (scope === "user") return close({ scope:"user", userId });
+    if (scope === "entry") return close({ scope:"entry", userId, entryId });
+  }
+  const canConfirm =
+    scope === "all" ||
+    (scope === "user"  && userId) ||
+    (scope === "entry" && userId && entryId);
+
+  const radioStyle = { accentColor:C.accent, marginRight:6, cursor:"pointer" };
+  const rowStyle   = { padding:"8px 12px", borderRadius:6, marginBottom:4,
+    background:C.panel2, border:`1px solid ${C.border}`, cursor:"pointer",
+    display:"flex", alignItems:"center", gap:10 };
+  const activeRow  = { ...rowStyle, background:"rgba(163,230,53,0.08)", border:`1px solid ${C.accent}` };
+
+  return (
+    <div onClick={()=>close(null)} style={{
+      position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",
+      zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",
+      padding:16,backdropFilter:"blur(4px)",
+    }}>
+      <div onClick={e=>e.stopPropagation()} style={{
+        background:C.panel,border:`1px solid ${C.border}`,borderRadius:14,
+        width:"100%",maxWidth:480,padding:22,
+        boxShadow:"0 20px 60px rgba(0,0,0,0.6)",
+        display:"flex",flexDirection:"column",gap:14,
+        maxHeight:"80vh",overflow:"hidden",
+      }}>
+        {/* Header */}
+        <div style={{fontSize:17,fontWeight:700,color:C.text,display:"flex",alignItems:"center",gap:8}}>
+          <span>⚠️</span>{title}
+        </div>
+
+        {/* Scope selector */}
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {/* ALL */}
+          <label style={scope==="all"?activeRow:rowStyle} onClick={()=>{setScope("all");setUserId(null);setEntryId(null);}}>
+            <input type="radio" name="scope" checked={scope==="all"} onChange={()=>{setScope("all");setUserId(null);setEntryId(null);}} style={radioStyle}/>
+            <div>
+              <div style={{fontWeight:600,color:C.text,fontSize:13}}>
+                All participants ({users.length})
+              </div>
+              <div style={{fontSize:11,color:C.muted}}>
+                {isDeleteUser ? "Delete every non-admin user account and all their data" : "Wipe entries & predictions for all users, reset config"}
+              </div>
+            </div>
+          </label>
+
+          {/* SPECIFIC USER */}
+          <label style={(scope==="user"||scope==="entry")?activeRow:rowStyle} onClick={()=>{ if(scope==="all"){setScope("user");} }}>
+            <input type="radio" name="scope" checked={scope==="user"||scope==="entry"} onChange={()=>{setScope("user");setEntryId(null);}} style={radioStyle}/>
+            <div style={{fontWeight:600,color:C.text,fontSize:13}}>
+              Specific user {selectedUser ? `— ${selectedUser.name}` : ""}
+            </div>
+          </label>
+
+          {/* User list */}
+          {(scope==="user"||scope==="entry") && (
+            <div style={{marginLeft:24,maxHeight:180,overflowY:"auto",display:"flex",flexDirection:"column",gap:3}}>
+              {loading && <div style={{fontSize:12,color:C.muted,padding:"6px 0"}}>Loading…</div>}
+              {users.map(u => {
+                const isSelected = u.id === userId;
+                return (
+                  <div key={u.id}>
+                    <div onClick={()=>{setUserId(u.id);setEntryId(null);setScope("user");}}
+                      style={{
+                        padding:"6px 10px",borderRadius:5,cursor:"pointer",fontSize:13,
+                        background:isSelected?"rgba(163,230,53,0.10)":C.panel2,
+                        border:`1px solid ${isSelected?C.accent:C.border}`,
+                        fontWeight:isSelected?700:400,color:isSelected?C.accent:C.text,
+                        marginBottom:2,
+                      }}>
+                      {u.name}
+                      <span style={{fontSize:11,color:C.muted,marginLeft:8,fontWeight:400}}>
+                        {u.entries.length} form{u.entries.length!==1?"s":""}
+                      </span>
+                    </div>
+
+                    {/* Entry list — shown for user-data mode only */}
+                    {!isDeleteUser && isSelected && u.entries.length > 0 && (
+                      <div style={{marginLeft:14,marginBottom:4,display:"flex",flexDirection:"column",gap:2}}>
+                        {u.entries.map(en => {
+                          const isEnt = entryId===en.id && scope==="entry";
+                          return (
+                            <div key={en.id}
+                              onClick={()=>{setEntryId(en.id);setScope("entry");}}
+                              style={{
+                                padding:"4px 10px",borderRadius:4,cursor:"pointer",fontSize:12,
+                                background:isEnt?"rgba(163,230,53,0.10)":C.bg,
+                                border:`1px solid ${isEnt?C.accent:C.border}`,
+                                color:isEnt?C.accent:C.muted,
+                              }}>
+                              📋 {en.name}
+                              {isEnt && <span style={{marginLeft:6,fontSize:10,color:C.accent,fontWeight:700}}>selected</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Summary line */}
+        <div style={{fontSize:12,color:C.muted,background:C.panel2,borderRadius:6,padding:"7px 10px"}}>
+          {scope==="all" && (isDeleteUser
+            ? `Will delete ${users.length} user account(s) and all their data.`
+            : `Will reset entries & predictions for all ${users.length} participant(s).`)}
+          {scope==="user" && selectedUser && (isDeleteUser
+            ? `Will delete ${selectedUser.name}'s account and all their data.`
+            : `Will reset all entries & predictions for ${selectedUser.name}.`)}
+          {scope==="entry" && selectedEntry && selectedUser &&
+            `Will delete form "${selectedEntry.name}" from ${selectedUser.name}.`}
+          {((scope==="user"&&!selectedUser)||(scope==="entry"&&(!selectedUser||!selectedEntry))) &&
+            "← select a target above"}
+        </div>
+
+        {/* Actions */}
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <button onClick={()=>close(null)} style={{
+            background:"transparent",border:`1px solid ${C.border}`,color:C.text,
+            padding:"8px 16px",borderRadius:8,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+          }}>Cancel</button>
+          <button onClick={confirm} disabled={!canConfirm} style={{
+            background:canConfirm?C.red:"rgba(239,68,68,0.3)",color:"#fff",border:0,
+            padding:"8px 18px",borderRadius:8,fontSize:14,fontWeight:700,
+            cursor:canConfirm?"pointer":"not-allowed",fontFamily:"inherit",
+          }}>{actionLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function initials(name) {
   const p = name.trim().split(" ");
   return p.length >= 2 ? (p[0][0] + p[p.length-1][0]).toUpperCase() : name.slice(0,2).toUpperCase();
@@ -2143,66 +2348,77 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
               <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
                 <button
                   onClick={async () => {
-                    const ok1 = await confirmDialog({
-                      title: "Reset all user data?",
-                      message: "Deletes every entry, prediction and winner pick for all participants. User accounts are kept but all their forms and submissions will be gone. Config is reset to idle / stage 1.",
-                      confirmLabel: "Yes, continue",
+                    const sel = await resetPickerDialog({ mode:"user-data" });
+                    if (!sel) return;
+                    const scopeLabel =
+                      sel.scope==="entry" ? "this form" :
+                      sel.scope==="user"  ? "this user's data" :
+                      "all user data";
+                    const ok = await confirmDialog({
+                      title: `Reset ${scopeLabel}?`,
+                      message: sel.scope==="entry"
+                        ? "This form's predictions and winner pick will be permanently deleted. The user account and other forms are untouched."
+                        : sel.scope==="user"
+                        ? "All entries, predictions and winner picks for this user will be permanently deleted. Their account stays intact."
+                        : "All entries, predictions and winner picks for every participant will be permanently deleted. User accounts survive but config resets to idle / stage 1. There is no undo.",
+                      confirmLabel: "Delete",
                       danger: true,
                     });
-                    if (!ok1) return;
-                    const ok2 = await confirmDialog({
-                      title: "Are you absolutely sure?",
-                      message: "All entries, predictions and winner picks will be permanently deleted. Users will have to start over from scratch. This cannot be undone.",
-                      confirmLabel: "Delete all user data",
-                      danger: true,
-                    });
-                    if (!ok2) return;
+                    if (!ok) return;
                     try {
-                      const r = await api.resetUserData();
-                      setResults?.({});
-                      if (typeof refreshLive === "function") await refreshLive();
+                      const r = await api.resetUserData({
+                        userId:  sel.userId,
+                        entryId: sel.entryId,
+                      });
+                      if (sel.scope==="all") {
+                        setResults?.({});
+                        if (typeof refreshLive === "function") await refreshLive();
+                      }
                       if (typeof refreshLb === "function") await refreshLb();
-                      showToast(`User data reset — ${r?.entries_deleted||0} entries deleted`);
+                      showToast(`Reset — ${r?.entries_deleted||0} form(s) deleted`);
                     } catch(e) { showToast(e.message, "err"); }
                   }}
                   style={{padding:"7px 14px",borderRadius:6,fontSize:12,fontWeight:700,
                     border:`1px solid ${C.red}`,background:"transparent",color:C.red,cursor:"pointer"}}>
-                  👤 Reset all user data
+                  👤 Reset user data
                 </button>
                 <span style={{fontSize:11,color:C.muted}}>Removes entries &amp; predictions. User accounts survive.</span>
               </div>
 
-              {/* Full system reset */}
+              {/* Delete users */}
               <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
                 <button
                   onClick={async () => {
-                    const ok1 = await confirmDialog({
-                      title: "Full system reset?",
-                      message: "NUCLEAR OPTION: deletes every non-admin user and ALL their data (entries, predictions, winner picks). Also wipes all results and live scores. Resets config to idle / stage 1. Admin accounts are kept.",
-                      confirmLabel: "Yes, continue",
+                    const sel = await resetPickerDialog({ mode:"delete-user" });
+                    if (!sel) return;
+                    const scopeLabel =
+                      sel.scope==="user" ? "this user" : "all users";
+                    const ok = await confirmDialog({
+                      title: `Delete ${scopeLabel}?`,
+                      message: sel.scope==="user"
+                        ? "This user's account and ALL their data (entries, predictions, winner picks) will be permanently deleted. There is no undo."
+                        : "Every non-admin user account and ALL their data will be permanently deleted. Results and live scores are also wiped. Config resets to idle / stage 1. Admin accounts survive. There is absolutely no undo.",
+                      confirmLabel: sel.scope==="user" ? "Delete user" : "☢️ Wipe everything",
                       danger: true,
                     });
-                    if (!ok1) return;
-                    const ok2 = await confirmDialog({
-                      title: "This will delete ALL users and data. Last chance.",
-                      message: "All participants, their entries, predictions, and all match results will be permanently erased. Only admin accounts survive. There is absolutely no undo.",
-                      confirmLabel: "☢️ Wipe everything",
-                      danger: true,
-                    });
-                    if (!ok2) return;
+                    if (!ok) return;
                     try {
-                      const r = await api.resetFullSystem();
-                      setResults?.({});
-                      if (typeof refreshLive === "function") await refreshLive();
+                      const r = await api.resetFullSystem({ userId: sel.userId });
+                      if (sel.scope==="all") {
+                        setResults?.({});
+                        if (typeof refreshLive === "function") await refreshLive();
+                      }
                       if (typeof refreshLb === "function") await refreshLb();
-                      showToast(`System reset — ${r?.users_deleted||0} users removed`);
+                      showToast(sel.scope==="user"
+                        ? "User deleted"
+                        : `System reset — ${r?.users_deleted||0} users removed`);
                     } catch(e) { showToast(e.message, "err"); }
                   }}
                   style={{padding:"7px 14px",borderRadius:6,fontSize:12,fontWeight:700,
                     border:`1px solid ${C.red}`,background:C.red,color:"#fff",cursor:"pointer"}}>
-                  ☢️ Full system reset
+                  ☢️ Delete users
                 </button>
-                <span style={{fontSize:11,color:C.muted}}>Deletes all users &amp; data. Admin accounts survive.</span>
+                <span style={{fontSize:11,color:C.muted}}>Deletes user account(s) entirely. Admin accounts survive.</span>
               </div>
             </div>
           </div>
@@ -3321,6 +3537,7 @@ export default function App() {
         </div>
       )}
       <ConfirmHost/>
+      <ResetPickerHost/>
     </div>
   );
 }

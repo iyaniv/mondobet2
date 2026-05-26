@@ -741,43 +741,69 @@ export const api = {
     return {deleted:{results:r, live:l}};
   },
 
-  // Wipe all entries/predictions/winner-picks for non-admin users; reset config.
-  resetUserData: async () => {
+  // Wipe entries/predictions/winner-picks. Scope: entryId > userId > all.
+  resetUserData: async ({ userId, entryId } = {}) => {
     await delay();
     requireAdmin();
     let entries_deleted = 0;
-    for (const uid of Object.keys(S.users)) {
-      if (S.users[uid].is_admin) continue;
-      entries_deleted += Object.values(S.entries).filter(e=>String(e.user_id)===String(uid)).length;
-      S.users[uid].locked_winner = null;
+    if (entryId) {
+      // Single entry
+      if (S.entries[entryId]) { delete S.entries[entryId]; entries_deleted = 1; }
+      delete S.preds[entryId];
+      delete S.winners[entryId];
+    } else if (userId) {
+      // All entries for one user
+      for (const [eid, e] of Object.entries(S.entries)) {
+        if (String(e.user_id) === String(userId)) {
+          delete S.entries[eid]; delete S.preds[eid]; delete S.winners[eid];
+          entries_deleted++;
+        }
+      }
+      if (S.users[userId]) S.users[userId].locked_winner = null;
+    } else {
+      // All non-admin users
+      for (const [eid, e] of Object.entries(S.entries)) {
+        if (!S.users[e.user_id]?.is_admin) {
+          delete S.entries[eid]; delete S.preds[eid]; delete S.winners[eid];
+          entries_deleted++;
+        }
+      }
+      for (const uid of Object.keys(S.users)) {
+        if (!S.users[uid].is_admin) S.users[uid].locked_winner = null;
+      }
+      S.config.round_state = "idle";
+      S.config.current_stage = 1;
+      S.config.tournament_winner = null;
     }
-    S.entries = {};
-    S.preds = {};
-    S.winners = {};
-    S.config.round_state = "idle";
-    S.config.current_stage = 1;
-    S.config.tournament_winner = null;
     save(S);
     return {entries_deleted};
   },
 
-  // Nuclear: delete all non-admin users + their data, wipe results/live, reset config.
-  resetFullSystem: async () => {
+  // Delete user(s) + their data. Scope: userId > all.
+  resetFullSystem: async ({ userId } = {}) => {
     await delay();
     requireAdmin();
+    if (userId) {
+      if (S.users[userId]?.is_admin) throw new Error("Cannot delete admin");
+      // Remove entries/preds/winners for this user
+      for (const [eid, e] of Object.entries(S.entries)) {
+        if (String(e.user_id) === String(userId)) {
+          delete S.entries[eid]; delete S.preds[eid]; delete S.winners[eid];
+        }
+      }
+      delete S.users[userId];
+      save(S);
+      return {users_deleted: 1};
+    }
+    // Nuclear
     let users_deleted = 0;
     for (const uid of Object.keys(S.users)) {
-      if (S.users[uid].is_admin) continue;
-      delete S.users[uid];
-      users_deleted++;
+      if (!S.users[uid].is_admin) { delete S.users[uid]; users_deleted++; }
     }
     const results_deleted = Object.keys(S.results).length;
-    const live_deleted = Object.keys(S.live).length;
-    S.entries = {};
-    S.preds = {};
-    S.winners = {};
-    S.results = {};
-    S.live = {};
+    const live_deleted    = Object.keys(S.live).length;
+    S.entries = {}; S.preds = {}; S.winners = {};
+    S.results = {}; S.live = {};
     S.config.round_state = "idle";
     S.config.current_stage = 1;
     S.config.tournament_winner = null;

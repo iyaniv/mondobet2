@@ -73,8 +73,19 @@ export const api = {
   updateConfig:         (d)      => request("/api/config/",                  { method: "PATCH", body: d }),
   setResult:            (n, d)   => request(`/api/results/${n}`,             { method: "PUT",   body: d }),
   resetAllResults:      ()       => request("/api/results/reset",            { method: "POST" }),
-  resetUserData:        ()       => request("/api/results/reset-user-data",  { method: "POST" }),
-  resetFullSystem:      ()       => request("/api/results/reset-full-system",{ method: "POST" }),
+  resetUserData: ({ userId, entryId } = {}) => {
+    const p = new URLSearchParams();
+    if (userId)  p.set("user_id",  userId);
+    if (entryId) p.set("entry_id", entryId);
+    const qs = p.toString() ? `?${p}` : "";
+    return request(`/api/results/reset-user-data${qs}`, { method: "POST" });
+  },
+  resetFullSystem: ({ userId } = {}) => {
+    const p = new URLSearchParams();
+    if (userId) p.set("user_id", userId);
+    const qs = p.toString() ? `?${p}` : "";
+    return request(`/api/results/reset-full-system${qs}`, { method: "POST" });
+  },
   getUsers:             ()       => request("/api/users/"),
   patchUser:            (uid, d) => request(`/api/users/${uid}`,             { method: "PATCH", body: d }),
   updateMe:             (d)      => request("/api/users/me",                 { method: "PATCH", body: d }),
