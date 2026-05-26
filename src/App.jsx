@@ -1006,6 +1006,41 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
             <span style={{fontSize:13,color:C.green,fontWeight:600}}>🏆 All stages complete — tournament done!</span>
           </div>
         )}
+
+        {/* Force-set stage — override without requiring all results */}
+        <div style={{borderTop:`1px solid ${C.border}`,paddingTop:12,marginTop:4}}>
+          <div style={{fontSize:11,color:C.muted,marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>
+            Force set stage
+          </div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {STAGES.map(s=>(
+              <button key={s.n} onClick={async()=>{
+                if(s.n===currentStage)return;
+                const ok=await confirmDialog({
+                  title:`Force stage ${s.n} — ${s.name}?`,
+                  message:`This overrides the normal progression. Users will see Stage ${s.n} as the active stage regardless of results entered.`,
+                  confirmLabel:`Set Stage ${s.n}`,
+                  danger:true,
+                });
+                if(!ok)return;
+                try{
+                  const cfg=await api.updateConfig({current_stage:s.n});
+                  setConfig(cfg);
+                  showToast(`Stage set to ${s.n} — ${s.name}`);
+                }catch(e){showToast(e.message,"err");}
+              }}
+              style={{
+                padding:"4px 12px",borderRadius:6,fontSize:12,fontWeight:600,cursor:s.n===currentStage?"default":"pointer",
+                border:`1px solid ${s.n===currentStage?C.accent:C.border}`,
+                background:s.n===currentStage?"rgba(163,230,53,0.12)":C.panel2,
+                color:s.n===currentStage?C.accent:C.muted,
+                transition:"all .15s",
+              }}>
+                {s.n===currentStage?"▶ ":""}{s.n}. {s.name}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>🏆 Tournament winner</h2>
@@ -1816,10 +1851,6 @@ const TIMEZONES = [
 ];
 
 function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, config, setConfig, matches=[], results={}, setResults, liveMatches={}, refreshLive, refreshLb }) {
-  // Profile
-  const [name,    setName]    = useState(user?.name || "");
-  const [saving,  setSaving]  = useState(false);
-
   // Timezone (localStorage)
   const [tz, setTz] = useState(() => localStorage.getItem("mb_timezone") || "auto");
 
@@ -1845,18 +1876,6 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
     localStorage.setItem(rivalsKey, JSON.stringify(next));
   }
 
-  async function saveName(e) {
-    e.preventDefault();
-    if (!name.trim() || name.trim() === user?.name) return;
-    setSaving(true);
-    try {
-      const updated = await api.updateMe({ name: name.trim() });
-      onNameUpdate(updated);
-      showToast("Name updated ✓");
-    } catch(err) { showToast(err.message, "err"); }
-    finally { setSaving(false); }
-  }
-
   const sectionStyle = {
     background:C.panel, border:`1px solid ${C.border}`, borderRadius:10,
     padding:"16px 20px", marginBottom:16,
@@ -1872,20 +1891,17 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
       {/* Profile */}
       <div style={sectionStyle}>
         <h2 style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:14}}>Profile</h2>
-        <form onSubmit={saveName}>
-          <label style={labelStyle}>Display name</label>
-          <div style={{display:"flex",gap:8,marginBottom:12}}>
-            <input value={name} onChange={e=>setName(e.target.value)}
-              style={{...inputStyle,marginBottom:0,flex:1}}
-              placeholder="Your name"/>
-            <Btn disabled={saving||!name.trim()||name.trim()===user?.name}>
-              {saving?"…":"Save"}
-            </Btn>
-          </div>
-        </form>
+        <label style={labelStyle}>Display name</label>
+        <div style={{fontSize:14,color:C.muted,padding:"8px 10px",background:C.panel2,borderRadius:6,marginBottom:12}}>
+          {user?.name}
+        </div>
         <label style={labelStyle}>Email</label>
-        <div style={{fontSize:14,color:C.muted,padding:"8px 10px",background:C.panel2,borderRadius:6}}>
+        <div style={{fontSize:14,color:C.muted,padding:"8px 10px",background:C.panel2,borderRadius:6,marginBottom:12}}>
           {user?.email}
+        </div>
+        <label style={labelStyle}>Phone</label>
+        <div style={{fontSize:14,color:C.muted,padding:"8px 10px",background:C.panel2,borderRadius:6}}>
+          {user?.phone || <span style={{color:C.border,fontStyle:"italic"}}>not provided</span>}
         </div>
       </div>
 
