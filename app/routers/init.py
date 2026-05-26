@@ -45,12 +45,12 @@ async def bootstrap(
             "current_stage": getattr(cfg, "current_stage", 1),
         },
         "results": [
-            {"match_n": n, "score_a": v[0], "score_b": v[1]}
+            {"match_n": n, "score_a": v[0], "score_b": v[1], "winner": v[2]}
             for n, v in results_map.items()
         ],
         "live": [
             {"match_n": n, "score_a": v["score_a"],
-             "score_b": v["score_b"], "minute": v["minute"]}
+             "score_b": v["score_b"], "minute": v["minute"], "winner": v.get("winner")}
             for n, v in live_map.items()
         ],
         "leaderboard": [e.model_dump() for e in lb],

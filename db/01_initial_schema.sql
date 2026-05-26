@@ -80,10 +80,12 @@ CREATE INDEX IF NOT EXISTS ix_predictions_entry_id ON predictions (entry_id);
 
 -- ── Results ───────────────────────────────────────────────────────────────────
 -- Admin-entered final scores. match_n is the primary key (0 or 1 row per match).
+-- winner: "a" or "b" for knockout matches decided by ET/penalties (NULL otherwise).
 CREATE TABLE IF NOT EXISTS results (
     match_n  INT      PRIMARY KEY,
     score_a  SMALLINT NOT NULL,
-    score_b  SMALLINT NOT NULL
+    score_b  SMALLINT NOT NULL,
+    winner   CHAR(1)  -- "a" or "b"; NULL for group stage or regular-time KO wins
 );
 
 -- ── Winner picks ──────────────────────────────────────────────────────────────
@@ -117,6 +119,7 @@ CREATE TABLE IF NOT EXISTS live_matches (
     score_b     SMALLINT    NOT NULL DEFAULT 0,
     minute      SMALLINT    NOT NULL DEFAULT 0,
     is_live     BOOLEAN     NOT NULL DEFAULT FALSE,
+    winner      CHAR(1),    -- "a" or "b" for knockout matches (ET/penalties)
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

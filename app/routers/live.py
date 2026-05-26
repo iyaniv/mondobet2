@@ -34,10 +34,11 @@ async def set_live(
         db, match_n,
         score_a=data.score_a, score_b=data.score_b,
         minute=data.minute,   is_live=data.is_live,
+        winner=data.winner,
     )
     return LiveMatchOut(
         match_n=lm.match_n, score_a=lm.score_a, score_b=lm.score_b,
-        minute=lm.minute, is_live=bool(lm.is_live),
+        minute=lm.minute, is_live=bool(lm.is_live), winner=lm.winner,
     )
 
 
@@ -61,5 +62,5 @@ async def finalize_live(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No live match found.")
     return LiveMatchOut(
         match_n=match_n, score_a=result.score_a, score_b=result.score_b,
-        minute=0, is_live=False,
+        minute=0, is_live=False, winner=result.winner,
     )

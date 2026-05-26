@@ -95,12 +95,15 @@ class WinnerPickIn(BaseModel):
 class ResultIn(BaseModel):
     score_a: Optional[int] = Field(None, ge=0, le=99)
     score_b: Optional[int] = Field(None, ge=0, le=99)
+    # Knockout rounds only: "a" or "b" — who advanced via ET/penalties.
+    winner: Optional[str] = Field(None, pattern="^[ab]$")
 
 
 class ResultOut(BaseModel):
     match_n: int
     score_a: int
     score_b: int
+    winner: Optional[str] = None
 
 
 # ── Users (admin) ─────────────────────────────────────────────────────────────
@@ -136,6 +139,7 @@ class LiveMatchIn(BaseModel):
     score_b: Optional[int] = Field(None, ge=0, le=99)
     minute: Optional[int] = Field(None, ge=0, le=120)
     is_live: Optional[bool] = None
+    winner: Optional[str] = Field(None, pattern="^[ab]$")
 
 
 class LiveMatchOut(BaseModel):
@@ -144,6 +148,7 @@ class LiveMatchOut(BaseModel):
     score_b: int
     minute: int
     is_live: bool = False
+    winner: Optional[str] = None
 
 
 # ── User profile update ───────────────────────────────────────────────────────

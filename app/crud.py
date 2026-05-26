@@ -274,10 +274,18 @@ async def get_all_winner_picks(db: AsyncSession) -> dict:
 
 async def get_all_results(db: AsyncSession) -> dict:
     r = await db.execute(select(Result))
-    return {res.match_n: [res.score_a, res.score_b] for res in r.scalars().all()}
+    # Returns {match_n: [score_a, score_b, winner_or_None]}
+    # winner is "a" or "b" for knockout matches decided by ET/penalties.
+    return {res.match_n: [res.score_a, res.score_b, res.winner] for res in r.scalars().all()}
 
 
-async def upsert_result(db: AsyncSession, match_n: int, score_a: Optional[int], score_b: Optional[int]) -> Optional[Result]:
+async def upsert_result(
+    db: AsyncSession,
+    match_n: int,
+    score_a: Optional[int],
+    score_b: Optional[int],
+    winner: Optional[str] = None,
+) -> Optional[Result]:
     res = await db.get(Result, match_n)
     if score_a is None and score_b is None:
         if res:
@@ -287,8 +295,9 @@ async def upsert_result(db: AsyncSession, match_n: int, score_a: Optional[int], 
     if res:
         res.score_a = score_a
         res.score_b = score_b
+        res.winner  = winner
     else:
-        res = Result(match_n=match_n, score_a=score_a, score_b=score_b)
+        res = Result(match_n=match_n, score_a=score_a, score_b=score_b, winner=winner)
         db.add(res)
     await db.commit()
     if res:
@@ -503,7 +512,7 @@ async def reset_full_system(
 async def get_live_matches(db: AsyncSession) -> dict:
     r = await db.execute(select(LiveMatch))
     return {m.match_n: {"score_a": m.score_a, "score_b": m.score_b, "minute": m.minute,
-                        "is_live": bool(m.is_live)}
+                        "is_live": bool(m.is_live), "winner": m.winner}
             for m in r.scalars().all()}
 
 
@@ -514,6 +523,7 @@ async def upsert_live_match(
     score_b: Optional[int] = None,
     minute: Optional[int] = None,
     is_live: Optional[bool] = None,
+    winner: Optional[str] = None,
 ) -> LiveMatch:
     """PATCH-style upsert — only the fields actually passed are written.
 
@@ -527,6 +537,7 @@ async def upsert_live_match(
         if score_b is not None: lm.score_b = score_b
         if minute  is not None: lm.minute  = minute
         if is_live is not None: lm.is_live = is_live
+        if winner  is not None: lm.winner  = winner
     else:
         lm = LiveMatch(
             match_n=match_n,
@@ -534,6 +545,7 @@ async def upsert_live_match(
             score_b=score_b if score_b is not None else 0,
             minute=minute   if minute  is not None else 0,
             is_live=is_live if is_live is not None else False,
+            winner=winner,
         )
         db.add(lm)
     await db.commit()
@@ -554,7 +566,7 @@ async def finalize_live_match(db: AsyncSession, match_n: int) -> Optional[Result
     lm = await db.get(LiveMatch, match_n)
     if not lm:
         return None
-    result = await upsert_result(db, match_n, lm.score_a, lm.score_b)
+    result = await upsert_result(db, match_n, lm.score_a, lm.score_b, winner=lm.winner)
     await db.delete(lm)
     await db.commit()
     return result

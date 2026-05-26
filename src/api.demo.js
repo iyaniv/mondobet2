@@ -527,7 +527,7 @@ export const api = {
   // ── Game data
   getMatches:     async () => { await delay(30); return MATCHES; },
   getConfig:      async () => { await delay(30); return S.config; },
-  getResults:     async () => { await delay(30); return Object.entries(S.results).map(([n,r])=>({match_n:Number(n),score_a:r[0],score_b:r[1]})); },
+  getResults:     async () => { await delay(30); return Object.entries(S.results).map(([n,r])=>({match_n:Number(n),score_a:r[0],score_b:r[1],winner:r[2]||null})); },
   getLeaderboard: async () => { await delay(50); return computeLeaderboard(); },
   // resultsOverride: { [match_n]: [score_a, score_b] }
   // winnerOverride: team name (string) — assume tournament winner for sim
@@ -730,7 +730,7 @@ export const api = {
   setResult: async (n, d) => {
     await delay();
     requireAdmin();
-    if (d.score_a!=null&&d.score_b!=null) { S.results[n]=[d.score_a,d.score_b]; delete S.live[n]; }
+    if (d.score_a!=null&&d.score_b!=null) { S.results[n]=[d.score_a,d.score_b,d.winner||null]; delete S.live[n]; }
     else delete S.results[n];
     save(S);
     return {match_n:n,...d};
@@ -868,9 +868,11 @@ export const liveApi = {
     const prev = S.live[Number(n)];
     const isLive = d.is_live !== undefined ? !!d.is_live : !!(prev && prev.is_live);
     S.live[Number(n)] = {
-      score_a: d.score_a, score_b: d.score_b,
+      score_a: d.score_a ?? prev?.score_a ?? 0,
+      score_b: d.score_b ?? prev?.score_b ?? 0,
       minute: d.minute ?? (prev?.minute || 0),
       is_live: isLive,
+      winner: d.winner !== undefined ? d.winner : (prev?.winner || null),
     };
     save(S);
     return {match_n:Number(n),...S.live[Number(n)]};
@@ -895,10 +897,10 @@ export const liveApi = {
     requireAdmin();
     const ld = S.live[Number(n)];
     if (!ld) throw new Error("Match has no score yet");
-    S.results[Number(n)] = [ld.score_a, ld.score_b];
+    S.results[Number(n)] = [ld.score_a, ld.score_b, ld.winner||null];
     delete S.live[Number(n)];
     save(S);
-    return {match_n:Number(n),score_a:ld.score_a,score_b:ld.score_b};
+    return {match_n:Number(n),score_a:ld.score_a,score_b:ld.score_b,winner:ld.winner||null};
   },
 };
 
@@ -914,8 +916,8 @@ export const initApi = {
     await delay(80);
     const user = getUser();
     const leaderboard = computeLeaderboard();
-    const resultsArr = Object.entries(S.results).map(([n,r])=>({match_n:Number(n),score_a:r[0],score_b:r[1]}));
-    const liveArr = Object.entries(S.live).map(([n,ld])=>({match_n:Number(n),...ld}));
+    const resultsArr = Object.entries(S.results).map(([n,r])=>({match_n:Number(n),score_a:r[0],score_b:r[1],winner:r[2]||null}));
+    const liveArr = Object.entries(S.live).map(([n,ld])=>({match_n:Number(n),...ld,winner:ld.winner||null}));
 
     const out = {
       matches: MATCHES,

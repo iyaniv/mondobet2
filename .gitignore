@@ -26,3 +26,4 @@ dist/
 # Alembic compiled
 alembic/__pycache__/
 .vercel
+.env*

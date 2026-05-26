@@ -18,11 +18,27 @@ from app.routers import auth, config, entries, init, leaderboard, live, matches,
 
 
 async def _bootstrap():
-    """Create tables + admin user + game config singleton on first run."""
+    """Create tables + admin user + game config singleton on first run.
+
+    Also runs incremental migrations (ALTER TABLE … ADD COLUMN IF NOT EXISTS)
+    so existing databases pick up new columns automatically on deploy.
+    All statements are idempotent — safe to run on every cold start.
+    """
     from app import crud
+    from sqlalchemy import text
 
     async with engine.begin() as conn:
+        # Create any missing tables (new installs)
         await conn.run_sync(Base.metadata.create_all)
+
+        # ── Incremental column migrations ──────────────────────────────────
+        # Migration 08: winner column for knockout-stage results (ET/penalties)
+        await conn.execute(text(
+            "ALTER TABLE results ADD COLUMN IF NOT EXISTS winner CHAR(1)"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE live_matches ADD COLUMN IF NOT EXISTS winner CHAR(1)"
+        ))
 
     async with AsyncSessionLocal() as db:
         await crud.get_config(db)

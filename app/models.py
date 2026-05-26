@@ -96,6 +96,9 @@ class Result(Base):
     match_n: Mapped[int] = mapped_column(Integer, primary_key=True)
     score_a: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     score_b: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    # Knockout stages only: "a" or "b" — who actually advanced (ET/penalties).
+    # NULL for group-stage matches or knockout matches decided in regular time.
+    winner: Mapped[Optional[str]] = mapped_column(String(1), nullable=True)
 
 
 class WinnerPick(Base):
@@ -137,6 +140,8 @@ class LiveMatch(Base):
     is_live: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False
     )
+    # Knockout stages only: "a" or "b" — who actually advanced (ET/penalties).
+    winner: Mapped[Optional[str]] = mapped_column(String(1), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
