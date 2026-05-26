@@ -2944,7 +2944,10 @@ export default function App() {
                       ):(
                         <>
                           <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.name}</span>
-                          {submitted&&<span style={{fontSize:13,color:C.green,fontWeight:700}}>✓</span>}
+                          {submitted
+                            ? <span style={{fontSize:13,color:C.green,fontWeight:700}}>✓</span>
+                            : editable&&<span title={`Not submitted for stage ${openStage}`} style={{fontSize:10,color:"#f59e0b",fontWeight:700,lineHeight:1,letterSpacing:0}}>●</span>
+                          }
                           {openStage===1&&(
                             <span onClick={ev=>startRename(ev,e)} title="Rename form" style={{
                               fontSize:13,opacity:isActive?0.65:0.35,cursor:"pointer",lineHeight:1,
