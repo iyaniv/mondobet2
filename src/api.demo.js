@@ -701,12 +701,18 @@ export const api = {
     if (!eid) return [];
     const entry = S.entries[eid];
     const allPreds = Object.entries(S.predictions[eid]||{}).map(([n,p])=>({match_n:Number(n),score_a:p[0],score_b:p[1]}));
-    // Admin or own entry: always visible.
-    // Other user: only visible when the round is NOT open (admin has closed it).
+    // Admin or own entry: all predictions always.
+    // Other user: all predictions except the current open stage while round is open.
     const viewingOwn = Number(uid) === caller.id;
-    if (caller.is_admin || viewingOwn) return allPreds;
-    if (S.config.round_state !== "open" && entry?.submitted_at) return allPreds;
-    return [];
+    if (!caller.is_admin && !viewingOwn && !entry?.submitted_at) return [];
+    if (!caller.is_admin && !viewingOwn && S.config.round_state === "open") {
+      const openStage = S.config.current_stage || 1;
+      return allPreds.filter(p => {
+        const m = MATCHES.find(x => x.n === p.match_n);
+        return m && m.s !== openStage;
+      });
+    }
+    return allPreds;
   },
 
   // ── Admin

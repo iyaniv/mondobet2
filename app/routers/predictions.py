@@ -116,16 +116,11 @@ async def user_predictions(
     db: AsyncSession = Depends(get_db),
 ):
     """Return predictions:
-    - Admin or own entry: always visible.
-    - Other user: only visible when the round is NOT open (admin has closed it).
+    - Admin or own entry: all predictions, always.
+    - Other user: all predictions EXCEPT the current open stage (hidden while
+      users are still actively betting that stage).
     """
     viewing_own = (user_id == current_user.id)
-
-    # Non-admin viewing someone else's entry → only allowed when round is closed
-    if not current_user.is_admin and not viewing_own:
-        cfg = await crud.get_config(db)
-        if cfg.round_state == RoundStateEnum.open:
-            return []
 
     if entry_id:
         entry = await crud.get_entry(db, entry_id)
@@ -140,6 +135,18 @@ async def user_predictions(
         entry = submitted[0]
         preds = await crud.get_entry_predictions(db, entry.id)
 
-    if current_user.is_admin or viewing_own or entry.submitted_at:
-        return [PredictionOut(match_n=n, score_a=v[0], score_b=v[1]) for n, v in preds.items()]
-    return []
+    if not (current_user.is_admin or viewing_own or entry.submitted_at):
+        return []
+
+    all_preds = [PredictionOut(match_n=n, score_a=v[0], score_b=v[1]) for n, v in preds.items()]
+
+    # For non-admin viewing someone else: hide predictions for the current
+    # open stage while the round is still open (users are actively betting).
+    if not current_user.is_admin and not viewing_own:
+        cfg = await crud.get_config(db)
+        if cfg.round_state == RoundStateEnum.open:
+            open_stage = cfg.current_stage or 1
+            open_match_ns = {m["n"] for m in MATCH_INDEX.values() if m.get("s") == open_stage}
+            all_preds = [p for p in all_preds if p.match_n not in open_match_ns]
+
+    return all_preds
