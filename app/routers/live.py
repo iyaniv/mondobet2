@@ -30,15 +30,20 @@ async def set_live(
     """
     if match_n not in MATCH_INDEX:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Match not found.")
+    # Only forward ET/pen if the client actually included them in the body —
+    # otherwise leave them untouched (PATCH semantics via the crud sentinel).
+    fields = data.model_dump(exclude_unset=True)
+    extra = {k: fields[k] for k in ("et_a", "et_b", "pen_a", "pen_b") if k in fields}
     lm = await crud.upsert_live_match(
         db, match_n,
         score_a=data.score_a, score_b=data.score_b,
         minute=data.minute,   is_live=data.is_live,
-        winner=data.winner,
+        **extra,
     )
     return LiveMatchOut(
         match_n=lm.match_n, score_a=lm.score_a, score_b=lm.score_b,
         minute=lm.minute, is_live=bool(lm.is_live), winner=lm.winner,
+        et_a=lm.et_a, et_b=lm.et_b, pen_a=lm.pen_a, pen_b=lm.pen_b,
     )
 
 
@@ -63,4 +68,5 @@ async def finalize_live(
     return LiveMatchOut(
         match_n=match_n, score_a=result.score_a, score_b=result.score_b,
         minute=0, is_live=False, winner=result.winner,
+        et_a=result.et_a, et_b=result.et_b, pen_a=result.pen_a, pen_b=result.pen_b,
     )

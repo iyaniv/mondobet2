@@ -93,16 +93,24 @@ class WinnerPickIn(BaseModel):
 # ── Results ───────────────────────────────────────────────────────────────────
 
 class ResultIn(BaseModel):
-    score_a: Optional[int] = Field(None, ge=0, le=99)
+    score_a: Optional[int] = Field(None, ge=0, le=99)   # 90-min score (for points)
     score_b: Optional[int] = Field(None, ge=0, le=99)
-    # Knockout rounds only: "a" or "b" — who advanced via ET/penalties.
-    winner: Optional[str] = Field(None, pattern="^[ab]$")
+    # Knockout rounds only — score after extra time + penalty shootout.
+    # winner is derived server-side from these; clients don't send it.
+    et_a: Optional[int] = Field(None, ge=0, le=99)
+    et_b: Optional[int] = Field(None, ge=0, le=99)
+    pen_a: Optional[int] = Field(None, ge=0, le=99)
+    pen_b: Optional[int] = Field(None, ge=0, le=99)
 
 
 class ResultOut(BaseModel):
     match_n: int
     score_a: int
     score_b: int
+    et_a: Optional[int] = None
+    et_b: Optional[int] = None
+    pen_a: Optional[int] = None
+    pen_b: Optional[int] = None
     winner: Optional[str] = None
 
 
@@ -139,7 +147,10 @@ class LiveMatchIn(BaseModel):
     score_b: Optional[int] = Field(None, ge=0, le=99)
     minute: Optional[int] = Field(None, ge=0, le=120)
     is_live: Optional[bool] = None
-    winner: Optional[str] = Field(None, pattern="^[ab]$")
+    et_a: Optional[int] = Field(None, ge=0, le=99)
+    et_b: Optional[int] = Field(None, ge=0, le=99)
+    pen_a: Optional[int] = Field(None, ge=0, le=99)
+    pen_b: Optional[int] = Field(None, ge=0, le=99)
 
 
 class LiveMatchOut(BaseModel):
@@ -148,6 +159,10 @@ class LiveMatchOut(BaseModel):
     score_b: int
     minute: int
     is_live: bool = False
+    et_a: Optional[int] = None
+    et_b: Optional[int] = None
+    pen_a: Optional[int] = None
+    pen_b: Optional[int] = None
     winner: Optional[str] = None
 
 

@@ -18,6 +18,15 @@ const STAGES = [
 ];
 function matchStageObj(n) { return STAGES.find(s => n >= s.first && n <= s.last) || STAGES[0]; }
 
+// Determine who advanced in a knockout match: penalties → extra time →
+// 90-min score. Returns "a", "b", or null. Mirrors crud.derive_winner.
+function deriveWinner(sa, sb, etA, etB, penA, penB) {
+  if (penA != null && penB != null && penA !== penB) return penA > penB ? "a" : "b";
+  if (etA  != null && etB  != null && etA  !== etB ) return etA  > etB  ? "a" : "b";
+  if (sa   != null && sb   != null && sa   !== sb  ) return sa   > sb   ? "a" : "b";
+  return null;
+}
+
 // Resolve slot names like "W M73" / "L M101" to actual team names using known results
 function resolveTeam(name, results, matches) {
   const m = name.match(/^([WL]) M(\d+)$/);
@@ -1648,18 +1657,22 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
   // Knockout matches (stages 2+) must have a winner; may be decided by ET/pens
   const isKnockout = match.s >= 2;
 
-  const [resA, setResA] = useState(hasScore ? String(liveData.score_a) : isFinal ? String(result[0]) : "");
-  const [resB, setResB] = useState(hasScore ? String(liveData.score_b) : isFinal ? String(result[1]) : "");
-  // winner: "a" | "b" | null — explicitly set by admin (for ET/pens tiebreak)
-  const [winner, setWinnerState] = useState(
-    liveData?.winner || result?.[2] || null
-  );
+  const sStr = (v) => (v==null ? "" : String(v));
+  const numOrNull = (v) => (v==="" || v==null) ? null : (Number(v)||0);
+
+  const [resA, setResA] = useState(hasScore ? sStr(liveData.score_a) : isFinal ? sStr(result[0]) : "");
+  const [resB, setResB] = useState(hasScore ? sStr(liveData.score_b) : isFinal ? sStr(result[1]) : "");
+  // Extra-time (cumulative) + penalty-shootout scores — knockout matches only.
+  const [etA, setEtA]   = useState(hasScore ? sStr(liveData.et_a)  : isFinal ? sStr(result[3]) : "");
+  const [etB, setEtB]   = useState(hasScore ? sStr(liveData.et_b)  : isFinal ? sStr(result[4]) : "");
+  const [penA, setPenA] = useState(hasScore ? sStr(liveData.pen_a) : isFinal ? sStr(result[5]) : "");
+  const [penB, setPenB] = useState(hasScore ? sStr(liveData.pen_b) : isFinal ? sStr(result[6]) : "");
 
   // Race protection — the 10s background poll + cross-tab sync both flush
   // liveMatches state from props. Without these guards, polling could wipe
   // what the admin just typed (before save completes) OR clobber freshly-
   // saved values with a stale poll response that was in flight.
-  //   editingRef    — true while EITHER input is focused (user is typing)
+  //   editingRef    — true while ANY input is focused (user is typing)
   //   pendingSaveRef — true while our own onUpdateLive() is in flight
   const editingRef    = useRef(false);
   const pendingSaveRef = useRef(false);
@@ -1669,60 +1682,60 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
     // saved data with whatever a concurrent poll happened to return.
     if (editingRef.current || pendingSaveRef.current) return;
     if (liveData) {
-      setResA(String(liveData.score_a)); setResB(String(liveData.score_b));
-      if (liveData.winner) setWinnerState(liveData.winner);
+      setResA(sStr(liveData.score_a)); setResB(sStr(liveData.score_b));
+      setEtA(sStr(liveData.et_a)); setEtB(sStr(liveData.et_b));
+      setPenA(sStr(liveData.pen_a)); setPenB(sStr(liveData.pen_b));
     } else if (result) {
-      setResA(String(result[0])); setResB(String(result[1]));
-      setWinnerState(result[2] || null);
-    } else { setResA(""); setResB(""); setWinnerState(null); }
-  }, [liveData?.score_a, liveData?.score_b, liveData?.winner, result?.[0], result?.[1], result?.[2]]);
+      setResA(sStr(result[0])); setResB(sStr(result[1]));
+      setEtA(sStr(result[3])); setEtB(sStr(result[4]));
+      setPenA(sStr(result[5])); setPenB(sStr(result[6]));
+    } else {
+      setResA(""); setResB(""); setEtA(""); setEtB(""); setPenA(""); setPenB("");
+    }
+  }, [liveData?.score_a, liveData?.score_b, liveData?.et_a, liveData?.et_b,
+      liveData?.pen_a, liveData?.pen_b, result?.[0], result?.[1],
+      result?.[3], result?.[4], result?.[5], result?.[6]]);
 
-  // Typing a score saves the in-motion data BUT does NOT mark the match as
-  // visibly LIVE. The LIVE badge appears only when the admin explicitly
-  // clicks ▶ LIVE. The row stays editable until the admin clicks ✓ FINAL.
-  async function handleBlur(side, val) {
-    editingRef.current = false;   // input lost focus
-    const a = side===0 ? val : resA, b = side===1 ? val : resB;
-    if (a===""&&b==="") return;
-    const sa=Number(a)||0, sb=Number(b)||0;
-    // Auto-derive winner from score when not a draw; keep explicit winner on draws
-    const autoW = sa>sb ? 'a' : sb>sa ? 'b' : null;
-    const effectiveWinner = isKnockout ? (winner || autoW) : null;
+  const handleFocus = () => { editingRef.current = true; };
+
+  // Any score edit saves the whole in-motion record (90-min + ET + pens). The
+  // just-blurred field is passed via `ov` since setState hasn't flushed yet.
+  // Saving does NOT mark the match visibly LIVE — that needs the ▶ LIVE click.
+  async function saveAll(ov = {}) {
+    editingRef.current = false;
+    const sa = ov.sa!==undefined ? ov.sa : resA;
+    const sb = ov.sb!==undefined ? ov.sb : resB;
+    if (sa===""&&sb==="") return;   // nothing entered yet
     pendingSaveRef.current = true;
     try {
-      // Preserve current is_live state (false unless admin already toggled it)
       await onUpdateLive(match.n, {
-        score_a:sa, score_b:sb,
+        score_a: Number(sa)||0,
+        score_b: Number(sb)||0,
         minute: liveData?.minute || 0,
         is_live: !!liveData?.is_live,
-        winner: effectiveWinner,
+        et_a:  numOrNull(ov.ea!==undefined ? ov.ea : etA),
+        et_b:  numOrNull(ov.eb!==undefined ? ov.eb : etB),
+        pen_a: numOrNull(ov.pa!==undefined ? ov.pa : penA),
+        pen_b: numOrNull(ov.pb!==undefined ? ov.pb : penB),
       });
     } finally {
       pendingSaveRef.current = false;
     }
   }
-  const handleFocus = () => { editingRef.current = true; };
 
-  // Admin explicitly picks the winner (ET or penalty tiebreak)
-  async function handleWinnerClick(w) {
-    setWinnerState(w);
-    const sa=Number(resA)||0, sb=Number(resB)||0;
-    if (resA===""&&resB==="") return; // no score yet — just store locally
-    await onUpdateLive(match.n, {
-      score_a:sa, score_b:sb,
-      minute: liveData?.minute || 0,
-      is_live: !!liveData?.is_live,
-      winner: w,
-    });
-  }
-
-  const effA = Number(resA||0), effB = Number(resB||0);
-  // Effective winner: score-derived first, then explicit winner field (ET/pens)
-  const autoWinner = effA>effB ? 'a' : effB>effA ? 'b' : null;
-  const effectiveWinner = isKnockout ? (autoWinner || winner) : autoWinner;
+  // Current winner derived live from whatever's typed (pens → ET → 90-min)
+  const curWinner = deriveWinner(
+    numOrNull(resA), numOrNull(resB), numOrNull(etA), numOrNull(etB),
+    numOrNull(penA), numOrNull(penB),
+  );
   const winA = (hasScore||isFinal)
-    ? (effectiveWinner==='a' ? true : effectiveWinner==='b' ? false : null)
+    ? (curWinner==='a' ? true : curWinner==='b' ? false : null)
     : null;
+  // Progressive disclosure: ET appears when 90-min is a draw, pens when ET ties.
+  const ftDraw  = isKnockout && resA!=="" && resB!=="" && Number(resA)===Number(resB);
+  const etDraw  = ftDraw && etA!=="" && etB!=="" && Number(etA)===Number(etB);
+  const showEt  = ftDraw && !isFinal;
+  const showPen = etDraw && !isFinal;
   // Row palette: red for shown-as-live, green for final, lime tint for
   // "score saved but not yet marked LIVE", default panel for empty.
   const rowBg = isShownLive ? "rgba(239,68,68,0.06)"
@@ -1739,53 +1752,68 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
                     : C.border;
   const isMobile = useIsMobile();
 
-  // For knockout matches, show who won via ET/pens in the final score display
-  const tiedAtFT = isFinal && result[0]===result[1];
-  const finalWinner = isFinal ? (result[2] || (result[0]>result[1]?'a':result[1]>result[0]?'b':null)) : null;
-  const finalWinnerName = finalWinner==='a' ? match.a : finalWinner==='b' ? match.b : null;
-
-  // Winner picker: shown for knockout matches when a score is entered but not finalized
-  // Draw → required; non-draw → shows auto-selected but admin can override for ET goals
-  const showWinnerPicker = isKnockout && (hasScore) && !isFinal;
-  const winnerBtnStyle = (side) => ({
-    fontSize:10, padding:"1px 6px", borderRadius:3, cursor:"pointer",
-    border:`1px solid ${effectiveWinner===side ? C.green : C.border}`,
-    background: effectiveWinner===side ? "rgba(163,230,53,0.15)" : "transparent",
-    color: effectiveWinner===side ? C.accent : C.muted,
-    fontWeight: effectiveWinner===side ? 700 : 400,
-    whiteSpace:"nowrap", overflow:"hidden", maxWidth:80, textOverflow:"ellipsis",
-    transition:"all .12s",
-  });
+  // For final knockout matches, the advancing team's name (when 90-min tied)
+  const finalWinnerName = isFinal && result[0]===result[1]
+    ? (result[2]==='a' ? match.a : result[2]==='b' ? match.b : null)
+    : null;
+  // Small label + a pair of mini score inputs (for ET / pens rows)
+  const miniInput = {...numInput, width:30, padding:"1px 3px", fontSize:12};
+  const tierRow = (label, aVal, setA, bVal, setB, aKey, bKey) => (
+    <div style={{display:"flex",alignItems:"center",gap:3}}>
+      <span style={{fontSize:9,color:C.muted,width:32,textAlign:"right",
+        textTransform:"uppercase",letterSpacing:".3px"}}>{label}</span>
+      <input type="number" inputMode="numeric" min={0} max={30} value={aVal}
+        onFocus={handleFocus} onChange={e=>setA(e.target.value)}
+        onBlur={e=>saveAll({[aKey]:e.target.value})}
+        style={{...miniInput,border:`1px solid ${inputBorder}`}}/>
+      <span style={{color:C.muted,fontSize:11}}>:</span>
+      <input type="number" inputMode="numeric" min={0} max={30} value={bVal}
+        onFocus={handleFocus} onChange={e=>setB(e.target.value)}
+        onBlur={e=>saveAll({[bKey]:e.target.value})}
+        style={{...miniInput,border:`1px solid ${inputBorder}`}}/>
+    </div>
+  );
 
   // Score / inputs block shared across layouts
   const scoreBlock = isFinal ? (
-    <div style={{textAlign:"center"}}>
+    <div style={{textAlign:"center",lineHeight:1.3}}>
       <span style={{fontFamily:"monospace",fontWeight:700,fontSize:14,whiteSpace:"nowrap",
         color:C.green}}>✓ {result[0]}:{result[1]}</span>
-      {isKnockout && tiedAtFT && finalWinnerName && (
-        <div style={{fontSize:10,color:C.muted,marginTop:1}}>
-          {finalWinnerName} <span style={{color:C.accent,fontWeight:700}}>▶</span>
+      {result[3]!=null && (
+        <div style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>
+          a.e.t. {result[3]}:{result[4]}
+        </div>
+      )}
+      {result[5]!=null && (
+        <div style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>
+          pen {result[5]}:{result[6]}
+        </div>
+      )}
+      {finalWinnerName && (
+        <div style={{fontSize:10,color:C.accent,fontWeight:700}}>
+          {finalWinnerName} ▶
         </div>
       )}
     </div>
   ) : (
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
       <div style={{display:"flex",alignItems:"center",gap:3}}>
+        {isKnockout && <span style={{fontSize:9,color:C.muted,width:32,textAlign:"right",textTransform:"uppercase",letterSpacing:".3px"}}>90'</span>}
         <input type="number" inputMode="numeric" min={0} max={20} value={resA}
           onFocus={handleFocus}
-          onChange={e=>setResA(e.target.value)} onBlur={e=>handleBlur(0,e.target.value)}
-          style={{...numInput,border:`1px solid ${inputBorder}`}}/>
+          onChange={e=>setResA(e.target.value)} onBlur={e=>saveAll({sa:e.target.value})}
+          style={{...(isKnockout?miniInput:numInput),border:`1px solid ${inputBorder}`}}/>
         <span style={{color:C.muted,fontSize:13}}>:</span>
         <input type="number" inputMode="numeric" min={0} max={20} value={resB}
           onFocus={handleFocus}
-          onChange={e=>setResB(e.target.value)} onBlur={e=>handleBlur(1,e.target.value)}
-          style={{...numInput,border:`1px solid ${inputBorder}`}}/>
+          onChange={e=>setResB(e.target.value)} onBlur={e=>saveAll({sb:e.target.value})}
+          style={{...(isKnockout?miniInput:numInput),border:`1px solid ${inputBorder}`}}/>
       </div>
-      {showWinnerPicker && (
-        <div style={{display:"flex",alignItems:"center",gap:3}}>
-          <span style={{fontSize:10,color:C.muted,flexShrink:0}}>▶</span>
-          <button onClick={()=>handleWinnerClick('a')} style={winnerBtnStyle('a')}>{match.a}</button>
-          <button onClick={()=>handleWinnerClick('b')} style={winnerBtnStyle('b')}>{match.b}</button>
+      {showEt  && tierRow("a.e.t.", etA, setEtA, etB, setEtB, "ea", "eb")}
+      {showPen && tierRow("pen",   penA, setPenA, penB, setPenB, "pa", "pb")}
+      {isKnockout && hasScore && curWinner && (
+        <div style={{fontSize:10,color:C.accent,fontWeight:700}}>
+          {curWinner==='a' ? match.a : match.b} ▶
         </div>
       )}
     </div>
@@ -1894,9 +1922,10 @@ function AdminResults({ config, matches, results, liveMatches, setResults, setLi
 
   async function saveResult(matchN, data) {
     await api.setResult(matchN, data);
-    if (data.score_a != null && data.score_b != null)
-      setResults(r => ({...r, [matchN]: [data.score_a, data.score_b, data.winner||null]}));
-    else
+    if (data.score_a != null && data.score_b != null) {
+      const w = deriveWinner(data.score_a, data.score_b, data.et_a, data.et_b, data.pen_a, data.pen_b);
+      setResults(r => ({...r, [matchN]: [data.score_a, data.score_b, w, data.et_a??null, data.et_b??null, data.pen_a??null, data.pen_b??null]}));
+    } else
       setResults(r => { const n = {...r}; delete n[matchN]; return n; });
     showToast("Result saved ✓"); refreshLb();
   }
@@ -1911,17 +1940,25 @@ function AdminResults({ config, matches, results, liveMatches, setResults, setLi
     try {
       await liveApi.set(matchN, data);
       // Optimistically update local live state so bracket resolves immediately
-      setLiveMatches(prev => ({
-        ...prev,
-        [matchN]: {
-          ...(prev[matchN]||{}),
-          score_a: data.score_a ?? prev[matchN]?.score_a ?? 0,
-          score_b: data.score_b ?? prev[matchN]?.score_b ?? 0,
-          minute:  data.minute  ?? prev[matchN]?.minute  ?? 0,
-          is_live: data.is_live ?? prev[matchN]?.is_live ?? false,
-          winner:  data.winner  ?? prev[matchN]?.winner  ?? null,
-        },
-      }));
+      setLiveMatches(prev => {
+        const p = prev[matchN] || {};
+        const sa = data.score_a ?? p.score_a ?? 0;
+        const sb = data.score_b ?? p.score_b ?? 0;
+        const etA  = data.et_a  !== undefined ? data.et_a  : (p.et_a  ?? null);
+        const etB  = data.et_b  !== undefined ? data.et_b  : (p.et_b  ?? null);
+        const penA = data.pen_a !== undefined ? data.pen_a : (p.pen_a ?? null);
+        const penB = data.pen_b !== undefined ? data.pen_b : (p.pen_b ?? null);
+        return {
+          ...prev,
+          [matchN]: {
+            ...p, score_a: sa, score_b: sb,
+            minute:  data.minute  ?? p.minute  ?? 0,
+            is_live: data.is_live ?? p.is_live ?? false,
+            et_a: etA, et_b: etB, pen_a: penA, pen_b: penB,
+            winner: deriveWinner(sa, sb, etA, etB, penA, penB),
+          },
+        };
+      });
       await refreshLive();
     }
     catch(e) { showToast(e.message, "err"); }
@@ -1929,7 +1966,7 @@ function AdminResults({ config, matches, results, liveMatches, setResults, setLi
   async function finalizeLive(matchN) {
     try {
       const res = await liveApi.finalize(matchN);
-      setResults(r => ({...r, [matchN]: [res.score_a, res.score_b, res.winner||null]}));
+      setResults(r => ({...r, [matchN]: [res.score_a, res.score_b, res.winner??null, res.et_a??null, res.et_b??null, res.pen_a??null, res.pen_b??null]}));
       await refreshLive();
       showToast("Match finalized ✓"); refreshLb();
     } catch(e) { showToast(e.message, "err"); }
@@ -2350,19 +2387,39 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
                       if (disabled) return;
                       const ok = await confirmDialog({
                         title: `Random-fill Stage ${s.n}?`,
-                        message: `Fill ${empty} match${empty===1?"":"es"} in ${s.name} with random scores (0–3 each side) as FINAL results.`,
+                        message: `Fill ${empty} match${empty===1?"":"es"} in ${s.name} with random scores (0–3 each side) as FINAL results.`
+                          + (s.n >= 2 ? " Draws are settled by random extra-time or penalties so every match has a winner." : ""),
                         confirmLabel: "Fill randomly",
                         danger: false,
                       });
                       if (!ok) return;
                       const rand = () => Math.floor(Math.random() * 4);
+                      const isKO = s.n >= 2;  // stage 2+ must produce a winner
                       let filled = 0;
                       for (const m of stageMatches) {
                         if (results[m.n] || liveMatches[m.n]) continue;
                         const sa = rand(), sb = rand();
+                        const payload = {score_a: sa, score_b: sb};
+                        // Knockout draw at 90' → decide via extra time or penalties
+                        if (isKO && sa === sb) {
+                          if (Math.random() < 0.5) {
+                            // Settled in extra time — one side nets 1–2 more
+                            const extra = 1 + Math.floor(Math.random() * 2);
+                            if (Math.random() < 0.5) { payload.et_a = sa + extra; payload.et_b = sb; }
+                            else                     { payload.et_a = sa; payload.et_b = sb + extra; }
+                          } else {
+                            // Still level after ET → penalty shootout
+                            payload.et_a = sa; payload.et_b = sb;
+                            let pa = 3 + Math.floor(Math.random() * 3);  // 3–5
+                            let pb = 3 + Math.floor(Math.random() * 3);
+                            if (pa === pb) { Math.random() < 0.5 ? pa++ : pb++; }
+                            payload.pen_a = pa; payload.pen_b = pb;
+                          }
+                        }
                         try {
-                          await api.setResult(m.n, {score_a: sa, score_b: sb});
-                          setResults?.(r => ({...r, [m.n]: [sa, sb]}));
+                          await api.setResult(m.n, payload);
+                          const w = deriveWinner(payload.score_a, payload.score_b, payload.et_a, payload.et_b, payload.pen_a, payload.pen_b);
+                          setResults?.(r => ({...r, [m.n]: [payload.score_a, payload.score_b, w, payload.et_a??null, payload.et_b??null, payload.pen_a??null, payload.pen_b??null]}));
                           filled++;
                         } catch(e) { console.error("random-fill", m.n, e); }
                       }
@@ -2656,13 +2713,13 @@ export default function App() {
       }
 
       setConfig(d.config);
-      const resMap={};for(const r of d.results)resMap[r.match_n]=[r.score_a,r.score_b,r.winner||null];
+      const resMap={};for(const r of d.results)resMap[r.match_n]=[r.score_a,r.score_b,r.winner??null,r.et_a??null,r.et_b??null,r.pen_a??null,r.pen_b??null];
       setResults(resMap);
       setLeaderboard(d.leaderboard);
 
       // Live matches (may not exist yet if table not created)
       if (d.live) {
-        const liveMap={};for(const m of d.live)liveMap[m.match_n]={score_a:m.score_a,score_b:m.score_b,minute:m.minute,is_live:!!m.is_live,winner:m.winner||null};
+        const liveMap={};for(const m of d.live)liveMap[m.match_n]={score_a:m.score_a,score_b:m.score_b,minute:m.minute,is_live:!!m.is_live,winner:m.winner??null,et_a:m.et_a??null,et_b:m.et_b??null,pen_a:m.pen_a??null,pen_b:m.pen_b??null};
         setLiveMatches(liveMap);
       }
 

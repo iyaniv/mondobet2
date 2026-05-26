@@ -87,12 +87,17 @@ CREATE INDEX ix_predictions_entry_id ON predictions (entry_id);
 
 -- ── 7. Results ───────────────────────────────────────────────────────────────
 -- Admin-entered final scores. match_n is the primary key (0 or 1 row per match).
--- winner: "a" or "b" for knockout matches decided by ET/penalties (NULL otherwise).
+-- score_a/score_b = 90-min score (points). et_*/pen_* = extra-time / penalty
+-- scores for knockout matches; winner ("a"/"b") derived from pens → ET → 90 min.
 CREATE TABLE results (
     match_n  INT      PRIMARY KEY,
     score_a  SMALLINT NOT NULL,
     score_b  SMALLINT NOT NULL,
-    winner   CHAR(1)  -- "a" or "b"; NULL for group stage or regular-time KO wins
+    et_a     SMALLINT,
+    et_b     SMALLINT,
+    pen_a    SMALLINT,
+    pen_b    SMALLINT,
+    winner   CHAR(1)
 );
 
 -- ── 8. Winner picks ──────────────────────────────────────────────────────────
@@ -124,6 +129,10 @@ CREATE TABLE live_matches (
     score_b     SMALLINT    NOT NULL DEFAULT 0,
     minute      SMALLINT    NOT NULL DEFAULT 0,
     is_live     BOOLEAN     NOT NULL DEFAULT FALSE,
+    et_a        SMALLINT,
+    et_b        SMALLINT,
+    pen_a       SMALLINT,
+    pen_b       SMALLINT,
     winner      CHAR(1),    -- "a" or "b" for knockout matches (ET/penalties)
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

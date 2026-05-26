@@ -240,6 +240,15 @@ const SEED_RESULTS = {
 };
 const SEED_LIVE = {}; // No live matches — mid-stage pause between match days
 
+// Determine who advanced: penalties → extra time → 90-min score.
+// Returns "a", "b", or null (tied / undecided). Mirrors crud.derive_winner.
+function deriveWinner(sa, sb, etA, etB, penA, penB) {
+  if (penA != null && penB != null && penA !== penB) return penA > penB ? "a" : "b";
+  if (etA  != null && etB  != null && etA  !== etB ) return etA  > etB  ? "a" : "b";
+  if (sa   != null && sb   != null && sa   !== sb  ) return sa   > sb   ? "a" : "b";
+  return null;
+}
+
 function buildInitialState() {
   return {
     config:{round_state:"closed",tournament_winner:null,data_source:"manual",current_stage:2},
@@ -330,8 +339,8 @@ function buildFreshState() {
 // each.
 const VARIANT_KEY = "mb_demo_variant";
 const STORAGE_KEYS = {
-  current: "mb_demo_v5",
-  fresh:   "mb_demo_v5_fresh",
+  current: "mb_demo_v6",
+  fresh:   "mb_demo_v6_fresh",
 };
 function getVariant() {
   const v = localStorage.getItem(VARIANT_KEY);
@@ -352,7 +361,7 @@ function save(s) {
 let S = loadState();
 
 window._resetDemo = () => {
-  ["mb_demo_v1","mb_demo_v2","mb_demo_v3","mb_demo_v4","mb_demo_v5","mb_demo_v5_fresh","wc2026_token","mb_demo_variant"].forEach(k=>localStorage.removeItem(k));
+  ["mb_demo_v1","mb_demo_v2","mb_demo_v3","mb_demo_v4","mb_demo_v5","mb_demo_v5_fresh","mb_demo_v6","mb_demo_v6_fresh","wc2026_token","mb_demo_variant"].forEach(k=>localStorage.removeItem(k));
   location.reload();
 };
 window._switchDemo = (variant) => {
@@ -527,7 +536,7 @@ export const api = {
   // ── Game data
   getMatches:     async () => { await delay(30); return MATCHES; },
   getConfig:      async () => { await delay(30); return S.config; },
-  getResults:     async () => { await delay(30); return Object.entries(S.results).map(([n,r])=>({match_n:Number(n),score_a:r[0],score_b:r[1],winner:r[2]||null})); },
+  getResults:     async () => { await delay(30); return Object.entries(S.results).map(([n,r])=>({match_n:Number(n),score_a:r[0],score_b:r[1],winner:r[2]??null,et_a:r[3]??null,et_b:r[4]??null,pen_a:r[5]??null,pen_b:r[6]??null})); },
   getLeaderboard: async () => { await delay(50); return computeLeaderboard(); },
   // resultsOverride: { [match_n]: [score_a, score_b] }
   // winnerOverride: team name (string) — assume tournament winner for sim
@@ -730,8 +739,14 @@ export const api = {
   setResult: async (n, d) => {
     await delay();
     requireAdmin();
-    if (d.score_a!=null&&d.score_b!=null) { S.results[n]=[d.score_a,d.score_b,d.winner||null]; delete S.live[n]; }
-    else delete S.results[n];
+    if (d.score_a!=null&&d.score_b!=null) {
+      const w = deriveWinner(d.score_a,d.score_b,d.et_a,d.et_b,d.pen_a,d.pen_b);
+      S.results[n]=[d.score_a,d.score_b,w,d.et_a??null,d.et_b??null,d.pen_a??null,d.pen_b??null];
+      delete S.live[n];
+      save(S);
+      return {match_n:n,...d,winner:w};
+    }
+    delete S.results[n];
     save(S);
     return {match_n:n,...d};
   },
@@ -867,12 +882,19 @@ export const liveApi = {
     requireAdmin();
     const prev = S.live[Number(n)];
     const isLive = d.is_live !== undefined ? !!d.is_live : !!(prev && prev.is_live);
+    // PATCH semantics: only override et/pen when explicitly provided
+    const etA  = d.et_a  !== undefined ? d.et_a  : (prev?.et_a  ?? null);
+    const etB  = d.et_b  !== undefined ? d.et_b  : (prev?.et_b  ?? null);
+    const penA = d.pen_a !== undefined ? d.pen_a : (prev?.pen_a ?? null);
+    const penB = d.pen_b !== undefined ? d.pen_b : (prev?.pen_b ?? null);
+    const sa = d.score_a ?? prev?.score_a ?? 0;
+    const sb = d.score_b ?? prev?.score_b ?? 0;
     S.live[Number(n)] = {
-      score_a: d.score_a ?? prev?.score_a ?? 0,
-      score_b: d.score_b ?? prev?.score_b ?? 0,
+      score_a: sa, score_b: sb,
       minute: d.minute ?? (prev?.minute || 0),
       is_live: isLive,
-      winner: d.winner !== undefined ? d.winner : (prev?.winner || null),
+      et_a: etA, et_b: etB, pen_a: penA, pen_b: penB,
+      winner: deriveWinner(sa, sb, etA, etB, penA, penB),
     };
     save(S);
     return {match_n:Number(n),...S.live[Number(n)]};
@@ -897,10 +919,11 @@ export const liveApi = {
     requireAdmin();
     const ld = S.live[Number(n)];
     if (!ld) throw new Error("Match has no score yet");
-    S.results[Number(n)] = [ld.score_a, ld.score_b, ld.winner||null];
+    const w = deriveWinner(ld.score_a, ld.score_b, ld.et_a, ld.et_b, ld.pen_a, ld.pen_b);
+    S.results[Number(n)] = [ld.score_a, ld.score_b, w, ld.et_a??null, ld.et_b??null, ld.pen_a??null, ld.pen_b??null];
     delete S.live[Number(n)];
     save(S);
-    return {match_n:Number(n),score_a:ld.score_a,score_b:ld.score_b,winner:ld.winner||null};
+    return {match_n:Number(n),score_a:ld.score_a,score_b:ld.score_b,winner:w,et_a:ld.et_a??null,et_b:ld.et_b??null,pen_a:ld.pen_a??null,pen_b:ld.pen_b??null};
   },
 };
 
@@ -916,8 +939,8 @@ export const initApi = {
     await delay(80);
     const user = getUser();
     const leaderboard = computeLeaderboard();
-    const resultsArr = Object.entries(S.results).map(([n,r])=>({match_n:Number(n),score_a:r[0],score_b:r[1],winner:r[2]||null}));
-    const liveArr = Object.entries(S.live).map(([n,ld])=>({match_n:Number(n),...ld,winner:ld.winner||null}));
+    const resultsArr = Object.entries(S.results).map(([n,r])=>({match_n:Number(n),score_a:r[0],score_b:r[1],winner:r[2]??null,et_a:r[3]??null,et_b:r[4]??null,pen_a:r[5]??null,pen_b:r[6]??null}));
+    const liveArr = Object.entries(S.live).map(([n,ld])=>({match_n:Number(n),...ld,winner:ld.winner??null}));
 
     const out = {
       matches: MATCHES,

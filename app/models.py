@@ -94,10 +94,18 @@ class Result(Base):
     __tablename__ = "results"
 
     match_n: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # 90-minute (regular time) score — this is what scoring/points use.
     score_a: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     score_b: Mapped[int] = mapped_column(SmallInteger, nullable=False)
-    # Knockout stages only: "a" or "b" — who actually advanced (ET/penalties).
-    # NULL for group-stage matches or knockout matches decided in regular time.
+    # Knockout stages only — cumulative score after extra time (a.e.t.).
+    # NULL unless the match went to extra time.
+    et_a: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    et_b: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    # Knockout stages only — penalty shootout score. NULL unless it went to pens.
+    pen_a: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    pen_b: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    # "a" or "b" — who advanced. Auto-derived from pens → ET → 90-min score.
+    # NULL for group-stage matches or knockout matches still tied/undecided.
     winner: Mapped[Optional[str]] = mapped_column(String(1), nullable=True)
 
 
@@ -140,7 +148,12 @@ class LiveMatch(Base):
     is_live: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False
     )
-    # Knockout stages only: "a" or "b" — who actually advanced (ET/penalties).
+    # Knockout extra time / penalties (mirrors Result) — for in-play KO matches.
+    et_a: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    et_b: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    pen_a: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    pen_b: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    # "a" or "b" — auto-derived from pens → ET → 90-min score.
     winner: Mapped[Optional[str]] = mapped_column(String(1), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False

@@ -15,7 +15,11 @@ router = APIRouter(prefix="/results", tags=["results"])
 @router.get("/", response_model=list[ResultOut])
 async def list_results(db: AsyncSession = Depends(get_db)):
     results = await crud.get_all_results(db)
-    return [ResultOut(match_n=n, score_a=v[0], score_b=v[1], winner=v[2]) for n, v in results.items()]
+    return [
+        ResultOut(match_n=n, score_a=v[0], score_b=v[1], winner=v[2],
+                  et_a=v[3], et_b=v[4], pen_a=v[5], pen_b=v[6])
+        for n, v in results.items()
+    ]
 
 
 @router.put("/{match_n}", response_model=dict)
@@ -27,8 +31,15 @@ async def set_result(
 ):
     if match_n not in MATCH_INDEX:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Match not found.")
-    await crud.upsert_result(db, match_n, data.score_a, data.score_b, winner=data.winner)
-    return {"match_n": match_n, "score_a": data.score_a, "score_b": data.score_b, "winner": data.winner}
+    res = await crud.upsert_result(
+        db, match_n, data.score_a, data.score_b,
+        et_a=data.et_a, et_b=data.et_b, pen_a=data.pen_a, pen_b=data.pen_b,
+    )
+    return {
+        "match_n": match_n, "score_a": data.score_a, "score_b": data.score_b,
+        "et_a": data.et_a, "et_b": data.et_b, "pen_a": data.pen_a, "pen_b": data.pen_b,
+        "winner": res.winner if res else None,
+    }
 
 
 @router.post("/reset", response_model=dict)

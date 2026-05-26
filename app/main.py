@@ -39,6 +39,12 @@ async def _bootstrap():
         await conn.execute(text(
             "ALTER TABLE live_matches ADD COLUMN IF NOT EXISTS winner CHAR(1)"
         ))
+        # Migration 09: extra-time + penalty-shootout scores (knockout matches)
+        for tbl in ("results", "live_matches"):
+            for col in ("et_a", "et_b", "pen_a", "pen_b"):
+                await conn.execute(text(
+                    f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS {col} SMALLINT"
+                ))
 
     async with AsyncSessionLocal() as db:
         await crud.get_config(db)

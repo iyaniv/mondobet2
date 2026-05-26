@@ -272,11 +272,33 @@ async def get_all_winner_picks(db: AsyncSession) -> dict:
 
 # ── Results ───────────────────────────────────────────────────────────────────
 
+def derive_winner(
+    score_a: Optional[int], score_b: Optional[int],
+    et_a: Optional[int] = None, et_b: Optional[int] = None,
+    pen_a: Optional[int] = None, pen_b: Optional[int] = None,
+) -> Optional[str]:
+    """Determine who advanced: penalties → extra time → 90-min score.
+
+    Returns "a", "b", or None (genuinely tied / undecided).
+    """
+    if pen_a is not None and pen_b is not None and pen_a != pen_b:
+        return "a" if pen_a > pen_b else "b"
+    if et_a is not None and et_b is not None and et_a != et_b:
+        return "a" if et_a > et_b else "b"
+    if score_a is not None and score_b is not None and score_a != score_b:
+        return "a" if score_a > score_b else "b"
+    return None
+
+
 async def get_all_results(db: AsyncSession) -> dict:
     r = await db.execute(select(Result))
-    # Returns {match_n: [score_a, score_b, winner_or_None]}
-    # winner is "a" or "b" for knockout matches decided by ET/penalties.
-    return {res.match_n: [res.score_a, res.score_b, res.winner] for res in r.scalars().all()}
+    # Returns {match_n: [score_a, score_b, winner, et_a, et_b, pen_a, pen_b]}
+    # score_a/score_b are the 90-min score (points). winner is auto-derived.
+    return {
+        res.match_n: [res.score_a, res.score_b, res.winner,
+                      res.et_a, res.et_b, res.pen_a, res.pen_b]
+        for res in r.scalars().all()
+    }
 
 
 async def upsert_result(
@@ -284,7 +306,10 @@ async def upsert_result(
     match_n: int,
     score_a: Optional[int],
     score_b: Optional[int],
-    winner: Optional[str] = None,
+    et_a: Optional[int] = None,
+    et_b: Optional[int] = None,
+    pen_a: Optional[int] = None,
+    pen_b: Optional[int] = None,
 ) -> Optional[Result]:
     res = await db.get(Result, match_n)
     if score_a is None and score_b is None:
@@ -292,12 +317,15 @@ async def upsert_result(
             await db.delete(res)
             await db.commit()
         return None
+    winner = derive_winner(score_a, score_b, et_a, et_b, pen_a, pen_b)
     if res:
-        res.score_a = score_a
-        res.score_b = score_b
-        res.winner  = winner
+        res.score_a, res.score_b = score_a, score_b
+        res.et_a, res.et_b = et_a, et_b
+        res.pen_a, res.pen_b = pen_a, pen_b
+        res.winner = winner
     else:
-        res = Result(match_n=match_n, score_a=score_a, score_b=score_b, winner=winner)
+        res = Result(match_n=match_n, score_a=score_a, score_b=score_b,
+                     et_a=et_a, et_b=et_b, pen_a=pen_a, pen_b=pen_b, winner=winner)
         db.add(res)
     await db.commit()
     if res:
@@ -512,8 +540,12 @@ async def reset_full_system(
 async def get_live_matches(db: AsyncSession) -> dict:
     r = await db.execute(select(LiveMatch))
     return {m.match_n: {"score_a": m.score_a, "score_b": m.score_b, "minute": m.minute,
-                        "is_live": bool(m.is_live), "winner": m.winner}
+                        "is_live": bool(m.is_live), "winner": m.winner,
+                        "et_a": m.et_a, "et_b": m.et_b, "pen_a": m.pen_a, "pen_b": m.pen_b}
             for m in r.scalars().all()}
+
+
+_UNSET_INT = object()
 
 
 async def upsert_live_match(
@@ -523,13 +555,19 @@ async def upsert_live_match(
     score_b: Optional[int] = None,
     minute: Optional[int] = None,
     is_live: Optional[bool] = None,
-    winner: Optional[str] = None,
+    et_a: object = _UNSET_INT,
+    et_b: object = _UNSET_INT,
+    pen_a: object = _UNSET_INT,
+    pen_b: object = _UNSET_INT,
 ) -> LiveMatch:
     """PATCH-style upsert — only the fields actually passed are written.
 
     Critical: if the caller only wants to flip `is_live`, the score is NOT
     reset to 0. That was the silent bug where clicking ▶ LIVE was sending
     a body without scores and the backend wiped them.
+
+    ET/pen use a sentinel so an explicit None (clearing) is distinguishable
+    from "not provided". winner is re-derived from the merged state.
     """
     lm = await db.get(LiveMatch, match_n)
     if lm:
@@ -537,7 +575,10 @@ async def upsert_live_match(
         if score_b is not None: lm.score_b = score_b
         if minute  is not None: lm.minute  = minute
         if is_live is not None: lm.is_live = is_live
-        if winner  is not None: lm.winner  = winner
+        if et_a  is not _UNSET_INT: lm.et_a  = et_a
+        if et_b  is not _UNSET_INT: lm.et_b  = et_b
+        if pen_a is not _UNSET_INT: lm.pen_a = pen_a
+        if pen_b is not _UNSET_INT: lm.pen_b = pen_b
     else:
         lm = LiveMatch(
             match_n=match_n,
@@ -545,9 +586,13 @@ async def upsert_live_match(
             score_b=score_b if score_b is not None else 0,
             minute=minute   if minute  is not None else 0,
             is_live=is_live if is_live is not None else False,
-            winner=winner,
+            et_a=None  if et_a  is _UNSET_INT else et_a,
+            et_b=None  if et_b  is _UNSET_INT else et_b,
+            pen_a=None if pen_a is _UNSET_INT else pen_a,
+            pen_b=None if pen_b is _UNSET_INT else pen_b,
         )
         db.add(lm)
+    lm.winner = derive_winner(lm.score_a, lm.score_b, lm.et_a, lm.et_b, lm.pen_a, lm.pen_b)
     await db.commit()
     await db.refresh(lm)
     return lm
@@ -566,7 +611,10 @@ async def finalize_live_match(db: AsyncSession, match_n: int) -> Optional[Result
     lm = await db.get(LiveMatch, match_n)
     if not lm:
         return None
-    result = await upsert_result(db, match_n, lm.score_a, lm.score_b, winner=lm.winner)
+    result = await upsert_result(
+        db, match_n, lm.score_a, lm.score_b,
+        et_a=lm.et_a, et_b=lm.et_b, pen_a=lm.pen_a, pen_b=lm.pen_b,
+    )
     await db.delete(lm)
     await db.commit()
     return result
