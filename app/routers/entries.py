@@ -36,10 +36,9 @@ async def create_entry(
     if data.copy_from_entry_id:
         src = await crud.get_entry(db, data.copy_from_entry_id)
         if src and src.user_id == user.id:
+            # Copy predictions only — winner pick is intentionally NOT copied
+            # so the user has to make a fresh choice on the new form.
             await crud.copy_entry_predictions(db, data.copy_from_entry_id, entry.id)
-            wp = await db.get(WinnerPick, data.copy_from_entry_id)
-            if wp:
-                await crud.upsert_winner_pick(db, entry.id, wp.team)
     # NEW empty forms start blank — no auto-inherit of user.locked_winner.
     # The user picks their winner explicitly on the new form. (Old behaviour
     # was to fan out locked_winner to every new form, but per the new

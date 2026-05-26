@@ -2802,9 +2802,9 @@ export default function App() {
         const entry=await api.createEntry(body);
         const src = copyFromEntryId ? entries.find(e=>e.id===copyFromEntryId) : null;
         const seedPreds = src ? (src.predictions||[]) : [];
-        // Copying inherits the source's winner pick. A brand-new empty form
-        // starts with NO winner pre-selected (user picks it themselves).
-        const seedWinner = src ? (src.winner_pick ?? null) : null;
+        // Winner pick is never copied — the user must choose it fresh on
+        // the new form, whether it's a copy or a blank.
+        const seedWinner = null;
         // Important: explicitly reset local state instead of relying on
         // switchEntry's lookup against the not-yet-updated entries list.
         // Otherwise a newly-created empty form briefly shows the previously
