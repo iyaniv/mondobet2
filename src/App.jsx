@@ -2653,7 +2653,12 @@ export default function App() {
   async function refreshLb(){
     try {
       const lb=await api.getLeaderboard();setLeaderboard(lb);
-      if(user&&!user.is_admin){const e=lb.find(e=>e.user_id===user.id);if(e&&!lockedWinner)setMyWinner(e.winner_pick||null);}
+      // Sync winner pick only for the currently-active entry so a newly-created
+      // empty form doesn't inherit another entry's pick via user_id lookup.
+      if(user&&!user.is_admin){
+        const e=lb.find(e=>e.entry_id===activeEntryId);
+        if(e&&!lockedWinner)setMyWinner(e.winner_pick||null);
+      }
       if(user?.is_admin){
         const [u,p]=await Promise.all([api.getUsers(),api.getAdminParticipants()]);
         setParticipants(u);setAdminParticipants(p);
