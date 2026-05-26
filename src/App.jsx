@@ -2621,10 +2621,15 @@ export default function App() {
                         <>
                           <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.name}</span>
                           {submitted&&<span style={{fontSize:13,color:C.green,fontWeight:700}}>✓</span>}
-                          {isActive&&editable&&!submitted&&(
-                            <span onClick={ev=>startRename(ev,e)} title="Rename" style={{
-                              fontSize:11,opacity:0.55,cursor:"pointer",lineHeight:1,padding:"1px 3px",borderRadius:3,
-                            }}>✎</span>
+                          {openStage===1&&(
+                            <span onClick={ev=>startRename(ev,e)} title="Rename form" style={{
+                              fontSize:13,opacity:isActive?0.65:0.35,cursor:"pointer",lineHeight:1,
+                              padding:"1px 4px",borderRadius:3,flexShrink:0,
+                              transition:"opacity .15s",
+                            }}
+                            onMouseEnter={ev=>ev.currentTarget.style.opacity="1"}
+                            onMouseLeave={ev=>ev.currentTarget.style.opacity=isActive?"0.65":"0.35"}
+                            >✎</span>
                           )}
                         </>
                       )}
