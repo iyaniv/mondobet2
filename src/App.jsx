@@ -2495,14 +2495,6 @@ function ByUser({ config, leaderboard, results, liveMatches, matches, user,
           background:pill.bg,color:pill.color,border:pill.border}}>{pill.text}</span>
       </div>
       <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>By participant</h1>
-      {!user?.is_admin && roundOpen && (
-        <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",
-          background:"rgba(239,68,68,0.07)",border:`1px solid rgba(239,68,68,0.25)`,
-          borderRadius:8,marginBottom:12,fontSize:13,color:C.muted}}>
-          <span>🔒</span>
-          <span>Stage {openStage} predictions are hidden while the round is open — past stages are visible below.</span>
-        </div>
-      )}
       <InfoBlock>
         Only <b>submitted</b> forms are shown here. Showing <b>{displayMatches.length}</b> prediction{displayMatches.length!==1?"s":""} for this form ({playedCount} with a result so far).
       </InfoBlock>
