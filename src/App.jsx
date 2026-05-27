@@ -3535,8 +3535,14 @@ export default function App() {
 
     // Track hovered row for the "jump-to-form" affordance
     const [hoveredRow, setHoveredRow] = useState(null);
-    // "Bets by participant" tab is accessible to everyone once any result exists
-    const canJumpToParticipant = !!user && (user.is_admin || Object.keys(results).length > 0);
+    // Clicking a leaderboard row jumps to that participant's bets. Allow it
+    // whenever the By-participant tab itself is available (i.e. there are
+    // entries on the board) — the backend still gates WHAT is shown (the
+    // current open stage stays hidden for non-admins while the round is open,
+    // and is revealed once it's closed). Previously this also required a
+    // result to already exist, which made the rows non-clickable on a freshly
+    // closed stage even though the By-participant tab worked.
+    const canJumpToParticipant = !!user && (user.is_admin || leaderboard.length > 0);
     const jumpToParticipant = (row) => {
       if (!canJumpToParticipant) return;
       setViewEntryId(row.entry_id || row.user_id);
