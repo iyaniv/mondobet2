@@ -3231,16 +3231,6 @@ export default function App() {
                           : `${filled}/${submittableMatches.length} filled · stage ${openStage}`}
                       </div>
                     )}
-                    {(()=>{
-                      const st=formScoreStats(e.predictions,results,liveMatches,matches);
-                      if(st.scored===0) return null;
-                      return (
-                        <div style={{display:"flex",gap:10,marginTop:3,fontSize:11,fontFamily:"monospace",fontWeight:700}}>
-                          <span title="Exact scores (+8)" style={{color:C.green}}>🎯 {st.exact}</span>
-                          <span title="Misses (+0)" style={{color:C.red}}>✗ {st.miss}</span>
-                        </div>
-                      );
-                    })()}
                   </div>
                 );
               })}
@@ -3374,6 +3364,14 @@ export default function App() {
               <span style={{color:C.muted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",fontSize:10}}>Total</span>
               <b style={{color:C.accent,fontSize:20,fontFamily:"monospace",fontWeight:700,lineHeight:1}}>{myLbEntry.total}</b>
               <span>pts · {myLbEntry.scored_matches}/{matches.length} scored</span>
+              {(()=>{
+                const st=formScoreStats(activeEntry?.predictions,results,liveMatches,matches);
+                if(st.scored===0) return null;
+                return (<>
+                  <span title="Exact scores (+8)" style={{color:C.green,fontWeight:700}}>· 🎯 {st.exact}</span>
+                  <span title="Misses (+0)" style={{color:C.red,fontWeight:700}}>· ✗ {st.miss}</span>
+                </>);
+              })()}
               {myLbEntry.winner_bonus>0&&<span style={{color:C.green,fontWeight:600}}>· 🏆 +10</span>}
             </div>
           )}
