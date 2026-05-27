@@ -2968,25 +2968,49 @@ export default function App() {
     // with random 0-3 scores. Won't touch matches that already have a result
     // or a live score. Available while the stage is current and round is open
     // — re-submission is allowed, so it's fine even after Submit.
-    async function randomFillStage(stageN) {
+    function randomFillStage(stageN) {
       if (!editable || !activeEntry) return;
       const stage = STAGES.find(s => s.n === stageN);
       if (!stage) return;
+      // Lock onto the form we started on. The user may switch forms while this
+      // runs in the background — all saves must still land on THIS form, and
+      // the optimistic UI update must not leak into whatever form is shown.
+      const targetId = activeEntryId;
+      const targetEntry = entries.find(e => e.id === targetId);
+      if (!targetEntry) return;
+      const targetPreds = {};
+      (targetEntry.predictions || []).forEach(p => { targetPreds[p.match_n] = [p.score_a, p.score_b]; });
       const todo = matches.filter(m =>
         m.n >= stage.first && m.n <= stage.last
         && !results[m.n] && !liveMatches[m.n]
-        && (myPreds[m.n]?.[0] == null || myPreds[m.n]?.[1] == null)
+        && (targetPreds[m.n]?.[0] == null || targetPreds[m.n]?.[1] == null)
       );
       if (todo.length === 0) { showToast("Nothing left to fill", "warn"); return; }
       const rand = () => Math.floor(Math.random() * 4);
-      let ok = 0;
-      for (const m of todo) {
-        try {
-          await savePred(m.n, {score_a: rand(), score_b: rand()});
-          ok++;
-        } catch(e) { console.error("randomFill", m.n, e); }
-      }
-      showToast(`Random results filled · stage ${stageN} 🎲`);
+      const filled = todo.map(m => ({ n: m.n, a: rand(), b: rand() }));
+
+      // 1) Optimistic update — instant (whole stage at once, not game-by-game).
+      //    Scope it to the target form's entry; only touch the visible myPreds
+      //    if that form is still the one on screen (it is at click time).
+      setEntries(es => es.map(e => {
+        if (e.id !== targetId) return e;
+        const keep = (e.predictions || []).filter(p => !filled.some(f => f.n === p.match_n));
+        const preds = [...keep, ...filled.map(f => ({ match_n: f.n, score_a: f.a, score_b: f.b }))];
+        const ss = { ...(e.stages_submitted || {}) };
+        delete ss[stageN]; delete ss[String(stageN)];   // editing invalidates submission
+        return { ...e, predictions: preds, stages_submitted: ss };
+      }));
+      setMyPreds(p => {
+        const np = { ...p };
+        filled.forEach(f => { np[f.n] = [f.a, f.b]; });
+        return np;
+      });
+      showToast(`Random-filled ${filled.length} match${filled.length===1?"":"es"} · stage ${stageN} 🎲`);
+
+      // 2) Persist in the BACKGROUND, all in parallel (fast), to the target form.
+      Promise.allSettled(
+        filled.map(f => api.setPrediction(f.n, { score_a: f.a, score_b: f.b }, targetId))
+      ).then(() => { refreshLb(); });
     }
 
     async function saveWinner(team){
