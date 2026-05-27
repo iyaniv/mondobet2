@@ -2773,6 +2773,22 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[simMode]);
 
+  // Simulation is "active" once the simulated leaderboard has loaded. While
+  // active, every view (By-participant, bracket) should treat unplayed matches
+  // as resolved to MY predictions — purely client-side, only on my screen.
+  const simActive = simMode && canSim && !!simLb;
+  const simResults = (() => {
+    if (!simActive) return results;
+    const merged = { ...results };
+    for (const m of unplayedPredMatches) {
+      const p = myPreds[m.n];
+      if (p?.[0] != null && p?.[1] != null) merged[m.n] = [p[0], p[1]];
+    }
+    return merged;
+  })();
+  const effResults = simActive ? simResults : results;
+  const effLeaderboard = simActive ? (simLb || leaderboard) : leaderboard;
+
   function showToast(msg,kind="ok"){setToast({msg,kind});clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(null),2500);}
 
   const loadGameData=useCallback(async(isAdmin,userId=null)=>{
@@ -3778,14 +3794,25 @@ export default function App() {
           <button onClick={()=>setGlobalErr("")} style={{background:"none",border:0,color:C.red,cursor:"pointer"}}>✕</button>
         </div>
       )}
+      {simActive&&["leaderboard","byuser","tournament"].includes(tab)&&(
+        <div style={{background:"var(--c-accent-soft)",borderBottom:`1px solid ${C.accent}`,
+          padding:"8px 16px",fontSize:13,color:C.accent,display:"flex",alignItems:"center",
+          justifyContent:"space-between",gap:10,flexWrap:"wrap",fontWeight:600}}>
+          <span>🔮 <b>Simulation</b> — unplayed games are shown as if they finish exactly as <b>your</b> predictions. Scores &amp; standings are hypothetical (only you see this).</span>
+          <button onClick={()=>setSimMode(false)} style={{background:C.accent,color:"#0b1020",
+            border:0,borderRadius:6,padding:"4px 12px",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>
+            Exit simulation
+          </button>
+        </div>
+      )}
       <div style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px 40px"}}>
         {!user&&<AuthView roundState={config.round_state} onSuccess={doLogin}/>}
         {user&&tab==="predictions"&&MyPredictions()}
         {user&&tab==="leaderboard"&&LeaderboardView()}
         {user&&tab==="byuser"&&(
           <ByUser
-            config={config} leaderboard={leaderboard} results={results}
-            liveMatches={liveMatches} matches={matches} user={user}
+            config={config} leaderboard={effLeaderboard} results={effResults}
+            liveMatches={liveMatches} matches={matches} user={user} simActive={simActive}
             viewUserId={viewEntryId} setViewUserId={setViewEntryId}
             viewUserPreds={viewUserPreds} setViewUserPreds={setViewUserPreds}
             viewUserWinner={viewUserWinner} setViewUserWinner={setViewUserWinner}
@@ -3806,7 +3833,7 @@ export default function App() {
           config={config} matches={matches} results={results} liveMatches={liveMatches}
           setResults={setResults} setLiveMatches={setLiveMatches} refreshLb={refreshLb} refreshLive={refreshLive} showToast={showToast}
         />}
-        {user&&tab==="tournament"&&<Tournament matches={matches} results={results} liveMatches={liveMatches} myPreds={myPreds} config={config} user={user}/>}
+        {user&&tab==="tournament"&&<Tournament matches={matches} results={effResults} liveMatches={liveMatches} myPreds={myPreds} config={config} user={user}/>}
         {user&&tab==="settings"&&<SettingsView user={user} leaderboard={leaderboard} onLogout={doLogout} onNameUpdate={u=>{setUser(u);showToast("Name updated ✓");}} showToast={showToast} config={config} setConfig={setConfig} matches={matches} results={results} setResults={setResults} liveMatches={liveMatches} refreshLive={refreshLive} refreshLb={refreshLb}/>}
       </div>
       {toast&&(
