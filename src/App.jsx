@@ -2747,6 +2747,32 @@ export default function App() {
     setCollapsedStages(new Set(STAGES.filter(s=>s.n<(config.current_stage||1)).map(s=>s.n)));
   },[config.current_stage]);
 
+  // ── Leaderboard-tab UI state ────────────────────────────────────────────────
+  // Lifted out of LeaderboardView so that view can render inline without
+  // remounting on every App re-render. As <LeaderboardView/> it was remounted
+  // by the 10s poll (setLeaderboard), which reset the Simulate / Rivals toggles
+  // back to "Actual" after a few seconds.
+  const [rivalsOnly,setRivalsOnly]=useState(false);
+  const [hoveredRow,setHoveredRow]=useState(null);
+  const [simMode,setSimMode]=useState(false);
+  const [simLb,setSimLb]=useState(null);
+  const [simLoading,setSimLoading]=useState(false);
+  const unplayedPredMatches = matches.filter(m=>!results[m.n]&&!liveMatches[m.n]&&myPreds?.[m.n]?.[0]!=null);
+  const canSim = !user?.is_admin && unplayedPredMatches.length>0;
+  // Fetch the simulated leaderboard when Simulate turns on — unplayed matches
+  // resolve to my own predictions and (if no champion yet) my winner pick.
+  useEffect(()=>{
+    if(!simMode||!canSim){ setSimLb(null); return; }
+    const override={};
+    for(const m of unplayedPredMatches){ const p=myPreds[m.n]; if(p?.[0]!=null&&p?.[1]!=null) override[m.n]=[p[0],p[1]]; }
+    const winnerPick = lockedWinner||myWinner;
+    const winnerOverride = (!config.tournament_winner&&winnerPick)?winnerPick:null;
+    setSimLoading(true);
+    api.getSimulatedLeaderboard(override,winnerOverride)
+      .then(rows=>setSimLb(rows)).catch(()=>setSimLb(null)).finally(()=>setSimLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[simMode]);
+
   function showToast(msg,kind="ok"){setToast({msg,kind});clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(null),2500);}
 
   const loadGameData=useCallback(async(isAdmin,userId=null)=>{
@@ -3565,10 +3591,9 @@ export default function App() {
   function LeaderboardView(){
     const winnerKnown=!!config.tournament_winner;
     const myRivals = (() => { try { return JSON.parse(localStorage.getItem(`mb_rivals_${user?.id}`)||"[]"); } catch { return []; } })();
-    const [rivalsOnly, setRivalsOnly] = useState(false);
-
-    // Track hovered row for the "jump-to-form" affordance
-    const [hoveredRow, setHoveredRow] = useState(null);
+    // NOTE: rivalsOnly / hoveredRow / simMode / simLb / simLoading and the sim
+    // fetch effect live in App (lifted) so this view can be called inline as
+    // {LeaderboardView()} without remounting on the 10s poll.
     // Clicking a leaderboard row jumps to that participant's bets. Allow it
     // whenever the By-participant tab itself is available (i.e. there are
     // entries on the board) — the backend still gates WHAT is shown (the
@@ -3583,34 +3608,9 @@ export default function App() {
       setTab("byuser");
     };
 
-    // ── Simulate mode ──────────────────────────────────────────────────────
-    // Unplayed matches the user has predicted (excluding live — already counted)
-    const unplayedPredMatches = matches.filter(m=>
-      !results[m.n] && !liveMatches[m.n] && myPreds?.[m.n]?.[0]!=null
-    );
-    const canSim = !user?.is_admin && unplayedPredMatches.length > 0;
-    const [simMode,setSimMode] = useState(false);
-    const [simLb, setSimLb] = useState(null);
-    const [simLoading, setSimLoading] = useState(false);
-
-    // Fetch simulated leaderboard when sim mode turns on (uses my predictions
-    // as ground truth for unplayed games — scores every user accordingly).
-    useEffect(() => {
-      if (!simMode || !canSim) { setSimLb(null); return; }
-      const override = {};
-      for (const m of unplayedPredMatches) {
-        const p = myPreds[m.n];
-        if (p?.[0]!=null && p?.[1]!=null) override[m.n] = [p[0], p[1]];
-      }
-      const winnerPick = lockedWinner || myWinner;
-      const winnerOverride = (!config.tournament_winner && winnerPick) ? winnerPick : null;
-      setSimLoading(true);
-      api.getSimulatedLeaderboard(override, winnerOverride)
-        .then(rows => setSimLb(rows))
-        .catch(()=>setSimLb(null))
-        .finally(()=>setSimLoading(false));
-    }, [simMode]);
-
+    // Simulate mode — state + fetch effect live in App (see lifted block);
+    // unplayedPredMatches / canSim / simMode / simLb / simLoading are in scope
+    // here via closure.
     // Per-row "diff vs actual" badge data
     const actualTotalsByEntry = Object.fromEntries(leaderboard.map(e => [e.entry_id, e.total]));
 
@@ -3781,7 +3781,7 @@ export default function App() {
       <div style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px 40px"}}>
         {!user&&<AuthView roundState={config.round_state} onSuccess={doLogin}/>}
         {user&&tab==="predictions"&&MyPredictions()}
-        {user&&tab==="leaderboard"&&<LeaderboardView/>}
+        {user&&tab==="leaderboard"&&LeaderboardView()}
         {user&&tab==="byuser"&&(
           <ByUser
             config={config} leaderboard={leaderboard} results={results}
