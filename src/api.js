@@ -46,8 +46,14 @@ export const api = {
   getConfig:      () => request("/api/config/"),
   getResults:     () => request("/api/results/"),
   getLeaderboard: () => request("/api/leaderboard/"),
-  // Sim leaderboard isn't implemented on the real backend yet — fall back to actual
-  getSimulatedLeaderboard: () => request("/api/leaderboard/"),
+  // Simulated leaderboard: unplayed matches resolve to `resultsOverride`
+  // ({matchN:[a,b]}) and, if no champion is set yet, `winnerOverride` is
+  // assumed to win. Recomputes every user's score server-side.
+  getSimulatedLeaderboard: (resultsOverride, winnerOverride = null) =>
+    request("/api/leaderboard/simulate", {
+      method: "POST",
+      body: { results: resultsOverride || {}, winner: winnerOverride },
+    }),
 
   // Entries (multi-form per user)
   getMyEntries:  ()         => request("/api/entries/me"),

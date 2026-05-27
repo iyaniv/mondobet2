@@ -18,6 +18,26 @@ const STAGES = [
 ];
 function matchStageObj(n) { return STAGES.find(s => n >= s.first && n <= s.last) || STAGES[0]; }
 
+// Count exact (8-pt) and miss (0-pt) results for one form's predictions,
+// across every match that already has a result or a live score.
+function formScoreStats(predsArr, results, liveMatches, matches) {
+  const sign = x => x===0 ? 0 : x>0 ? 1 : -1;
+  const pmap = {}; (predsArr||[]).forEach(p => { pmap[p.match_n] = [p.score_a, p.score_b]; });
+  let exact=0, miss=0, scored=0;
+  for (const m of matches) {
+    const r = results[m.n]
+      || (liveMatches[m.n]?.score_a!=null ? [liveMatches[m.n].score_a, liveMatches[m.n].score_b] : null);
+    const p = pmap[m.n];
+    if (!r || !p || p[0]==null || p[1]==null) continue;
+    scored++;
+    const dir = sign(p[0]-p[1])===sign(r[0]-r[1]) ? 5 : 0;
+    const gm  = (p[0]===r[0]?1:0) + (p[1]===r[1]?1:0);
+    const total = dir + (gm===2 ? 3 : gm===1 ? 1 : 0);
+    if (total===8) exact++; else if (total===0) miss++;
+  }
+  return { exact, miss, scored };
+}
+
 // Determine who advanced in a knockout match: penalties → extra time →
 // 90-min score. Returns "a", "b", or null. Mirrors crud.derive_winner.
 function deriveWinner(sa, sb, etA, etB, penA, penB) {
@@ -718,6 +738,12 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
   const ORANGE = {bg:"rgba(245,158,11,0.14)", fg:"#f59e0b",border:"rgba(245,158,11,0.4)"};
   const RED    = {bg:"rgba(239,68,68,0.14)",  fg:C.red,    border:"rgba(239,68,68,0.4)"};
   const MUTED  = {bg:"rgba(148,163,184,0.10)",color:C.muted, border:`1px solid ${C.border}`};
+  // Graduated greens for the +N chip only: 5 (light) → 6 (medium) → 8 (exact,
+  // strongest). The prediction BOX keeps the light GREEN so the digit colours
+  // stay readable.
+  const GREEN5 = {bg:"rgba(16,185,129,0.16)", fg:C.green,   border:"rgba(16,185,129,0.45)"};
+  const GREEN6 = {bg:"rgba(16,185,129,0.42)", fg:C.green,   border:"rgba(16,185,129,0.75)"};
+  const GREEN8 = {bg:C.green,                 fg:"#ffffff", border:C.green};
 
   // Effective score: final result wins, otherwise the in-motion live score.
   // This way users see their points adjust in real time as the admin enters
@@ -743,8 +769,11 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
     //    1 pt  → orange (one goal matched, direction wrong)
     //    0 pts → red    (complete miss)
     ptsPalette = total>=5 ? GREEN : total===1 ? ORANGE : RED;
+    // The chip itself uses a graduated green so 5/6/8 are visually distinct.
+    const chipPalette = total===0 ? RED : total===1 ? ORANGE
+      : total>=8 ? GREEN8 : total>=6 ? GREEN6 : GREEN5;
     if (goalsMatched===1) partialMatchSide = p1===r1 ? 0 : 1;
-    ptsEl=<span style={{background:ptsPalette.bg,color:ptsPalette.fg,border:`1px solid ${ptsPalette.border}`,padding:"1px 6px",borderRadius:4,fontWeight:700,fontFamily:"monospace",fontSize:11}}>+{total}</span>;
+    ptsEl=<span style={{background:chipPalette.bg,color:chipPalette.fg,border:`1px solid ${chipPalette.border}`,padding:"1px 6px",borderRadius:4,fontWeight:700,fontFamily:"monospace",fontSize:11}}>+{total}</span>;
   } else if(roundState==="closed"&&!effectiveScore){
     ptsEl=<span style={{color:C.muted,fontSize:11}}>awaiting</span>;
   }
@@ -3201,6 +3230,16 @@ export default function App() {
                           : `${filled}/${submittableMatches.length} filled · stage ${openStage}`}
                       </div>
                     )}
+                    {(()=>{
+                      const st=formScoreStats(e.predictions,results,liveMatches,matches);
+                      if(st.scored===0) return null;
+                      return (
+                        <div style={{display:"flex",gap:10,marginTop:3,fontSize:11,fontFamily:"monospace",fontWeight:700}}>
+                          <span title="Exact scores (+8)" style={{color:C.green}}>🎯 {st.exact}</span>
+                          <span title="Misses (+0)" style={{color:C.red}}>✗ {st.miss}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}

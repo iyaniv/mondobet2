@@ -335,7 +335,20 @@ async def upsert_result(
 
 # ── Leaderboard ───────────────────────────────────────────────────────────────
 
-async def get_leaderboard(db: AsyncSession) -> list[LeaderboardEntry]:
+async def get_leaderboard(
+    db: AsyncSession,
+    sim_results: Optional[dict] = None,
+    sim_winner: Optional[str] = None,
+) -> list[LeaderboardEntry]:
+    """Compute the leaderboard.
+
+    Simulation mode (sim_results / sim_winner): treat the given match scores as
+    if they were real results for matches that DON'T already have a final
+    result or a live score, and (if no tournament winner is set yet) assume
+    sim_winner is the eventual champion. Used by the "Simulate" toggle so a
+    user can see where everyone would land if all unplayed games finished
+    exactly as that user predicted.
+    """
     participants     = await get_participants(db)
     all_entries_map  = await get_all_entries_by_user(db)  # single bulk query
     all_preds        = await get_all_predictions(db)
@@ -343,6 +356,22 @@ async def get_leaderboard(db: AsyncSession) -> list[LeaderboardEntry]:
     all_winners      = await get_all_winner_picks(db)
     live_map         = await get_live_matches(db)
     cfg              = await get_config(db)
+
+    # Effective results used for scoring. In sim mode, fill in unplayed matches
+    # (no real result, not live) with the simulated scores. Real results always
+    # win, so a finished match is never overridden.
+    results_for_scoring = all_results
+    tournament_winner = cfg.tournament_winner
+    if sim_results:
+        results_for_scoring = dict(all_results)
+        for n, v in sim_results.items():
+            mn = int(n)
+            if mn in all_results or mn in live_map:
+                continue
+            if v and len(v) >= 2 and v[0] is not None and v[1] is not None:
+                results_for_scoring[mn] = [int(v[0]), int(v[1])]
+        if sim_winner and not cfg.tournament_winner:
+            tournament_winner = sim_winner
 
     rows: list[LeaderboardEntry] = []
     for user in participants:
@@ -352,7 +381,7 @@ async def get_leaderboard(db: AsyncSession) -> list[LeaderboardEntry]:
                 continue  # drafts don't appear on leaderboard
             preds = all_preds.get(entry.id, {})
             winner_pick = all_winners.get(entry.id)
-            totals = user_totals(preds, all_results, winner_pick, cfg.tournament_winner, live_map)
+            totals = user_totals(preds, results_for_scoring, winner_pick, tournament_winner, live_map)
             submitted_count = sum(
                 1 for v in preds.values() if v[0] is not None and v[1] is not None
             )

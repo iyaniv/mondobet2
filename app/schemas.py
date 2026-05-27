@@ -122,6 +122,13 @@ class UserPatch(BaseModel):
 
 # ── Leaderboard ───────────────────────────────────────────────────────────────
 
+class SimulateRequest(BaseModel):
+    # {match_n: [score_a, score_b]} — assumed results for unplayed matches.
+    results: dict[int, list[int]] = {}
+    # Assumed tournament champion (used for the +10 bonus if none set yet).
+    winner: Optional[str] = None
+
+
 class LeaderboardEntry(BaseModel):
     entry_id: str
     user_id: int
