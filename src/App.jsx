@@ -18,26 +18,6 @@ const STAGES = [
 ];
 function matchStageObj(n) { return STAGES.find(s => n >= s.first && n <= s.last) || STAGES[0]; }
 
-// Count exact (8-pt) and miss (0-pt) results for one form's predictions,
-// across every match that already has a result or a live score.
-function formScoreStats(predsArr, results, liveMatches, matches) {
-  const sign = x => x===0 ? 0 : x>0 ? 1 : -1;
-  const pmap = {}; (predsArr||[]).forEach(p => { pmap[p.match_n] = [p.score_a, p.score_b]; });
-  let exact=0, miss=0, scored=0;
-  for (const m of matches) {
-    const r = results[m.n]
-      || (liveMatches[m.n]?.score_a!=null ? [liveMatches[m.n].score_a, liveMatches[m.n].score_b] : null);
-    const p = pmap[m.n];
-    if (!r || !p || p[0]==null || p[1]==null) continue;
-    scored++;
-    const dir = sign(p[0]-p[1])===sign(r[0]-r[1]) ? 5 : 0;
-    const gm  = (p[0]===r[0]?1:0) + (p[1]===r[1]?1:0);
-    const total = dir + (gm===2 ? 3 : gm===1 ? 1 : 0);
-    if (total===8) exact++; else if (total===0) miss++;
-  }
-  return { exact, miss, scored };
-}
-
 // Determine who advanced in a knockout match: penalties → extra time →
 // 90-min score. Returns "a", "b", or null. Mirrors crud.derive_winner.
 function deriveWinner(sa, sb, etA, etB, penA, penB) {
@@ -3364,14 +3344,6 @@ export default function App() {
               <span style={{color:C.muted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",fontSize:10}}>Total</span>
               <b style={{color:C.accent,fontSize:20,fontFamily:"monospace",fontWeight:700,lineHeight:1}}>{myLbEntry.total}</b>
               <span>pts · {myLbEntry.scored_matches}/{matches.length} scored</span>
-              {(()=>{
-                const st=formScoreStats(activeEntry?.predictions,results,liveMatches,matches);
-                if(st.scored===0) return null;
-                return (<>
-                  <span title="Exact scores (+8)" style={{color:C.green,fontWeight:700}}>· <span style={{fontSize:14,verticalAlign:"middle"}}>🎯</span> {st.exact}</span>
-                  <span title="Misses (+0)" style={{color:C.red,fontWeight:700}}>· <span style={{fontSize:14,verticalAlign:"middle"}}>⭕</span> {st.miss}</span>
-                </>);
-              })()}
               {myLbEntry.winner_bonus>0&&<span style={{color:C.green,fontWeight:600}}>· 🏆 +10</span>}
             </div>
           )}
