@@ -3073,10 +3073,10 @@ export default function App() {
             editing is allowed so a brand-new user with zero forms can still
             click "+ Add form" to create their first one. */}
         {(entries.length>0 || (editable && openStage===1)) && (
-          <div style={{marginBottom:14}}>
+          <div style={{marginBottom:0}}>
             <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:".5px",
               padding:"0 0 6px",fontWeight:600}}>My forms ({entries.length})</div>
-            <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"stretch"}}>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"stretch",position:"relative",zIndex:2}}>
               {entries.map(e=>{
                 const isActive=e.id===activeEntryId;
                 const stageSub = !!(e.stages_submitted||{})[openStage];
@@ -3095,12 +3095,22 @@ export default function App() {
                 return (
                   <div key={e.id} onClick={()=>!isRenaming&&switchEntry(e.id)} style={{
                     padding:"10px 14px",borderRadius:6,cursor:isRenaming?"default":"pointer",
-                    background:isActive?"rgba(163,230,53,0.12)":C.panel2,
+                    background:isActive?C.panel:C.panel2,
                     borderLeft:`3px solid ${isActive?C.accent:"transparent"}`,
-                    border:`1px solid ${isActive?"rgba(163,230,53,0.3)":C.border}`,
+                    border:`1px solid ${isActive?C.accent:C.border}`,
                     borderLeftWidth:3,borderLeftColor:isActive?C.accent:"transparent",
                     transition:"all .12s",display:"flex",flexDirection:"column",gap:3,
                     minWidth:170,
+                    // Active card is a real tab merging into the panel below:
+                    //  • bg == panel bg → no colour seam at the bottom
+                    //  • squared bottom + a panel-coloured bottom border that
+                    //    overlaps the panel's lime top edge (so it reads "open")
+                    //  • lime top/left/right border flows into the panel outline
+                    ...(isActive?{
+                      borderBottomLeftRadius:0,borderBottomRightRadius:0,
+                      borderBottom:`2px solid ${C.panel}`,marginBottom:-2,
+                      position:"relative",zIndex:2,
+                    }:{}),
                   }}>
                     <div style={{display:"flex",alignItems:"center",gap:8,
                       fontSize:14,fontWeight:isActive?700:600,
@@ -3209,20 +3219,15 @@ export default function App() {
           </div>
         )}
 
-        {/* "Editing" header — names which form the predictions below belong
-            to. Keeps the form name attached to its content even when the cards
-            wrap away on mobile. */}
-        {activeEntry&&(
-          <div style={{
-            display:"flex",alignItems:"center",gap:9,marginBottom:14,
-            background:C.accentSoft,border:"1px solid rgba(163,230,53,0.35)",
-            borderRadius:8,padding:"9px 14px",
-          }}>
-            <span style={{fontSize:14}}>✎</span>
-            <span style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:".5px",fontWeight:600}}>Editing</span>
-            <span style={{fontSize:15,fontWeight:800,color:C.accent,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{activeEntry.name}</span>
-          </div>
-        )}
+        {/* Connected tab panel — the selected form card above merges into this
+            panel (browser-tab metaphor). The active card's bg matches this
+            panel's bg so there's no seam, and the lime outlines the tab and
+            continues along this panel's top edge. */}
+        <div style={activeEntry ? {
+          background:C.panel, border:`1px solid ${C.border}`,
+          borderTop:`2px solid ${C.accent}`, borderRadius:"0 8px 8px 8px",
+          padding:"16px 16px 6px",
+        } : {}}>
 
         {/* Entry controls */}
         {activeEntry&&(
@@ -3486,6 +3491,7 @@ export default function App() {
             </div>
           );
         })}
+        </div>{/* /connected tab panel */}
       </div>
     );
   }
