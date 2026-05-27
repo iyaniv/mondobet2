@@ -1791,7 +1791,7 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
       )}
       {finalWinnerName && (
         <div style={{fontSize:10,color:C.accent,fontWeight:700}}>
-          {finalWinnerName} ▶
+          {result[2]==='a' ? `◀ ${finalWinnerName}` : `${finalWinnerName} ▶`}
         </div>
       )}
     </div>
@@ -1813,7 +1813,7 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
       {showPen && tierRow("pen",   penA, setPenA, penB, setPenB, "pa", "pb")}
       {isKnockout && hasScore && curWinner && (
         <div style={{fontSize:10,color:C.accent,fontWeight:700}}>
-          {curWinner==='a' ? match.a : match.b} ▶
+          {curWinner==='a' ? `◀ ${match.a}` : `${match.b} ▶`}
         </div>
       )}
     </div>
