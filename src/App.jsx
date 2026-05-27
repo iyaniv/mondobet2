@@ -3369,7 +3369,7 @@ export default function App() {
                 if(st.scored===0) return null;
                 return (<>
                   <span title="Exact scores (+8)" style={{color:C.green,fontWeight:700}}>· <span style={{fontSize:14,verticalAlign:"middle"}}>🎯</span> {st.exact}</span>
-                  <span title="Misses (+0)" style={{color:C.red,fontWeight:700}}>· <span style={{fontSize:14,verticalAlign:"middle"}}>❌</span> {st.miss}</span>
+                  <span title="Misses (+0)" style={{color:C.red,fontWeight:700}}>· <span style={{fontSize:14,verticalAlign:"middle"}}>⭕</span> {st.miss}</span>
                 </>);
               })()}
               {myLbEntry.winner_bonus>0&&<span style={{color:C.green,fontWeight:600}}>· 🏆 +10</span>}
