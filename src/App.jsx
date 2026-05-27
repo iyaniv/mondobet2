@@ -3076,7 +3076,7 @@ export default function App() {
           <div style={{marginBottom:0}}>
             <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:".5px",
               padding:"0 0 6px",fontWeight:600}}>My forms ({entries.length})</div>
-            <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"stretch",position:"relative",zIndex:2}}>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"stretch"}}>
               {entries.map(e=>{
                 const isActive=e.id===activeEntryId;
                 const stageSub = !!(e.stages_submitted||{})[openStage];
@@ -3190,7 +3190,8 @@ export default function App() {
                     <div style={{
                       position:"absolute",top:"calc(100% + 6px)",left:0,zIndex:100,
                       background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,
-                      minWidth:180,boxShadow:"0 4px 16px rgba(0,0,0,0.4)",overflow:"hidden",
+                      minWidth:200,width:"max-content",maxWidth:340,
+                      boxShadow:"0 4px 16px rgba(0,0,0,0.4)",overflow:"hidden",
                     }}
                     onMouseLeave={()=>setShowNewMenu(false)}>
                       <div style={{padding:"6px 12px",fontSize:11,color:C.muted,borderBottom:`1px solid ${C.border}`,fontWeight:600,letterSpacing:"0.05em",textTransform:"uppercase"}}>Add form</div>
@@ -3206,6 +3207,7 @@ export default function App() {
                         <button key={src.id} onClick={()=>createEntry(src.id)} style={{
                           display:"block",width:"100%",textAlign:"left",padding:"9px 14px",
                           background:"transparent",border:"none",color:C.text,cursor:"pointer",fontSize:13,
+                          whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
                         }}
                         onMouseEnter={e=>e.currentTarget.style.background=C.panel}
                         onMouseLeave={e=>e.currentTarget.style.background="transparent"}
