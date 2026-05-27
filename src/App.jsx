@@ -3073,10 +3073,10 @@ export default function App() {
             editing is allowed so a brand-new user with zero forms can still
             click "+ Add form" to create their first one. */}
         {(entries.length>0 || (editable && openStage===1)) && (
-          <div style={{marginBottom:0}}>
+          <div style={{marginBottom:14}}>
             <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:".5px",
               padding:"0 0 6px",fontWeight:600}}>My forms ({entries.length})</div>
-            <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"stretch",position:"relative",zIndex:2}}>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"stretch"}}>
               {entries.map(e=>{
                 const isActive=e.id===activeEntryId;
                 const stageSub = !!(e.stages_submitted||{})[openStage];
@@ -3101,13 +3101,6 @@ export default function App() {
                     borderLeftWidth:3,borderLeftColor:isActive?C.accent:"transparent",
                     transition:"all .12s",display:"flex",flexDirection:"column",gap:3,
                     minWidth:170,
-                    // Active card "opens" into the connected panel below:
-                    // squared bottom corners + bottom edge blended into the
-                    // panel + 2px dip so the lime border reads as continuous.
-                    ...(isActive?{
-                      borderBottomLeftRadius:0,borderBottomRightRadius:0,
-                      borderBottomColor:C.panel,marginBottom:-2,zIndex:3,
-                    }:{}),
                   }}>
                     <div style={{display:"flex",alignItems:"center",gap:8,
                       fontSize:14,fontWeight:isActive?700:600,
@@ -3216,14 +3209,20 @@ export default function App() {
           </div>
         )}
 
-        {/* Connected panel — visually ties all form-scoped content (submit,
-            winner pick, predictions) to the selected form tab above, like a
-            browser tab opening into its page. */}
-        <div style={activeEntry ? {
-          background:C.panel, border:`1px solid ${C.border}`,
-          borderTop:`2px solid ${C.accent}`, borderRadius:8,
-          padding:"16px 16px 6px", position:"relative", zIndex:1,
-        } : {}}>
+        {/* "Editing" header — names which form the predictions below belong
+            to. Keeps the form name attached to its content even when the cards
+            wrap away on mobile. */}
+        {activeEntry&&(
+          <div style={{
+            display:"flex",alignItems:"center",gap:9,marginBottom:14,
+            background:C.accentSoft,border:"1px solid rgba(163,230,53,0.35)",
+            borderRadius:8,padding:"9px 14px",
+          }}>
+            <span style={{fontSize:14}}>✎</span>
+            <span style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:".5px",fontWeight:600}}>Editing</span>
+            <span style={{fontSize:15,fontWeight:800,color:C.accent,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{activeEntry.name}</span>
+          </div>
+        )}
 
         {/* Entry controls */}
         {activeEntry&&(
@@ -3487,7 +3486,6 @@ export default function App() {
             </div>
           );
         })}
-        </div>{/* /connected panel */}
       </div>
     );
   }
