@@ -1698,29 +1698,44 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
 
   const handleFocus = () => { editingRef.current = true; };
 
+  // Auto-advance: after a digit is entered, jump focus to the next score box.
+  // We query the live DOM (after a tick, so a freshly-revealed ET/pen input is
+  // present) and move to the input following the one that was just edited.
+  const rowRef = useRef(null);
+  function focusNextInput(currentEl) {
+    const root = rowRef.current;
+    if (!root) return;
+    const inputs = Array.from(root.querySelectorAll('input[type="number"]'));
+    const i = inputs.indexOf(currentEl);
+    if (i >= 0 && i + 1 < inputs.length) inputs[i + 1].focus();
+  }
+  function onScoreChange(setter, e) {
+    setter(e.target.value);
+    if (e.target.value !== "") {
+      const el = e.target;          // capture before React reuses the event
+      setTimeout(() => focusNextInput(el), 0);
+    }
+  }
+
   // Any score edit saves the whole in-motion record (90-min + ET + pens). The
   // just-blurred field is passed via `ov` since setState hasn't flushed yet.
-  // Saving does NOT mark the match visibly LIVE — that needs the ▶ LIVE click.
-  async function saveAll(ov = {}) {
+  // onUpdateLive does an optimistic local update + background persist, so this
+  // returns instantly and never blocks typing the next box.
+  function saveAll(ov = {}) {
     editingRef.current = false;
     const sa = ov.sa!==undefined ? ov.sa : resA;
     const sb = ov.sb!==undefined ? ov.sb : resB;
     if (sa===""&&sb==="") return;   // nothing entered yet
-    pendingSaveRef.current = true;
-    try {
-      await onUpdateLive(match.n, {
-        score_a: Number(sa)||0,
-        score_b: Number(sb)||0,
-        minute: liveData?.minute || 0,
-        is_live: !!liveData?.is_live,
-        et_a:  numOrNull(ov.ea!==undefined ? ov.ea : etA),
-        et_b:  numOrNull(ov.eb!==undefined ? ov.eb : etB),
-        pen_a: numOrNull(ov.pa!==undefined ? ov.pa : penA),
-        pen_b: numOrNull(ov.pb!==undefined ? ov.pb : penB),
-      });
-    } finally {
-      pendingSaveRef.current = false;
-    }
+    onUpdateLive(match.n, {
+      score_a: Number(sa)||0,
+      score_b: Number(sb)||0,
+      minute: liveData?.minute || 0,
+      is_live: !!liveData?.is_live,
+      et_a:  numOrNull(ov.ea!==undefined ? ov.ea : etA),
+      et_b:  numOrNull(ov.eb!==undefined ? ov.eb : etB),
+      pen_a: numOrNull(ov.pa!==undefined ? ov.pa : penA),
+      pen_b: numOrNull(ov.pb!==undefined ? ov.pb : penB),
+    });
   }
 
   // Current winner derived live from whatever's typed (pens → ET → 90-min)
@@ -1763,12 +1778,12 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
       <span style={{fontSize:9,color:C.muted,width:32,textAlign:"right",
         textTransform:"uppercase",letterSpacing:".3px"}}>{label}</span>
       <input type="number" inputMode="numeric" min={0} max={30} value={aVal}
-        onFocus={handleFocus} onChange={e=>setA(e.target.value)}
+        onFocus={handleFocus} onChange={e=>onScoreChange(setA,e)}
         onBlur={e=>saveAll({[aKey]:e.target.value})}
         style={{...miniInput,border:`1px solid ${inputBorder}`}}/>
       <span style={{color:C.muted,fontSize:11}}>:</span>
       <input type="number" inputMode="numeric" min={0} max={30} value={bVal}
-        onFocus={handleFocus} onChange={e=>setB(e.target.value)}
+        onFocus={handleFocus} onChange={e=>onScoreChange(setB,e)}
         onBlur={e=>saveAll({[bKey]:e.target.value})}
         style={{...miniInput,border:`1px solid ${inputBorder}`}}/>
     </div>
@@ -1801,12 +1816,12 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
         {isKnockout && <span style={{fontSize:9,color:C.muted,width:32,textAlign:"right",textTransform:"uppercase",letterSpacing:".3px"}}>90'</span>}
         <input type="number" inputMode="numeric" min={0} max={20} value={resA}
           onFocus={handleFocus}
-          onChange={e=>setResA(e.target.value)} onBlur={e=>saveAll({sa:e.target.value})}
+          onChange={e=>onScoreChange(setResA,e)} onBlur={e=>saveAll({sa:e.target.value})}
           style={{...(isKnockout?miniInput:numInput),border:`1px solid ${inputBorder}`}}/>
         <span style={{color:C.muted,fontSize:13}}>:</span>
         <input type="number" inputMode="numeric" min={0} max={20} value={resB}
           onFocus={handleFocus}
-          onChange={e=>setResB(e.target.value)} onBlur={e=>saveAll({sb:e.target.value})}
+          onChange={e=>onScoreChange(setResB,e)} onBlur={e=>saveAll({sb:e.target.value})}
           style={{...(isKnockout?miniInput:numInput),border:`1px solid ${inputBorder}`}}/>
       </div>
       {showEt  && tierRow("a.e.t.", etA, setEtA, etB, setEtB, "ea", "eb")}
@@ -1841,7 +1856,12 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
         </span>
       )}
       {hasScore && !isFinal && (
-        <button onClick={()=>onFinalize(match.n)} style={{
+        <button onClick={()=>onFinalize(match.n, {
+          score_a: Number(resA)||0, score_b: Number(resB)||0,
+          minute: liveData?.minute||0, is_live: !!liveData?.is_live,
+          et_a: numOrNull(etA), et_b: numOrNull(etB),
+          pen_a: numOrNull(penA), pen_b: numOrNull(penB),
+        })} style={{
           background:C.green,color:"white",border:0,padding:"2px 8px",
           borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>
           ✓ FINAL
@@ -1857,7 +1877,7 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
   // ── Mobile: two-line layout ────────────────────────────────────────────────
   if (isMobile) {
     return (
-      <div style={{background:rowBg,border:rowBorder,borderRadius:6,
+      <div ref={rowRef} style={{background:rowBg,border:rowBorder,borderRadius:6,
         padding:"6px 8px",marginBottom:3,fontSize:12}}>
         {/* Line 1: flag+name — score — name+flag */}
         <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",
@@ -1882,7 +1902,7 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
 
   // ── Desktop: original single-row grid layout ───────────────────────────────
   return (
-    <div style={{display:"grid",gridTemplateColumns:"28px 1fr 44px 12px 44px 1fr auto",
+    <div ref={rowRef} style={{display:"grid",gridTemplateColumns:"28px 1fr 44px 12px 44px 1fr auto",
       alignItems:"center",gap:5,padding:"5px 8px",borderRadius:6,
       background:rowBg,border:rowBorder,marginBottom:3,fontSize:13}}>
       <span style={{color:C.muted,fontSize:11}}>#{match.n}</span>
@@ -1936,35 +1956,41 @@ function AdminResults({ config, matches, results, liveMatches, setResults, setLi
       showToast("Match marked LIVE");
     } catch(e) { showToast(e.message, "err"); }
   }
-  async function updateLive(matchN, data) {
-    try {
-      await liveApi.set(matchN, data);
-      // Optimistically update local live state so bracket resolves immediately
-      setLiveMatches(prev => {
-        const p = prev[matchN] || {};
-        const sa = data.score_a ?? p.score_a ?? 0;
-        const sb = data.score_b ?? p.score_b ?? 0;
-        const etA  = data.et_a  !== undefined ? data.et_a  : (p.et_a  ?? null);
-        const etB  = data.et_b  !== undefined ? data.et_b  : (p.et_b  ?? null);
-        const penA = data.pen_a !== undefined ? data.pen_a : (p.pen_a ?? null);
-        const penB = data.pen_b !== undefined ? data.pen_b : (p.pen_b ?? null);
-        return {
-          ...prev,
-          [matchN]: {
-            ...p, score_a: sa, score_b: sb,
-            minute:  data.minute  ?? p.minute  ?? 0,
-            is_live: data.is_live ?? p.is_live ?? false,
-            et_a: etA, et_b: etB, pen_a: penA, pen_b: penB,
-            winner: deriveWinner(sa, sb, etA, etB, penA, penB),
-          },
-        };
-      });
-      await refreshLive();
-    }
-    catch(e) { showToast(e.message, "err"); }
+  function updateLive(matchN, data) {
+    // 1) Optimistic local update FIRST — instant, never blocks typing the
+    //    next box. This is the source of truth for the admin's own edits.
+    setLiveMatches(prev => {
+      const p = prev[matchN] || {};
+      const sa = data.score_a ?? p.score_a ?? 0;
+      const sb = data.score_b ?? p.score_b ?? 0;
+      const etA  = data.et_a  !== undefined ? data.et_a  : (p.et_a  ?? null);
+      const etB  = data.et_b  !== undefined ? data.et_b  : (p.et_b  ?? null);
+      const penA = data.pen_a !== undefined ? data.pen_a : (p.pen_a ?? null);
+      const penB = data.pen_b !== undefined ? data.pen_b : (p.pen_b ?? null);
+      return {
+        ...prev,
+        [matchN]: {
+          ...p, score_a: sa, score_b: sb,
+          minute:  data.minute  ?? p.minute  ?? 0,
+          is_live: data.is_live ?? p.is_live ?? false,
+          et_a: etA, et_b: etB, pen_a: penA, pen_b: penB,
+          winner: deriveWinner(sa, sb, etA, etB, penA, penB),
+        },
+      };
+    });
+    // 2) Persist + refresh leaderboard in the BACKGROUND (fire-and-forget).
+    //    No await, no refreshLive() refetch — that re-render was what blocked
+    //    the admin from typing the next result. The 10s poll reconciles drift.
+    Promise.resolve()
+      .then(() => liveApi.set(matchN, data))
+      .then(() => refreshLb())
+      .catch(e => showToast(e.message, "err"));
   }
-  async function finalizeLive(matchN) {
+  async function finalizeLive(matchN, data) {
     try {
+      // Flush the latest typed values FIRST (awaited) so finalize can't race
+      // the fire-and-forget per-keystroke save and persist a stale score.
+      if (data) await liveApi.set(matchN, data);
       const res = await liveApi.finalize(matchN);
       setResults(r => ({...r, [matchN]: [res.score_a, res.score_b, res.winner??null, res.et_a??null, res.et_b??null, res.pen_a??null, res.pen_b??null]}));
       await refreshLive();
