@@ -2963,8 +2963,15 @@ export default function App() {
       setMyWinner(team||null);
       try{
         await api.setWinnerPick({team:team||null},activeEntryId);
-        setEntries(es=>es.map(e=>e.id===activeEntryId?{...e,winner_pick:team||null}:e));
-        showToast("Winner pick saved ✓");
+        // Winner pick lives in stage 1 — changing it invalidates the stage 1
+        // submission (mirror the server), so Submit reappears immediately.
+        setEntries(es=>es.map(e=>{
+          if(e.id!==activeEntryId) return e;
+          const stagesSub={...(e.stages_submitted||{})};
+          delete stagesSub[1]; delete stagesSub["1"];
+          return {...e,winner_pick:team||null,stages_submitted:stagesSub};
+        }));
+        showToast("Saved · re-submit to confirm");
         refreshLb();
       }catch(e){setMyWinner(prev);showToast(e.message,"err");}
     }

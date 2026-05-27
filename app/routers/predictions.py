@@ -104,6 +104,13 @@ async def set_winner_pick(
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Winner pick locked — stage 1 has closed.")
     entry = await _resolve_entry(entry_id, user, db)
     await crud.upsert_winner_pick(db, entry.id, data.team)
+    # The winner pick belongs to stage 1 — changing it invalidates the stage 1
+    # submission (same as editing a stage-1 score), so the user must re-Submit.
+    stages = dict(entry.stages_submitted or {})
+    if "1" in stages:
+        del stages["1"]
+        entry.stages_submitted = stages
+        await db.commit()
     locked = (cfg.current_stage or 1) > 1
     return {"team": data.team, "locked": locked}
 

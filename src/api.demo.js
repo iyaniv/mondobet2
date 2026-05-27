@@ -696,6 +696,13 @@ export const api = {
     if (!eid) throw new Error("No entry");
     if (d.team) S.winner_picks[eid] = d.team;
     else delete S.winner_picks[eid];
+    // Winner pick lives in stage 1 — changing it invalidates the stage 1
+    // submission on this form, so the user must re-Submit (mirrors scores).
+    const entry = S.entries[eid];
+    if (entry && entry.stages_submitted) {
+      delete entry.stages_submitted[1];
+      delete entry.stages_submitted["1"];
+    }
     save(S);
     return {entry_id:eid,team:d.team||null};
   },
