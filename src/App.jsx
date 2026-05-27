@@ -3739,7 +3739,7 @@ export default function App() {
                         </td>
                         <td style={{...td,textAlign:"center",color:isSim?C.indigo:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:17}}>
                           {row.total}
-                          {isSim&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"var(--c-accent-soft)",color:C.accent,border:`1px solid ${C.accent}`,padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}>{simDiff>0?"+":""}{simDiff} sim</span>}
+                          {isSim&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}>{simDiff>0?"+":""}{simDiff} sim</span>}
                         </td>
                         <td style={td}>{winnerCell}</td>
                         {canJumpToParticipant&&(
