@@ -3007,12 +3007,20 @@ export default function App() {
 
     async function commitRename(entryId){
       const val=renameVal.trim();
+      const prevName=entries.find(e=>e.id===entryId)?.name;
       setRenamingEntryId(null);
-      if(!val)return;
+      if(!val||val===prevName)return;            // nothing to do
+      // Optimistic: show the new name immediately so it never appears to
+      // "snap back" during the request. Roll back + explain only if the
+      // server actually rejects it (e.g. a duplicate form name).
+      setEntries(es=>es.map(e=>e.id===entryId?{...e,name:val}:e));
       try{
         await api.renameEntry(entryId,{name:val});
-        setEntries(es=>es.map(e=>e.id===entryId?{...e,name:val}:e));
-      }catch(e){showToast(e.message,"err");}
+        showToast("Form renamed ✓");
+      }catch(e){
+        setEntries(es=>es.map(e=>e.id===entryId?{...e,name:prevName}:e));
+        showToast(e.message||"Couldn't rename form.","err");
+      }
     }
 
     async function submitEntry(){
