@@ -2818,7 +2818,7 @@ export default function App() {
   async function refreshLive() {
     try {
       const list = await liveApi.getAll();
-      const m={}; for(const x of list) m[x.match_n]={score_a:x.score_a,score_b:x.score_b,minute:x.minute,is_live:!!x.is_live};
+      const m={}; for(const x of list) m[x.match_n]={score_a:x.score_a,score_b:x.score_b,minute:x.minute,is_live:!!x.is_live,winner:x.winner??null,et_a:x.et_a??null,et_b:x.et_b??null,pen_a:x.pen_a??null,pen_b:x.pen_b??null};
       setLiveMatches(m);
       localStorage.setItem("mb_live_sync", Date.now().toString());
     } catch(e) { console.error("refreshLive:", e); }
@@ -2828,14 +2828,16 @@ export default function App() {
   useEffect(() => {
     function onStorage(e) {
       if (e.key !== "mb_live_sync") return;
+      // Don't clobber an admin's in-progress result entry from another tab's sync.
+      if (user?.is_admin && tab === "results") return;
       liveApi.getAll().then(list => {
-        const m={}; for(const x of list) m[x.match_n]={score_a:x.score_a,score_b:x.score_b,minute:x.minute,is_live:!!x.is_live};
+        const m={}; for(const x of list) m[x.match_n]={score_a:x.score_a,score_b:x.score_b,minute:x.minute,is_live:!!x.is_live,winner:x.winner??null,et_a:x.et_a??null,et_b:x.et_b??null,pen_a:x.pen_a??null,pen_b:x.pen_b??null};
         setLiveMatches(m);
       }).catch(()=>{});
     }
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  }, [user?.is_admin, tab]);
 
   async function refreshLb(){
     try {
@@ -2861,11 +2863,17 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     if (config.round_state === "idle") return;
+    // Pause polling while the admin is actively entering results. The poll
+    // re-fetches and REPLACES liveMatches, which was wiping freshly-typed
+    // scores and yanking the cursor out mid-edit. The admin is the source of
+    // truth on this tab — their own edits persist via updateLive regardless —
+    // so there's nothing to poll for here. Resumes on any other tab.
+    if (user.is_admin && tab === "results") return;
     const tick = () => { refreshLive(); refreshLb(); };
     const id = setInterval(tick, 10000);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, config.round_state]);
+  }, [user?.id, config.round_state, tab]);
 
   const tabs=!user?[]:user.is_admin
     ?[{id:"results",label:"Results",admin:true},{id:"tournament",label:"🏟 Tournament"},{id:"leaderboard",label:"Leaderboard"},{id:"byuser",label:"By participant"},{id:"dashboard",label:"Dashboard",admin:true},{id:"settings",label:"⚙ Settings"}]
