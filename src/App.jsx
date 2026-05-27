@@ -2719,6 +2719,24 @@ export default function App() {
   const [globalErr,setGlobalErr]=useState("");
   const toastTimer=useRef(null);
 
+  // ── Predictions-tab UI state ────────────────────────────────────────────────
+  // Lifted out of the MyPredictions render function so that view can be called
+  // INLINE without its own hooks. Previously MyPredictions was rendered as
+  // <MyPredictions/> while being defined inside App, so every App re-render
+  // (e.g. the 10s poll, or saving a score) created a new component type and
+  // REMOUNTED the whole subtree — which reset child state and slammed the
+  // TeamPicker dropdown shut. Keeping the state here makes the subtree stable.
+  const [submitting,setSubmitting]=useState(false);
+  const [renamingEntryId,setRenamingEntryId]=useState(null);
+  const [renameVal,setRenameVal]=useState("");
+  const [showNewMenu,setShowNewMenu]=useState(false);
+  const [collapsedStages,setCollapsedStages]=useState(()=>new Set());
+  // Collapse stages below the current open stage by default (re-applied when
+  // the admin advances the stage). Manual toggles persist until then.
+  useEffect(()=>{
+    setCollapsedStages(new Set(STAGES.filter(s=>s.n<(config.current_stage||1)).map(s=>s.n)));
+  },[config.current_stage]);
+
   function showToast(msg,kind="ok"){setToast({msg,kind});clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(null),2500);}
 
   const loadGameData=useCallback(async(isAdmin,userId=null)=>{
@@ -2889,14 +2907,9 @@ export default function App() {
                    && !winnerNeededForSubmit
                    && !currentStageSubmitted
                    && editable;
-    const [submitting,setSubmitting]=useState(false);
-    const [renamingEntryId,setRenamingEntryId]=useState(null);
-    const [renameVal,setRenameVal]=useState("");
-    const [showNewMenu,setShowNewMenu]=useState(false);
-    // Stages < current open stage start collapsed; current stage starts open
-    const [collapsedStages,setCollapsedStages]=useState(
-      ()=>new Set(STAGES.filter(s=>s.n<openStage).map(s=>s.n))
-    );
+    // NOTE: submitting / renamingEntryId / renameVal / showNewMenu /
+    // collapsedStages live in App (lifted out) so this view can be rendered
+    // inline as {MyPredictions()} without remounting on every App re-render.
     const toggleStage=n=>setCollapsedStages(prev=>{
       const next=new Set(prev);
       if(next.has(n))next.delete(n);else next.add(n);
@@ -3719,7 +3732,7 @@ export default function App() {
       )}
       <div style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px 40px"}}>
         {!user&&<AuthView roundState={config.round_state} onSuccess={doLogin}/>}
-        {user&&tab==="predictions"&&<MyPredictions/>}
+        {user&&tab==="predictions"&&MyPredictions()}
         {user&&tab==="leaderboard"&&<LeaderboardView/>}
         {user&&tab==="byuser"&&(
           <ByUser
