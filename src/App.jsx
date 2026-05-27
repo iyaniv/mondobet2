@@ -738,12 +738,13 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
   const ORANGE = {bg:"rgba(245,158,11,0.14)", fg:"#f59e0b",border:"rgba(245,158,11,0.4)"};
   const RED    = {bg:"rgba(239,68,68,0.14)",  fg:C.red,    border:"rgba(239,68,68,0.4)"};
   const MUTED  = {bg:"rgba(148,163,184,0.10)",color:C.muted, border:`1px solid ${C.border}`};
-  // Graduated greens for the +N chip only: 5 (light) → 6 (medium) → 8 (exact,
-  // strongest). The prediction BOX keeps the light GREEN so the digit colours
-  // stay readable.
-  const GREEN5 = {bg:"rgba(16,185,129,0.16)", fg:C.green,   border:"rgba(16,185,129,0.45)"};
-  const GREEN6 = {bg:"rgba(16,185,129,0.42)", fg:C.green,   border:"rgba(16,185,129,0.75)"};
-  const GREEN8 = {bg:C.green,                 fg:"#ffffff", border:C.green};
+  // Graduated greens for the +N chip, all with green text like the score box:
+  //   8 (exact)  → same green as the result box (strongest)
+  //   6          → a bit lighter
+  //   5          → lightest (about as faint as the green digits in the box)
+  const GREEN8 = {bg:"rgba(16,185,129,0.14)",  fg:C.green, border:"rgba(16,185,129,0.40)"};
+  const GREEN6 = {bg:"rgba(16,185,129,0.085)", fg:C.green, border:"rgba(16,185,129,0.28)"};
+  const GREEN5 = {bg:"rgba(16,185,129,0.04)",  fg:C.green, border:"rgba(16,185,129,0.18)"};
 
   // Effective score: final result wins, otherwise the in-motion live score.
   // This way users see their points adjust in real time as the admin enters
