@@ -3681,8 +3681,8 @@ export default function App() {
         </div>
 
         {simMode&&(
-          <div style={{background:"var(--c-accent-soft)",border:`1px solid ${C.accent}`,
-            borderRadius:6,padding:"7px 14px",marginBottom:14,fontSize:13,color:C.accent}}>
+          <div style={{background:"rgba(99,102,241,0.12)",border:`1px solid ${C.indigo}`,
+            borderRadius:6,padding:"7px 14px",marginBottom:14,fontSize:13,color:C.indigo}}>
             ✨ Simulating <b>{unplayedPredMatches.length}</b> unplayed match{unplayedPredMatches.length!==1?"es":""} with <b>your</b> predictions as results — all users' scores are recomputed accordingly{simLoading?" · loading…":""}
           </div>
         )}
@@ -3795,11 +3795,11 @@ export default function App() {
         </div>
       )}
       {simActive&&["leaderboard","byuser","tournament"].includes(tab)&&(
-        <div style={{background:"var(--c-accent-soft)",borderBottom:`1px solid ${C.accent}`,
-          padding:"8px 16px",fontSize:13,color:C.accent,display:"flex",alignItems:"center",
+        <div style={{background:"rgba(99,102,241,0.12)",borderBottom:`1px solid ${C.indigo}`,
+          padding:"8px 16px",fontSize:13,color:C.indigo,display:"flex",alignItems:"center",
           justifyContent:"space-between",gap:10,flexWrap:"wrap",fontWeight:600}}>
           <span>🔮 <b>Simulation</b> — unplayed games are shown as if they finish exactly as <b>your</b> predictions. Scores &amp; standings are hypothetical (only you see this).</span>
-          <button onClick={()=>setSimMode(false)} style={{background:C.accent,color:"#0b1020",
+          <button onClick={()=>setSimMode(false)} style={{background:C.indigo,color:"white",
             border:0,borderRadius:6,padding:"4px 12px",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>
             Exit simulation
           </button>
