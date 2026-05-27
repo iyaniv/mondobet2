@@ -17,8 +17,14 @@ async def get_leaderboard(_=Depends(get_current_user), db: AsyncSession = Depend
 @router.post("/simulate", response_model=list[LeaderboardEntry])
 async def simulate_leaderboard(
     data: SimulateRequest,
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Leaderboard as if every unplayed match finished with the given scores."""
-    return await crud.get_leaderboard(db, sim_results=data.results, sim_winner=data.winner)
+    """Leaderboard as if every unplayed match finished with the given scores.
+
+    While the round is open, the simulation applies only to the requesting
+    user's own forms (others' open-stage predictions stay hidden).
+    """
+    return await crud.get_leaderboard(
+        db, sim_results=data.results, sim_winner=data.winner, sim_user_id=user.id
+    )

@@ -339,15 +339,21 @@ async def get_leaderboard(
     db: AsyncSession,
     sim_results: Optional[dict] = None,
     sim_winner: Optional[str] = None,
+    sim_user_id: Optional[int] = None,
 ) -> list[LeaderboardEntry]:
     """Compute the leaderboard.
 
     Simulation mode (sim_results / sim_winner): treat the given match scores as
     if they were real results for matches that DON'T already have a final
     result or a live score, and (if no tournament winner is set yet) assume
-    sim_winner is the eventual champion. Used by the "Simulate" toggle so a
-    user can see where everyone would land if all unplayed games finished
-    exactly as that user predicted.
+    sim_winner is the eventual champion.
+
+    Privacy: while the betting round is OPEN, other users' predictions for the
+    still-open matches are hidden, so the simulated results are applied ONLY to
+    the requesting user's own forms (sim_user_id). Everyone else stays at their
+    real, currently-visible totals — otherwise simulating would leak rivals'
+    standings on a stage that hasn't closed yet. Once the round is closed
+    (forms revealed), the simulation applies to everyone.
     """
     participants     = await get_participants(db)
     all_entries_map  = await get_all_entries_by_user(db)  # single bulk query
@@ -357,25 +363,30 @@ async def get_leaderboard(
     live_map         = await get_live_matches(db)
     cfg              = await get_config(db)
 
-    # Effective results used for scoring. In sim mode, fill in unplayed matches
-    # (no real result, not live) with the simulated scores. Real results always
-    # win, so a finished match is never overridden.
-    results_for_scoring = all_results
-    tournament_winner = cfg.tournament_winner
+    round_open = cfg.round_state == RoundStateEnum.open
+
+    # Build the simulated results (real results win; sim fills unplayed matches).
+    sim_results_map = dict(all_results)
+    sim_tournament_winner = cfg.tournament_winner
     if sim_results:
-        results_for_scoring = dict(all_results)
         for n, v in sim_results.items():
             mn = int(n)
             if mn in all_results or mn in live_map:
                 continue
             if v and len(v) >= 2 and v[0] is not None and v[1] is not None:
-                results_for_scoring[mn] = [int(v[0]), int(v[1])]
+                sim_results_map[mn] = [int(v[0]), int(v[1])]
         if sim_winner and not cfg.tournament_winner:
-            tournament_winner = sim_winner
+            sim_tournament_winner = sim_winner
 
     rows: list[LeaderboardEntry] = []
     for user in participants:
         user_entries = all_entries_map.get(user.id, [])
+        # Apply the simulation to this entry's owner only if: not a sim at all
+        # (normal board) → no; OR the round is closed (everyone revealed); OR
+        # this is the simulating user's own form.
+        apply_sim = bool(sim_results) and (not round_open or user.id == sim_user_id)
+        results_for_scoring = sim_results_map if apply_sim else all_results
+        tournament_winner   = sim_tournament_winner if apply_sim else cfg.tournament_winner
         for entry in user_entries:
             if entry.submitted_at is None:
                 continue  # drafts don't appear on leaderboard

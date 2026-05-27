@@ -443,12 +443,20 @@ function resolveEntryId(user, entryId) {
 // `resultsOverride` (optional) merges with real results — used by simulate mode
 // to treat the caller's predictions as ground truth for unplayed games.
 // `tournamentWinnerOverride` lets simulate also assume a winner pick.
-function computeLeaderboard(resultsOverride=null, tournamentWinnerOverride=null) {
-  const effectiveResults = resultsOverride ? {...S.results, ...resultsOverride} : S.results;
-  const effectiveWinner  = tournamentWinnerOverride ?? S.config.tournament_winner;
+function computeLeaderboard(resultsOverride=null, tournamentWinnerOverride=null, simUserId=null) {
+  const roundOpen = S.config.round_state === "open";
+  const simResults = resultsOverride ? {...S.results, ...resultsOverride} : S.results;
+  const simWinner  = tournamentWinnerOverride ?? S.config.tournament_winner;
   const rows = [];
   for (const user of Object.values(S.users)) {
     if (user.is_admin) continue;
+    // Privacy: while the round is open, only apply the simulated results to the
+    // simulating user's own forms — others stay at their real visible totals so
+    // simulating can't reveal rivals' standings on a still-open stage. Once the
+    // round is closed, the sim applies to everyone.
+    const applySim = !!resultsOverride && (!roundOpen || user.id === simUserId);
+    const effectiveResults = applySim ? simResults : S.results;
+    const effectiveWinner   = applySim ? simWinner  : S.config.tournament_winner;
     for (const entry of Object.values(S.entries).filter(e=>e.user_id===user.id&&e.submitted_at)) {
       const preds = S.predictions[entry.id]||{};
       const wp    = S.winner_picks[entry.id]||null;
@@ -542,7 +550,8 @@ export const api = {
   // winnerOverride: team name (string) — assume tournament winner for sim
   getSimulatedLeaderboard: async (resultsOverride, winnerOverride=null) => {
     await delay(50);
-    return computeLeaderboard(resultsOverride||null, winnerOverride);
+    const u = getUser();
+    return computeLeaderboard(resultsOverride||null, winnerOverride, u?.id ?? null);
   },
 
   // ── Entries
