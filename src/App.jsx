@@ -2185,7 +2185,227 @@ const TIMEZONES = [
   { label:"Tokyo",          value:"Asia/Tokyo" },
 ];
 
-function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, config, setConfig, matches=[], results={}, setResults, liveMatches={}, refreshLive, refreshLb }) {
+// ─────────────────────────── Onboarding help system ────────────────────────
+//
+// Per-user, per-tab one-time popup. First login lands on My predictions, the
+// "welcome" dialog covers the intro + that tab. Subsequent unseen tabs each
+// show a smaller dialog. Closing shrinks the dialog toward the ⓘ help button
+// in the nav, then the button blinks twice so the user remembers where to find
+// help. Clicking the button later re-opens the current tab's dialog.
+//
+// State lives in localStorage at `mb_help_seen_v1_<userId>` (JSON map of
+// {welcome,tournament,leaderboard,byuser,predictions,settings,results,dashboard}).
+
+const HELP_VERSION = "v1";
+const HELP_CONTENT = {
+  welcome: {
+    badge: "👋",
+    title: "Welcome to MondoBet",
+    body: [
+      "The friendly World Cup prediction game we used to play in Excel — now slightly less primitive 😄",
+      "**Predict** the 90-minute score of every match. Multiple **forms** let you try different strategies.",
+      "**Scoring:** 5 pts correct direction · +3 exact · +1 partial · +10 tournament winner.",
+      "**Tabs:** Tournament (bracket), Leaderboard (rankings + Simulate), By participant (browse anyone's bets), My predictions (where you fill / submit).",
+      "Forms must submit **stage 1** before it closes to stay active for later stages.",
+    ],
+  },
+  predictions: {
+    badge: "📝",
+    title: "My predictions",
+    body: [
+      "Fill in scores for every match. They save automatically as you type.",
+      "Pick a **tournament winner** (+10 pts) — locked once stage 1 closes.",
+      "Hit **Submit** when a stage is complete. You can keep editing the current stage and re-submit until it closes.",
+      "Stuck on multiple strategies? Click **+ Add form** to maintain another set of picks.",
+    ],
+  },
+  tournament: {
+    badge: "🏟",
+    title: "Tournament",
+    body: [
+      "Browse the full schedule grouped by stage.",
+      "See actual results, **live** scores, and your own picks side by side.",
+      "Kickoff times follow the timezone in your Settings.",
+    ],
+  },
+  leaderboard: {
+    badge: "🏆",
+    title: "Leaderboard",
+    body: [
+      "Rankings across every submitted form, updated as results come in.",
+      "Click a row to see that participant's full picks (or your own).",
+      "**Simulate** ▾ — see hypothetical standings *if* every remaining pick of yours comes true. Only you see the simulation.",
+    ],
+  },
+  byuser: {
+    badge: "👥",
+    title: "By participant",
+    body: [
+      "Browse anyone's submitted forms.",
+      "While a stage is still open, others' picks for that stage stay hidden — fair play.",
+    ],
+  },
+  settings: {
+    badge: "⚙️",
+    title: "Settings",
+    body: [
+      "Set your timezone for kickoff times in the Tournament tab.",
+      "Toggle dark / light from the moon/sun button in the nav.",
+      "Pick rivals to watch on the Leaderboard.",
+      "Use **Reset onboarding** below to see these tips again.",
+    ],
+  },
+  results: {
+    badge: "🛠",
+    title: "Results (admin)",
+    body: [
+      "Enter final scores and live scores per match.",
+      "Saving a score immediately updates the leaderboard. The **LIVE** flag only controls the banner.",
+      "When you're done with a stage, advance it from the Dashboard tab.",
+    ],
+  },
+  dashboard: {
+    badge: "📊",
+    title: "Dashboard (admin)",
+    body: [
+      "Open / close the betting round, advance stage, and set the tournament winner.",
+      "Use **Testing tools** lower down to force-set stages or seed live data.",
+    ],
+  },
+};
+// Tabs that should never auto-open a dialog (welcome is special; auth isn't a real tab).
+const HELP_TABS = ["predictions","tournament","leaderboard","byuser","settings","results","dashboard"];
+
+function loadHelpSeen(userId){
+  if(!userId) return {};
+  try { return JSON.parse(localStorage.getItem(`mb_help_seen_${HELP_VERSION}_${userId}`)||"{}") || {}; }
+  catch { return {}; }
+}
+function saveHelpSeen(userId, seen){
+  if(!userId) return;
+  try { localStorage.setItem(`mb_help_seen_${HELP_VERSION}_${userId}`, JSON.stringify(seen)); } catch{}
+}
+
+// Tiny markdown: **bold** → <strong>, *italic* → <em>. No HTML otherwise.
+function renderHelpLine(text){
+  const parts = [];
+  let i=0, key=0;
+  while(i < text.length){
+    const bStart = text.indexOf("**", i);
+    const iStart = text.indexOf("*", i);
+    // Prefer bold if it's earlier or tied
+    if(bStart !== -1 && (iStart === -1 || iStart >= bStart)){
+      if(bStart > i) parts.push(text.slice(i, bStart));
+      const bEnd = text.indexOf("**", bStart+2);
+      if(bEnd === -1){ parts.push(text.slice(bStart)); break; }
+      parts.push(<strong key={key++}>{text.slice(bStart+2, bEnd)}</strong>);
+      i = bEnd+2;
+    } else if(iStart !== -1){
+      if(iStart > i) parts.push(text.slice(i, iStart));
+      const iEnd = text.indexOf("*", iStart+1);
+      if(iEnd === -1){ parts.push(text.slice(iStart)); break; }
+      parts.push(<em key={key++}>{text.slice(iStart+1, iEnd)}</em>);
+      i = iEnd+1;
+    } else {
+      parts.push(text.slice(i));
+      break;
+    }
+  }
+  return parts;
+}
+
+function HelpDialog({ entry, onClose, helpBtnRef }){
+  // entry: { badge, title, body[] } | null
+  const [closing, setClosing] = useState(false);
+  const dialogRef = useRef(null);
+
+  // Esc closes
+  useEffect(()=>{
+    if(!entry) return;
+    const onKey = (e)=>{ if(e.key === "Escape") triggerClose(); };
+    window.addEventListener("keydown", onKey);
+    return ()=> window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry]);
+
+  function triggerClose(){
+    if(closing || !dialogRef.current) { onClose?.(); return; }
+    // Compute translate to the help button's rect.
+    let dx = 200, dy = -100;
+    try{
+      const d = dialogRef.current.getBoundingClientRect();
+      const b = helpBtnRef?.current?.getBoundingClientRect();
+      if(b){
+        dx = (b.left + b.width/2) - (d.left + d.width/2);
+        dy = (b.top + b.height/2) - (d.top + d.height/2);
+      }
+    }catch{}
+    const el = dialogRef.current;
+    el.style.transform = `translate(${dx}px, ${dy}px) scale(0.08)`;
+    el.style.opacity = "0";
+    setClosing(true);
+    setTimeout(()=> onClose?.(), 320);
+  }
+
+  if(!entry) return null;
+  return (
+    <div
+      onClick={(e)=>{ if(e.target === e.currentTarget) triggerClose(); }}
+      style={{position:"fixed",inset:0,zIndex:200,display:"flex",alignItems:"center",
+        justifyContent:"center",padding:"24px",background:"transparent"}}>
+      <div
+        ref={dialogRef}
+        className="dialog-shrinking"
+        style={{
+          background:C.bg, color:C.text,
+          border:`1px solid ${C.border}`, borderRadius:14,
+          maxWidth:560, width:"100%",
+          boxShadow:"0 20px 50px rgba(0,0,0,.28), 0 6px 14px rgba(0,0,0,.16)",
+          overflow:"hidden", transformOrigin:"top right",
+        }}>
+        <div style={{display:"flex",alignItems:"center",gap:10,
+          padding:"14px 18px", borderBottom:`1px solid ${C.border}`,
+          background:`linear-gradient(180deg, var(--c-accent-soft) 0%, transparent 100%)`}}>
+          <span style={{background:C.accent,color:"white",width:28,height:28,borderRadius:"50%",
+            display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>
+            {entry.badge}
+          </span>
+          <h3 style={{margin:0,fontSize:16,fontWeight:700,color:C.text,flex:1}}>{entry.title}</h3>
+          <button onClick={triggerClose} title="Close (Esc)"
+            style={{background:"transparent",border:0,color:C.muted,fontSize:20,
+              cursor:"pointer",lineHeight:1,padding:"4px 8px"}}>×</button>
+        </div>
+        <div style={{padding:"14px 18px",fontSize:14,lineHeight:1.55,color:C.text}}>
+          {entry.body.map((line, idx) => {
+            const isIntro = idx === 0 && !line.includes("**") && !line.startsWith("*");
+            if(isIntro) return <p key={idx} style={{margin:"0 0 10px"}}>{renderHelpLine(line)}</p>;
+            return null;
+          })}
+          <ul style={{margin:"0 0 4px",paddingLeft:20}}>
+            {entry.body.map((line, idx) => {
+              const isIntro = idx === 0 && !line.includes("**") && !line.startsWith("*");
+              if(isIntro) return null;
+              return <li key={idx} style={{marginBottom:6}}>{renderHelpLine(line)}</li>;
+            })}
+          </ul>
+        </div>
+        <div style={{padding:"12px 18px",borderTop:`1px solid ${C.border}`,
+          background:C.panel,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+          <span style={{fontSize:12,color:C.muted}}>
+            Tip: re-open this anytime via the <b style={{color:C.accent}}>ⓘ</b> button in the nav.
+          </span>
+          <button onClick={triggerClose}
+            style={{background:C.accent,color:"white",fontWeight:700,border:0,
+              borderRadius:6,padding:"7px 14px",cursor:"pointer",fontSize:13}}>
+            Got it →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, config, setConfig, matches=[], results={}, setResults, liveMatches={}, refreshLive, refreshLb, onResetOnboarding }) {
   // Timezone (localStorage)
   const [tz, setTz] = useState(() => localStorage.getItem("mb_timezone") || "auto");
 
@@ -2254,6 +2474,26 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
           Affects kickoff times in the Tournament tab.
         </p>
       </div>
+
+      {/* Help & onboarding — everyone */}
+      {!user?.is_admin && onResetOnboarding && (
+        <div style={sectionStyle}>
+          <h2 style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:4}}>Help &amp; onboarding</h2>
+          <p style={{fontSize:13,color:C.muted,marginBottom:12}}>
+            Tap the <b style={{color:C.accent}}>ⓘ</b> button in the top nav anytime to see the help for the current tab.
+            Reset below to walk through the first-time tips again.
+          </p>
+          <button
+            onClick={()=>{
+              onResetOnboarding();
+              showToast("Onboarding reset — tips will show again");
+            }}
+            style={{background:"transparent",border:`1px solid ${C.border}`,color:C.text,
+              padding:"6px 14px",borderRadius:6,cursor:"pointer",fontSize:13,fontWeight:600}}>
+            Reset onboarding
+          </button>
+        </div>
+      )}
 
       {/* Rivals — participants only */}
       {!user?.is_admin && (
@@ -2894,6 +3134,59 @@ export default function App() {
     setTab(config.round_state === "closed" ? "leaderboard" : "predictions");
     tabInitForUserRef.current = user.id;
   }, [user?.id, config.round_state]);
+
+  // ── Onboarding (per-user, per-tab) ──────────────────────────────────────
+  const helpBtnRef = useRef(null);
+  const [helpEntry, setHelpEntry]   = useState(null);       // currently shown HelpDialog payload
+  const [helpSeen, setHelpSeen]     = useState({});         // {welcome,tournament,...}
+  const [helpBlink, setHelpBlink]   = useState(false);      // triggers the 2× pulse on the nav button
+  // Hydrate seen-map from localStorage when the user changes.
+  useEffect(()=>{
+    if(!user){ setHelpSeen({}); setHelpEntry(null); return; }
+    setHelpSeen(loadHelpSeen(user.id));
+  }, [user?.id]);
+  // Auto-open: welcome (first ever) or current tab's dialog (first visit to that tab).
+  useEffect(()=>{
+    if(!user || user.is_admin) return;          // skip admins — they know the app
+    if(helpEntry) return;                        // already showing something
+    if(!HELP_TABS.includes(tab)) return;
+    const seen = helpSeen;
+    if(!seen.welcome){
+      // Welcome covers My predictions too — flip both seen flags on close.
+      setHelpEntry({ ...HELP_CONTENT.welcome, _flagKeys: ["welcome","predictions"] });
+      return;
+    }
+    if(!seen[tab]){
+      setHelpEntry({ ...HELP_CONTENT[tab], _flagKeys: [tab] });
+    }
+  }, [user?.id, user?.is_admin, tab, helpSeen, helpEntry]);
+
+  function closeHelp(){
+    if(!helpEntry){ return; }
+    const flagKeys = helpEntry._flagKeys || [];
+    if(user && flagKeys.length){
+      const next = { ...helpSeen };
+      for(const k of flagKeys) next[k] = true;
+      setHelpSeen(next);
+      saveHelpSeen(user.id, next);
+    }
+    setHelpEntry(null);
+    // Blink the ⓘ button 2× so the user notices where the help moved to.
+    setHelpBlink(true);
+    setTimeout(()=> setHelpBlink(false), 1300);
+  }
+  function openHelpForCurrentTab(){
+    if(!user) return;
+    const key = HELP_TABS.includes(tab) ? tab : "welcome";
+    const c = HELP_CONTENT[key] || HELP_CONTENT.welcome;
+    setHelpEntry({ ...c, _flagKeys: [] }); // manual re-open doesn't toggle seen
+  }
+  function resetOnboarding(){
+    if(!user) return;
+    saveHelpSeen(user.id, {});
+    setHelpSeen({});
+    setHelpEntry(null);
+  }
   function doLogout(){setToken(null);setUser(null);setTab("auth");setMyPreds({});setMyWinner(null);setLeaderboard([]);setParticipants([]);setEntries([]);setActiveEntryId(null);setLockedWinner(null);setAdminParticipants([]);}
 
   async function refreshLive() {
@@ -3848,6 +4141,19 @@ export default function App() {
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center",fontSize:13}}>
             {user&&<span style={{color:C.text}}>Hi <b style={{color:C.accent}}>{user.name}</b>{user.is_admin?" 👑":""}</span>}
+            {user&&!user.is_admin&&(
+              <button
+                ref={helpBtnRef}
+                onClick={openHelpForCurrentTab}
+                title="Show help for this tab"
+                className={helpBlink?"help-blink":""}
+                style={{background:"transparent",border:`1px solid ${C.accent}`,color:C.accent,
+                  width:30,height:30,borderRadius:"50%",cursor:"pointer",fontSize:15,
+                  lineHeight:1,display:"inline-flex",alignItems:"center",justifyContent:"center",
+                  fontWeight:700,padding:0}}>
+                ⓘ
+              </button>
+            )}
             <button onClick={toggleTheme} title={isDark?"Switch to light mode":"Switch to dark mode"} style={{background:"transparent",border:`1px solid ${C.border}`,color:C.text,padding:"5px 9px",borderRadius:6,cursor:"pointer",fontSize:15,lineHeight:1}}>
               {isDark?"☀️":"🌙"}
             </button>
@@ -3901,7 +4207,7 @@ export default function App() {
           setResults={setResults} setLiveMatches={setLiveMatches} refreshLb={refreshLb} refreshLive={refreshLive} showToast={showToast}
         />}
         {user&&tab==="tournament"&&<Tournament matches={matches} results={effResults} liveMatches={liveMatches} myPreds={myPreds} config={config} user={user}/>}
-        {user&&tab==="settings"&&<SettingsView user={user} leaderboard={leaderboard} onLogout={doLogout} onNameUpdate={u=>{setUser(u);showToast("Name updated ✓");}} showToast={showToast} config={config} setConfig={setConfig} matches={matches} results={results} setResults={setResults} liveMatches={liveMatches} refreshLive={refreshLive} refreshLb={refreshLb}/>}
+        {user&&tab==="settings"&&<SettingsView user={user} leaderboard={leaderboard} onLogout={doLogout} onNameUpdate={u=>{setUser(u);showToast("Name updated ✓");}} showToast={showToast} config={config} setConfig={setConfig} matches={matches} results={results} setResults={setResults} liveMatches={liveMatches} refreshLive={refreshLive} refreshLb={refreshLb} onResetOnboarding={resetOnboarding}/>}
       </div>
       {toast&&(
         <div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",background:toast.kind==="err"?C.red:toast.kind==="warn"?C.accent:C.green,color:toast.kind==="warn"?"#1a1a1a":"white",padding:"8px 16px",borderRadius:6,fontSize:14,zIndex:100,boxShadow:"0 4px 12px rgba(0,0,0,0.2)",whiteSpace:"nowrap"}}>
@@ -3910,6 +4216,7 @@ export default function App() {
       )}
       <ConfirmHost/>
       <ResetPickerHost/>
+      <HelpDialog entry={helpEntry} onClose={closeHelp} helpBtnRef={helpBtnRef}/>
     </div>
   );
 }
