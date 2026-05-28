@@ -2956,8 +2956,10 @@ export default function App() {
     // for the first time), OR the form already submitted stage 1 before it
     // closed. Forms that missed the stage-1 deadline become inactive — they
     // can be viewed but not edited or submitted in any later stage.
+    // No-entry (brand-new user) is treated as active so they can still add
+    // a form during stage 1.
     const isFormActive = (e) =>
-      !!e && (openStage === 1 || !!(e.stages_submitted||{})["1"]);
+      !e || openStage === 1 || !!(e.stages_submitted||{})["1"];
     const activeFormActive = isFormActive(activeEntry);
     const editable = config.round_state==="open" && activeFormActive;
     const openMatches = matches.filter(m => matchStageObj(m.n).n <= openStage);
@@ -3352,85 +3354,93 @@ export default function App() {
           padding:"16px 16px 6px",
         } : {}}>
 
-        {/* Entry controls */}
-        {activeEntry&&(
-          <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-            {editable&&!currentStageSubmitted&&(() => {
-              const missing = Math.max(0, submittableMatches.length - filledCount);
-              const blockers = [];
-              if (missing > 0) blockers.push(`🎯 ${missing} match${missing===1?"":"es"} still to fill`);
-              if (winnerNeededForSubmit) blockers.push("🏆 winner pick needed");
-              return (
+        {/* Standalone banners that replace dedicated rows in the toolbar. */}
+        {config.round_state==="idle"&&<InfoBlock warn>⏸️ <b>No betting round is open yet.</b> The admin needs to open a round before you can enter predictions.</InfoBlock>}
+        {activeEntry&&!activeFormActive&&<InfoBlock warn>🔒 <b>This form is inactive.</b> It didn't submit stage 1 before it closed, so it can't be edited or submitted in any later stage. You can still view its predictions and stage 1 points.</InfoBlock>}
+
+        {/* Unified action toolbar — merges Submit + blockers, the winner pick,
+            the Total pill, the scoring legend (now a hover) and Delete onto a
+            single row, instead of three stacked blocks. Wraps cleanly on
+            narrow screens. */}
+        {activeEntry&&activeFormActive&&(() => {
+          const missing = Math.max(0, submittableMatches.length - filledCount);
+          const blockers = [];
+          if (missing > 0) blockers.push(`🎯 ${missing} match${missing===1?"":"es"} still to fill`);
+          if (winnerNeededForSubmit) blockers.push("🏆 winner pick needed");
+          const winnerLocked = openStage > 1 || !editable;
+          const shownWinner  = myWinner || lockedWinner;
+          return (
+            <div style={{
+              background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,
+              padding:"8px 12px",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",
+              marginBottom:14,position:"relative",zIndex:10,
+            }}>
+              {/* Left: Submit / Submitted badge */}
+              {editable&&!currentStageSubmitted&&(
                 <>
                   <Btn green onClick={submitEntry} disabled={!canSubmit||submitting}
                     title={blockers.length ? `Can't submit yet: ${blockers.join(", ")}` : ""}>
                     {submitting?"…":`Submit stage ${openStage}`}
                   </Btn>
-                  {!canSubmit && blockers.length>0 && (
+                  {!canSubmit&&blockers.length>0&&(
                     <span style={{
                       display:"inline-flex",alignItems:"center",gap:6,
                       background:"rgba(245,158,11,0.10)",color:"#f59e0b",
                       border:"1px solid rgba(245,158,11,0.35)",
-                      padding:"4px 10px",borderRadius:999,fontSize:12,fontWeight:500,
-                    }}>
-                      {blockers.join(" · ")}
-                    </span>
+                      padding:"4px 10px",borderRadius:999,fontSize:12,fontWeight:500,whiteSpace:"nowrap",
+                    }}>{blockers.join(" · ")}</span>
                   )}
                 </>
-              );
-            })()}
-            {editable&&currentStageSubmitted&&(
-              <span style={{
-                background:"rgba(16,185,129,0.10)",color:C.green,
-                border:"1px solid rgba(16,185,129,0.35)",
-                padding:"5px 12px",borderRadius:999,fontSize:12,fontWeight:600,
-              }}>
-                ✓ Stage {openStage} submitted
-              </span>
-            )}
-            {!activeEntry.submitted_at&&entries.length>1&&editable&&(
-              <Btn ghost red onClick={()=>deleteEntryById(activeEntry.id)}>Delete</Btn>
-            )}
-          </div>
-        )}
+              )}
+              {editable&&currentStageSubmitted&&(
+                <span style={{
+                  background:"rgba(16,185,129,0.10)",color:C.green,
+                  border:"1px solid rgba(16,185,129,0.35)",
+                  padding:"5px 12px",borderRadius:999,fontSize:12,fontWeight:600,whiteSpace:"nowrap",
+                }}>✓ Stage {openStage} submitted</span>
+              )}
 
-        {config.round_state==="idle"&&<InfoBlock warn>⏸️ <b>No betting round is open yet.</b> The admin needs to open a round before you can enter predictions.</InfoBlock>}
-        {config.round_state==="open"&&activeFormActive&&<InfoBlock>✏️ <b>Round is open.</b> Predictions save automatically when you leave each field.<br/><b>Scoring:</b> 5 pts correct direction · +3 exact · +1 partial · 10 pts tournament winner.</InfoBlock>}
-        {config.round_state==="closed"&&activeFormActive&&<InfoBlock>🔒 <b>Round closed.</b> Points appear once the admin enters results.</InfoBlock>}
-        {activeEntry&&!activeFormActive&&<InfoBlock warn>🔒 <b>This form is inactive.</b> It didn't submit stage 1 before it closed, so it can't be edited or submitted in any later stage. You can still view its predictions and stage 1 points.</InfoBlock>}
+              {/* Middle: winner pick (compact chip when locked, full picker while editable) */}
+              {winnerLocked ? (
+                <span title="Tournament winner pick (+10 pts)" style={{
+                  display:"inline-flex",alignItems:"center",gap:6,fontSize:13,
+                  background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"5px 10px",whiteSpace:"nowrap",
+                }}>
+                  🏆 <b style={{fontWeight:700}}>{shownWinner?withFlag(shownWinner):"—"}</b>
+                  <span style={{background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700}}>🔒</span>
+                </span>
+              ) : (
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{color:C.muted,fontSize:12,whiteSpace:"nowrap"}}>🏆 Winner (+10):</span>
+                  <TeamPicker value={myWinner} onChange={saveWinner} teams={teams} disabled={false} placeholder="Choose a team…"/>
+                </div>
+              )}
+              {config.tournament_winner&&<span style={{color:C.muted,fontSize:12,whiteSpace:"nowrap"}}>🏆 actual: <b style={{color:C.accent}}>{withFlag(config.tournament_winner)}</b></span>}
 
-        {/* Winner pick — editable while stage 1 is still the current open
-            stage. Once admin advances past stage 1 the pick is locked. */}
-        {(() => {
-          const winnerLocked = openStage > 1 || !editable;
-          const shownWinner  = myWinner || lockedWinner;
-          return (
-        <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:12,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:16,position:"relative",zIndex:10}}>
-          <label style={{color:C.text,fontSize:14,flexShrink:0}}>🏆 Tournament winner pick (+10 pts):</label>
-          {winnerLocked ? (
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <span style={{fontSize:14,color:C.text,fontWeight:600}}>{shownWinner?withFlag(shownWinner):"—"}</span>
-              <span style={{background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"2px 8px",borderRadius:4,fontSize:11,fontWeight:700}}>🔒 locked</span>
+              {/* Total points pill */}
+              {myLbEntry&&(
+                <div style={{
+                  display:"inline-flex",alignItems:"baseline",gap:7,
+                  background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,
+                  padding:"5px 11px",fontSize:12,color:C.muted,whiteSpace:"nowrap",
+                }} title={`Total for "${activeEntry.name}"`}>
+                  <span style={{color:C.muted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",fontSize:10}}>Total</span>
+                  <b style={{color:C.accent,fontSize:18,fontFamily:"monospace",fontWeight:700,lineHeight:1}}>{myLbEntry.total}</b>
+                  <span>pts · {myLbEntry.scored_matches}/{matches.length}</span>
+                  {myLbEntry.winner_bonus>0&&<span style={{color:C.green,fontWeight:600}}>· 🏆 +10</span>}
+                </div>
+              )}
+
+              {/* Right side: scoring info + Delete */}
+              <span style={{flex:1,minWidth:0}}/>
+              <span title="Scoring · 5 pts correct direction · +3 exact · +1 partial · 10 pts tournament winner. Predictions save automatically when you leave a field." style={{
+                display:"inline-flex",alignItems:"center",gap:5,color:C.muted,fontSize:12,
+                border:`1px solid ${C.border}`,borderRadius:999,padding:"3px 10px",cursor:"help",background:C.panel,whiteSpace:"nowrap",
+              }}>ⓘ scoring</span>
+              {!activeEntry.submitted_at&&entries.length>1&&editable&&(
+                <Btn ghost red onClick={()=>deleteEntryById(activeEntry.id)}>Delete</Btn>
+              )}
             </div>
-          ):(
-            <TeamPicker value={myWinner} onChange={saveWinner} teams={teams} disabled={false} placeholder="Choose a team…"/>
-          )}
-          {config.tournament_winner&&<span style={{color:C.muted,fontSize:13}}>🏆 actual: <b style={{color:C.accent}}>{withFlag(config.tournament_winner)}</b></span>}
-          <span style={{flex:1,minWidth:0}}/>
-          {/* Total points pill — visible whenever the selected form has a leaderboard entry */}
-          {myLbEntry&&(
-            <div style={{
-              display:"inline-flex",alignItems:"baseline",gap:8,
-              background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,
-              padding:"6px 12px",fontSize:12,color:C.muted,
-            }} title={activeEntry?`Total for "${activeEntry.name}"`:""}>
-              <span style={{color:C.muted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",fontSize:10}}>Total</span>
-              <b style={{color:C.accent,fontSize:20,fontFamily:"monospace",fontWeight:700,lineHeight:1}}>{myLbEntry.total}</b>
-              <span>pts · {myLbEntry.scored_matches}/{matches.length} scored</span>
-              {myLbEntry.winner_bonus>0&&<span style={{color:C.green,fontWeight:600}}>· 🏆 +10</span>}
-            </div>
-          )}
-        </div>
           );
         })()}
 
