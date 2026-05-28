@@ -689,9 +689,17 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
   async function savePred(side,val) {
     editingRef.current = false;
     const a=side===0?val:localA, b=side===1?val:localB;
-    if(a===""||b==="") return;
+    const wasFilled  = pred?.[0]!=null && pred?.[1]!=null;
+    const willBeFilled = (a!=="" && b!=="");
+    // empty → still empty: nothing to do (avoid pointless API calls)
+    if (!wasFilled && !willBeFilled) return;
+    // If the user cleared either side, the prediction is no longer complete:
+    // persist nulls so myPreds / filledCount / the Submit button reflect it.
+    const data = willBeFilled
+      ? {score_a:Number(a), score_b:Number(b)}
+      : {score_a:null,     score_b:null};
     pendingSaveRef.current = true;
-    try { await onSave(match.n,{score_a:Number(a),score_b:Number(b)}); }
+    try { await onSave(match.n, data); }
     catch(e){console.error(e);}
     finally { pendingSaveRef.current = false; }
   }
