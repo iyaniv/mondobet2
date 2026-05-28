@@ -95,6 +95,14 @@ async def submit_entry(
     # after Submit, which invalidates the stage flag in set_prediction
     # and forces them to come back here to re-confirm.
     stage = cfg.current_stage or 1
+    # A form that missed the stage-1 submission deadline (i.e. didn't submit
+    # before the admin advanced past stage 1) becomes "inactive" — it cannot
+    # submit any further stages.
+    if stage > 1 and "1" not in (entry.stages_submitted or {}):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "This form didn't submit stage 1 before it closed — it's no longer active."
+        )
     results_map = await crud.get_all_results(db)
     live_map = await crud.get_live_matches(db)
     stage_matches = [

@@ -2758,7 +2758,11 @@ export default function App() {
   const [simLb,setSimLb]=useState(null);
   const [simLoading,setSimLoading]=useState(false);
   const unplayedPredMatches = matches.filter(m=>!results[m.n]&&!liveMatches[m.n]&&myPreds?.[m.n]?.[0]!=null);
-  const canSim = !user?.is_admin && unplayedPredMatches.length>0;
+  // Simulate / Actual toggle is always available for a stable UI. When there
+  // are no unplayed predictions the simulated leaderboard equals the actual
+  // one, so flipping the toggle is just a no-op rather than the button
+  // disappearing.
+  const canSim = !!user;
   // Fetch the simulated leaderboard when Simulate turns on — unplayed matches
   // resolve to my own predictions and (if no champion yet) my winner pick.
   useEffect(()=>{
@@ -2776,7 +2780,9 @@ export default function App() {
   // Simulation is "active" once the simulated leaderboard has loaded. While
   // active, every view (By-participant, bracket) should treat unplayed matches
   // as resolved to MY predictions — purely client-side, only on my screen.
-  const simActive = simMode && canSim && !!simLb;
+  // Active only when there's actually something to simulate — keeps the
+  // banner / indigo styling from showing for a no-op toggle.
+  const simActive = simMode && canSim && !!simLb && unplayedPredMatches.length > 0;
   const simResults = (() => {
     if (!simActive) return results;
     const merged = { ...results };
@@ -2943,9 +2949,16 @@ export default function App() {
 
   // ── My Predictions ────────────────────────────────────────────────────────
   function MyPredictions(){
-    const editable=config.round_state==="open";
     const activeEntry=entries.find(e=>e.id===activeEntryId)||entries[0]||null;
     const openStage = config.current_stage || 1;
+    // A form is "active" if either we're still in stage 1 (anyone can submit
+    // for the first time), OR the form already submitted stage 1 before it
+    // closed. Forms that missed the stage-1 deadline become inactive — they
+    // can be viewed but not edited or submitted in any later stage.
+    const isFormActive = (e) =>
+      !!e && (openStage === 1 || !!(e.stages_submitted||{})["1"]);
+    const activeFormActive = isFormActive(activeEntry);
+    const editable = config.round_state==="open" && activeFormActive;
     const openMatches = matches.filter(m => matchStageObj(m.n).n <= openStage);
     // Each entry now tracks per-stage submission. The "submitted_at" legacy
     // field is just the earliest stage submission; the source of truth is
@@ -3231,12 +3244,14 @@ export default function App() {
                             width:Math.max(80,renameVal.length*8)+"px",minWidth:80,maxWidth:200}}/>
                       ):(
                         <>
-                          <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.name}</span>
-                          {submitted
-                            ? <span style={{fontSize:13,color:C.green,fontWeight:700}}>✓</span>
-                            : editable
-                              ? <span title={`Not submitted for stage ${openStage}`} style={{fontSize:10,color:"#f59e0b",fontWeight:700,lineHeight:1,letterSpacing:0}}>●</span>
-                              : <span title={`Not submitted — stage ${openStage} is closed`} style={{fontSize:10,color:C.red,fontWeight:700,lineHeight:1,letterSpacing:0}}>●</span>
+                          <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",opacity:isFormActive(e)?1:0.55}}>{e.name}</span>
+                          {!isFormActive(e)
+                            ? <span title="Inactive — didn't submit stage 1 before it closed" style={{fontSize:12,color:C.muted,lineHeight:1}}>🔒</span>
+                            : submitted
+                              ? <span style={{fontSize:13,color:C.green,fontWeight:700}}>✓</span>
+                              : config.round_state==="open"
+                                ? <span title={`Not submitted for stage ${openStage}`} style={{fontSize:10,color:"#f59e0b",fontWeight:700,lineHeight:1,letterSpacing:0}}>●</span>
+                                : <span title={`Not submitted — stage ${openStage} is closed`} style={{fontSize:10,color:C.red,fontWeight:700,lineHeight:1,letterSpacing:0}}>●</span>
                           }
                           {openStage===1&&(
                             <span onClick={ev=>startRename(ev,e)} title="Rename form" style={{
@@ -3379,8 +3394,9 @@ export default function App() {
         )}
 
         {config.round_state==="idle"&&<InfoBlock warn>⏸️ <b>No betting round is open yet.</b> The admin needs to open a round before you can enter predictions.</InfoBlock>}
-        {config.round_state==="open"&&<InfoBlock>✏️ <b>Round is open.</b> Predictions save automatically when you leave each field.<br/><b>Scoring:</b> 5 pts correct direction · +3 exact · +1 partial · 10 pts tournament winner.</InfoBlock>}
-        {config.round_state==="closed"&&<InfoBlock>🔒 <b>Round closed.</b> Points appear once the admin enters results.</InfoBlock>}
+        {config.round_state==="open"&&activeFormActive&&<InfoBlock>✏️ <b>Round is open.</b> Predictions save automatically when you leave each field.<br/><b>Scoring:</b> 5 pts correct direction · +3 exact · +1 partial · 10 pts tournament winner.</InfoBlock>}
+        {config.round_state==="closed"&&activeFormActive&&<InfoBlock>🔒 <b>Round closed.</b> Points appear once the admin enters results.</InfoBlock>}
+        {activeEntry&&!activeFormActive&&<InfoBlock warn>🔒 <b>This form is inactive.</b> It didn't submit stage 1 before it closed, so it can't be edited or submitted in any later stage. You can still view its predictions and stage 1 points.</InfoBlock>}
 
         {/* Winner pick — editable while stage 1 is still the current open
             stage. Once admin advances past stage 1 the pick is locked. */}
@@ -3680,7 +3696,7 @@ export default function App() {
           </div>
         </div>
 
-        {simMode&&(
+        {simMode&&unplayedPredMatches.length>0&&(
           <div style={{background:"rgba(99,102,241,0.12)",border:`1px solid ${C.indigo}`,
             borderRadius:6,padding:"7px 14px",marginBottom:14,fontSize:13,color:C.indigo}}>
             ✨ Simulating <b>{unplayedPredMatches.length}</b> unplayed match{unplayedPredMatches.length!==1?"es":""} with <b>your</b> predictions as results — all users' scores are recomputed accordingly{simLoading?" · loading…":""}

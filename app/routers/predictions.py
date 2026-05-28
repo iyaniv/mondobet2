@@ -75,6 +75,13 @@ async def set_prediction(
     if match_n in live_map:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Match is live — cannot edit.")
     entry = await _resolve_entry(entry_id, user, db)
+    # A form that missed the stage-1 submission deadline is inactive — it can
+    # neither be submitted nor edited going forward.
+    if (cfg.current_stage or 1) > 1 and "1" not in (entry.stages_submitted or {}):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "This form didn't submit stage 1 before it closed — it's no longer active."
+        )
     pred = await crud.upsert_prediction(db, entry.id, match_n, data.score_a, data.score_b)
     # Editing invalidates this stage's submission — user must re-Submit.
     stages = dict(entry.stages_submitted or {})

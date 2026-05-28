@@ -632,6 +632,11 @@ export const api = {
     if (!entry||entry.user_id!==user.id) throw new Error("Entry not found");
     const stage = S.config.current_stage || 1;
     if (!entry.stages_submitted) entry.stages_submitted = {};
+    // A form that missed the stage-1 submission deadline becomes inactive —
+    // it cannot submit any subsequent stage.
+    if (stage > 1 && !entry.stages_submitted["1"]) {
+      throw new Error("This form didn't submit stage 1 before it closed — it's no longer active.");
+    }
     // Re-submission is allowed — the timestamp simply updates. Users can
     // edit their predictions after Submit, which clears the stage flag in
     // setPrediction; then they click Submit again to re-confirm.
@@ -681,6 +686,10 @@ export const api = {
     }
     if (S.results[matchN]) throw new Error("Match already has a result");
     if (S.live[matchN])    throw new Error("Match is live — cannot edit");
+    const entryRef = S.entries[eid];
+    if ((S.config.current_stage||1) > 1 && !(entryRef?.stages_submitted||{})["1"]) {
+      throw new Error("This form didn't submit stage 1 before it closed — it's no longer active.");
+    }
     if (!S.predictions[eid]) S.predictions[eid] = {};
     S.predictions[eid][matchN] = [d.score_a, d.score_b];
     // Editing invalidates THIS stage's submission on THIS form — the user
