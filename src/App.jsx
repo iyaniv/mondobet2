@@ -3170,7 +3170,22 @@ export default function App() {
           stages_submitted: {...(e.stages_submitted||{}), [openStage]: now},
         }));
         if(openStage===1 && !lockedWinner) setLockedWinner(myWinner);
-        showToast(`Stage ${openStage} submitted! 🎉`);
+        // If the user has OTHER active forms that haven't submitted this stage
+        // yet, nudge them so they don't forget. Locked/inactive forms (missed
+        // the stage-1 deadline) are excluded — they can't submit anyway.
+        const stageKey = String(openStage);
+        const pending = entries.filter(e =>
+          e.id !== activeEntryId
+          && isFormActive(e)
+          && !((e.stages_submitted||{})[stageKey] || (e.stages_submitted||{})[openStage])
+        );
+        if (pending.length > 0) {
+          const names = pending.slice(0,2).map(e=>`"${e.name}"`).join(", ");
+          const more  = pending.length > 2 ? ` +${pending.length-2} more` : "";
+          showToast(`Stage ${openStage} submitted ✓ · still pending: ${names}${more}`);
+        } else {
+          showToast(`Stage ${openStage} submitted! 🎉`);
+        }
         refreshLb();
       }catch(e){showToast(e.message,"err");}
       finally{setSubmitting(false);}
