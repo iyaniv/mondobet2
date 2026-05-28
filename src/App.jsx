@@ -2780,9 +2780,10 @@ export default function App() {
   // Simulation is "active" once the simulated leaderboard has loaded. While
   // active, every view (By-participant, bracket) should treat unplayed matches
   // as resolved to MY predictions — purely client-side, only on my screen.
-  // Active only when there's actually something to simulate — keeps the
-  // banner / indigo styling from showing for a no-op toggle.
-  const simActive = simMode && canSim && !!simLb && unplayedPredMatches.length > 0;
+  // We deliberately DON'T require unplayed matches: flipping Simulate should
+  // always feel like sim mode (banner + indigo styling on), even when nothing
+  // actually changes because there's nothing to simulate yet.
+  const simActive = simMode && canSim && !!simLb;
   const simResults = (() => {
     if (!simActive) return results;
     const merged = { ...results };
@@ -3696,10 +3697,12 @@ export default function App() {
           </div>
         </div>
 
-        {simMode&&unplayedPredMatches.length>0&&(
+        {simMode&&(
           <div style={{background:"rgba(99,102,241,0.12)",border:`1px solid ${C.indigo}`,
             borderRadius:6,padding:"7px 14px",marginBottom:14,fontSize:13,color:C.indigo}}>
-            ✨ Simulating <b>{unplayedPredMatches.length}</b> unplayed match{unplayedPredMatches.length!==1?"es":""} with <b>your</b> predictions as results — all users' scores are recomputed accordingly{simLoading?" · loading…":""}
+            {unplayedPredMatches.length>0
+              ? <>✨ Simulating <b>{unplayedPredMatches.length}</b> unplayed match{unplayedPredMatches.length!==1?"es":""} with <b>your</b> predictions as results — all users' scores are recomputed accordingly{simLoading?" · loading…":""}</>
+              : <>✨ <b>Simulation mode is on.</b> No unplayed predictions to apply — the standings here match the actual leaderboard.</>}
           </div>
         )}
 
@@ -3725,8 +3728,12 @@ export default function App() {
                     const globalRank = displayLb.indexOf(row) + 1;
                     const isMe=row.user_id===user?.id;
                     const isRival=!isMe&&myRivals.includes(row.user_id);
-                    const isSim=simMode&&row._simDiff!=null&&row._simDiff!==0;
+                    // Visual sim-mode (indigo row + total) is on whenever the
+                    // user toggled Simulate. The "+N sim" diff badge is only
+                    // shown when this row's total actually moved.
+                    const isSim=simMode;
                     const simDiff=row._simDiff||0;
+                    const hasSimDiff=simMode&&row._simDiff!=null&&row._simDiff!==0;
                     const i = globalRank - 1;
                     const rowBg=i===0?"rgba(163,230,53,0.12)":i===1?"rgba(163,230,53,0.07)":i===2?"rgba(163,230,53,0.03)":isRival?"rgba(163,230,53,0.05)":"transparent";
                     let winnerCell;
@@ -3755,7 +3762,7 @@ export default function App() {
                         </td>
                         <td style={{...td,textAlign:"center",color:isSim?C.indigo:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:17}}>
                           {row.total}
-                          {isSim&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}>{simDiff>0?"+":""}{simDiff} sim</span>}
+                          {hasSimDiff&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}>{simDiff>0?"+":""}{simDiff} sim</span>}
                         </td>
                         <td style={td}>{winnerCell}</td>
                         {canJumpToParticipant&&(
