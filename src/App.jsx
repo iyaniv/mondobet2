@@ -3400,7 +3400,14 @@ export default function App() {
                 }}>✓ Stage {openStage} submitted</span>
               )}
 
-              {/* Middle: winner pick (compact chip when locked, full picker while editable) */}
+              {!activeEntry.submitted_at&&entries.length>1&&editable&&(
+                <Btn ghost red onClick={()=>deleteEntryById(activeEntry.id)}>Delete</Btn>
+              )}
+
+              {/* Push the winner chip + total pill to the right edge */}
+              <span style={{flex:1,minWidth:0}}/>
+
+              {/* Winner pick (compact chip when locked, full picker while editable) */}
               {winnerLocked ? (
                 <span title="Tournament winner pick (+10 pts)" style={{
                   display:"inline-flex",alignItems:"center",gap:6,fontSize:13,
@@ -3429,16 +3436,6 @@ export default function App() {
                   <span>pts · {myLbEntry.scored_matches}/{matches.length}</span>
                   {myLbEntry.winner_bonus>0&&<span style={{color:C.green,fontWeight:600}}>· 🏆 +10</span>}
                 </div>
-              )}
-
-              {/* Right side: scoring info + Delete */}
-              <span style={{flex:1,minWidth:0}}/>
-              <span title="Scoring · 5 pts correct direction · +3 exact · +1 partial · 10 pts tournament winner. Predictions save automatically when you leave a field." style={{
-                display:"inline-flex",alignItems:"center",gap:5,color:C.muted,fontSize:12,
-                border:`1px solid ${C.border}`,borderRadius:999,padding:"3px 10px",cursor:"help",background:C.panel,whiteSpace:"nowrap",
-              }}>ⓘ scoring</span>
-              {!activeEntry.submitted_at&&entries.length>1&&editable&&(
-                <Btn ghost red onClick={()=>deleteEntryById(activeEntry.id)}>Delete</Btn>
               )}
             </div>
           );
