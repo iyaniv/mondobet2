@@ -2202,11 +2202,16 @@ const HELP_CONTENT = {
     badge: "👋",
     title: "Welcome to MondoBet",
     body: [
-      "The friendly World Cup prediction game we used to play in Excel — now slightly less primitive 😄",
-      "**Predict** the 90-minute score of every match. Multiple **forms** let you try different strategies.",
-      "**Scoring:** 5 pts correct direction · +3 exact · +1 partial · +10 tournament winner.",
-      "**Tabs:** Tournament (bracket), Leaderboard (rankings + Simulate), By participant (browse anyone's bets), My predictions (where you fill / submit).",
-      "Forms must submit **stage 1** before it closes to stay active for later stages.",
+      "**How it works** — for every match, predict the 90-minute score. You can run multiple **forms** in parallel to try different strategies.",
+      "**Scoring** — **5 pts** if you call the direction right, **+3 bonus** for the exact score, **+1** if you got one side's score right, and **+10** for picking the tournament winner.",
+      { text: "**Five tabs at the top:**", subs: [
+        "**Tournament** — full bracket and schedule, with live scores and your picks alongside the real results.",
+        "**Leaderboard** — live rankings across every form, plus a Simulate mode that shows where you'd land if your remaining picks come true.",
+        "**By participant** — peek at any other player's submitted forms once the stage is closed.",
+        "**My predictions** — where you fill in scores, pick a tournament winner, and submit each stage.",
+        "**Settings** — your timezone, rivals to watch, theme, and reset the onboarding tips.",
+      ]},
+      "**Important** — a form must submit its **stage 1** picks before stage 1 closes. Otherwise it's parked and can't be edited or submitted for the rest of the tournament.",
     ],
   },
   predictions: {
@@ -2214,6 +2219,7 @@ const HELP_CONTENT = {
     title: "My predictions",
     body: [
       "Fill in scores for every match. They save automatically as you type.",
+      "**Scoring** — **5 pts** if you call the direction right, **+3 bonus** for the exact score, **+1** if you got one side's score right, and **+10** for picking the tournament winner.",
       "Pick a **tournament winner** (+10 pts) — locked once stage 1 closes.",
       "Hit **Submit** when a stage is complete. You can keep editing the current stage and re-submit until it closes.",
       "Stuck on multiple strategies? Click **+ Add form** to maintain another set of picks.",
@@ -2358,45 +2364,82 @@ function HelpDialog({ entry, onClose, helpBtnRef }){
         className="dialog-shrinking"
         style={{
           background:C.bg, color:C.text,
-          border:`1px solid ${C.border}`, borderRadius:14,
-          maxWidth:560, width:"100%",
-          boxShadow:"0 20px 50px rgba(0,0,0,.28), 0 6px 14px rgba(0,0,0,.16)",
+          border:`1px solid ${C.border}`, borderRadius:16,
+          maxWidth:680, width:"100%",
+          boxShadow:"0 24px 60px rgba(0,0,0,.32), 0 8px 18px rgba(0,0,0,.18)",
           overflow:"hidden", transformOrigin:"top right",
         }}>
-        <div style={{display:"flex",alignItems:"center",gap:10,
-          padding:"14px 18px", borderBottom:`1px solid ${C.border}`,
+        <div style={{display:"flex",alignItems:"center",gap:14,
+          padding:"20px 26px", borderBottom:`1px solid ${C.border}`,
           background:`linear-gradient(180deg, var(--c-accent-soft) 0%, transparent 100%)`}}>
-          <span style={{background:C.accent,color:"white",width:28,height:28,borderRadius:"50%",
-            display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>
+          <span style={{background:C.accent,color:"white",width:40,height:40,borderRadius:"50%",
+            display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>
             {entry.badge}
           </span>
-          <h3 style={{margin:0,fontSize:16,fontWeight:700,color:C.text,flex:1}}>{entry.title}</h3>
+          <h3 style={{margin:0,fontSize:20,fontWeight:700,color:C.text,flex:1,letterSpacing:0.2}}>
+            {entry.title}
+          </h3>
           <button onClick={triggerClose} title="Close (Esc)"
-            style={{background:"transparent",border:0,color:C.muted,fontSize:20,
-              cursor:"pointer",lineHeight:1,padding:"4px 8px"}}>×</button>
+            style={{background:"transparent",border:0,color:C.muted,fontSize:24,
+              cursor:"pointer",lineHeight:1,padding:"4px 10px"}}>×</button>
         </div>
-        <div style={{padding:"14px 18px",fontSize:14,lineHeight:1.55,color:C.text}}>
-          {entry.body.map((line, idx) => {
-            const isIntro = idx === 0 && !line.includes("**") && !line.startsWith("*");
-            if(isIntro) return <p key={idx} style={{margin:"0 0 10px"}}>{renderHelpLine(line)}</p>;
+        <div style={{padding:"22px 28px 18px",fontSize:15,lineHeight:1.65,color:C.text}}>
+          {entry.body.map((item, idx) => {
+            // String item that doesn't use any markdown → intro paragraph (no bullet).
+            if(typeof item === "string"){
+              const isIntro = idx === 0 && !item.includes("**") && !item.startsWith("*");
+              if(isIntro) return (
+                <p key={idx} style={{margin:"0 0 16px",fontSize:15.5,color:C.text}}>
+                  {renderHelpLine(item)}
+                </p>
+              );
+            }
             return null;
           })}
-          <ul style={{margin:"0 0 4px",paddingLeft:20}}>
-            {entry.body.map((line, idx) => {
-              const isIntro = idx === 0 && !line.includes("**") && !line.startsWith("*");
-              if(isIntro) return null;
-              return <li key={idx} style={{marginBottom:6}}>{renderHelpLine(line)}</li>;
+          <ul style={{margin:"0",paddingLeft:22,listStyle:"none"}}>
+            {entry.body.map((item, idx) => {
+              if(typeof item === "string"){
+                const isIntro = idx === 0 && !item.includes("**") && !item.startsWith("*");
+                if(isIntro) return null;
+                return (
+                  <li key={idx} style={{marginBottom:14, paddingLeft:14, position:"relative"}}>
+                    <span style={{position:"absolute", left:-2, top:11,
+                      width:6, height:6, borderRadius:"50%",
+                      background:C.accent, display:"inline-block"}}/>
+                    {renderHelpLine(item)}
+                  </li>
+                );
+              }
+              // Object item: { text, subs:[] } — main bullet + nested sub-bullets.
+              const { text, subs } = item;
+              return (
+                <li key={idx} style={{marginBottom:14, paddingLeft:14, position:"relative"}}>
+                  <span style={{position:"absolute", left:-2, top:11,
+                    width:6, height:6, borderRadius:"50%",
+                    background:C.accent, display:"inline-block"}}/>
+                  {renderHelpLine(text)}
+                  <ul style={{margin:"6px 0 0",paddingLeft:18,listStyle:"none"}}>
+                    {subs.map((s, j) => (
+                      <li key={j} style={{marginBottom:5, paddingLeft:12, position:"relative"}}>
+                        <span style={{position:"absolute", left:0, top:11,
+                          width:5, height:1.5, background:C.muted, display:"inline-block"}}/>
+                        {renderHelpLine(s)}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              );
             })}
           </ul>
         </div>
-        <div style={{padding:"12px 18px",borderTop:`1px solid ${C.border}`,
-          background:C.panel,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-          <span style={{fontSize:12,color:C.muted}}>
+        <div style={{padding:"16px 26px",borderTop:`1px solid ${C.border}`,
+          background:C.panel,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+          <span style={{fontSize:13,color:C.muted}}>
             Tip: re-open this anytime via the <b style={{color:C.accent}}>ⓘ</b> button in the nav.
           </span>
           <button onClick={triggerClose}
             style={{background:C.accent,color:"white",fontWeight:700,border:0,
-              borderRadius:6,padding:"7px 14px",cursor:"pointer",fontSize:13}}>
+              borderRadius:8,padding:"9px 20px",cursor:"pointer",fontSize:14}}>
             Got it →
           </button>
         </div>
