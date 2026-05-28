@@ -2872,14 +2872,28 @@ export default function App() {
 
   useEffect(()=>{
     if(!getToken()){setAuthLoading(false);return;}
-    api.me().then(u=>{setUser(u);setTab(u.is_admin?"results":"predictions");setAuthLoading(false);loadGameData(u.is_admin,u.id);}).catch(()=>{setToken(null);setAuthLoading(false);});
+    api.me().then(u=>{setUser(u);setAuthLoading(false);loadGameData(u.is_admin,u.id);}).catch(()=>{setToken(null);setAuthLoading(false);});
   },[loadGameData]);
 
   async function doLogin(userData,token){
-    setToken(token);setUser(userData);setTab(userData.is_admin?"results":"predictions");
+    setToken(token);setUser(userData);
     showToast(`Welcome, ${userData.name}!`);
     loadGameData(userData.is_admin,userData.id); // background — UI already visible
   }
+
+  // Pick the default tab once after auth, based on the current round state.
+  //   admin                 → Results (their primary tab)
+  //   round CLOSED          → Leaderboard
+  //   anything else         → My predictions
+  // Runs once per logged-in user (a ref one-shots it).
+  const tabInitForUserRef = useRef(null);
+  useEffect(() => {
+    if (!user) { tabInitForUserRef.current = null; return; }
+    if (tabInitForUserRef.current === user.id) return;
+    if (user.is_admin) { setTab("results"); tabInitForUserRef.current = user.id; return; }
+    setTab(config.round_state === "closed" ? "leaderboard" : "predictions");
+    tabInitForUserRef.current = user.id;
+  }, [user?.id, config.round_state]);
   function doLogout(){setToken(null);setUser(null);setTab("auth");setMyPreds({});setMyWinner(null);setLeaderboard([]);setParticipants([]);setEntries([]);setActiveEntryId(null);setLockedWinner(null);setAdminParticipants([]);}
 
   async function refreshLive() {
@@ -2943,8 +2957,8 @@ export default function App() {
   }, [user?.id, config.round_state, tab]);
 
   const tabs=!user?[]:user.is_admin
-    ?[{id:"results",label:"Results",admin:true},{id:"tournament",label:"🏟 Tournament"},{id:"leaderboard",label:"Leaderboard"},{id:"byuser",label:"By participant"},{id:"dashboard",label:"Dashboard",admin:true},{id:"settings",label:"⚙ Settings"}]
-    :[{id:"predictions",label:"My predictions"},{id:"leaderboard",label:"Leaderboard"},...(leaderboard.length>0?[{id:"byuser",label:"By participant"}]:[]),{id:"tournament",label:"🏟 Tournament"},{id:"settings",label:"⚙ Settings"}];
+    ?[{id:"tournament",label:"🏟 Tournament"},{id:"leaderboard",label:"Leaderboard"},{id:"byuser",label:"By participant"},{id:"results",label:"Results",admin:true},{id:"dashboard",label:"Dashboard",admin:true},{id:"settings",label:"⚙ Settings"}]
+    :[{id:"tournament",label:"🏟 Tournament"},{id:"leaderboard",label:"Leaderboard"},...(leaderboard.length>0?[{id:"byuser",label:"By participant"}]:[]),{id:"predictions",label:"My predictions"},{id:"settings",label:"⚙ Settings"}];
 
   function RoundPill(){
     const map={
