@@ -2244,7 +2244,7 @@ const HELP_CONTENT = {
     body: [
       "Rankings across every submitted form, updated as results come in.",
       "Click a row to see that participant's full picks (or your own).",
-      "Tap the **★** next to any name to favorite that form — your own forms start out favorited. Tap the **★** in the column header to show only your favorites.",
+      "Tap the **★** next to any name to favorite that form — your own forms are always favorited. Tap the **★** in the column header to show only your favorites.",
       "**Simulate** ▾ — see hypothetical standings *if* every remaining pick of yours comes true. Only you see the simulation.",
     ],
   },
@@ -3050,19 +3050,10 @@ export default function App() {
       return next;
     });
   },[favoritesKey]);
-  // Seed the user's own forms as favorites the first time only (before they've
-  // touched the stars), so their own cards are starred by default. Once the key
-  // exists in localStorage — even as an empty list — we never re-seed, so the
-  // user's later choices (including un-starring their own forms) are respected.
-  useEffect(()=>{
-    if(!favoritesKey||!user?.id) return;
-    if(localStorage.getItem(favoritesKey)!=null) return; // already initialised
-    if(!leaderboard.length) return;                      // wait for data
-    const ownKeys = leaderboard.filter(r=>r.user_id===user.id).map(r=>r.entry_id||r.user_id);
-    if(!ownKeys.length) return;
-    try { localStorage.setItem(favoritesKey, JSON.stringify(ownKeys)); } catch {}
-    setFavorites(ownKeys);
-  },[favoritesKey,leaderboard,user]);
+  // The user's own forms are ALWAYS favorited and can't be un-starred — that's
+  // enforced at render time (isMe ⇒ favorited, locked star), so it doesn't need
+  // to live in the persisted `favorites` list. Only other people's forms are
+  // toggled into/out of localStorage.
   const [hoveredRow,setHoveredRow]=useState(null);
   const [simMode,setSimMode]=useState(false);
   const [simLb,setSimLb]=useState(null);
@@ -4111,7 +4102,9 @@ export default function App() {
     // App so the 10s leaderboard poll doesn't reset them. A row is favorited by
     // its key (entry_id, falling back to user_id).
     const rowKeyOf = (row) => row.entry_id || row.user_id;
-    const isFavRow = (row) => favorites.includes(rowKeyOf(row));
+    // The user's own forms are always favorited (and locked); other rows are
+    // favorited only if explicitly starred into the persisted list.
+    const isFavRow = (row) => row.user_id===user?.id || favorites.includes(rowKeyOf(row));
     // NOTE: favOnly / hoveredRow / simMode / simLb / simLoading and the sim
     // fetch effect live in App (lifted) so this view can be called inline as
     // {LeaderboardView()} without remounting on the 10s poll.
@@ -4294,13 +4287,22 @@ export default function App() {
                           }}>
                         <td style={{...td,textAlign:"center",width:40,padding:"8px 4px"}}><b>{globalRank}</b></td>
                         <td style={{...td,textAlign:"center",width:40,padding:"8px 4px"}}>
-                          <span
-                            onClick={(e)=>{e.stopPropagation();toggleFavorite(rowKey);}}
-                            title={isFav?"Remove from favorites":"Add to favorites"}
-                            style={{cursor:"pointer",fontSize:16,lineHeight:1,userSelect:"none",
-                              color:isFav?C.accent:C.muted,opacity:isFav?1:0.5,transition:"all .15s"}}>
-                            {isFav?"★":"☆"}
-                          </span>
+                          {isMe?(
+                            <span
+                              onClick={(e)=>e.stopPropagation()}
+                              title="Your own form — always in your favorites"
+                              style={{fontSize:16,lineHeight:1,userSelect:"none",cursor:"default",color:C.accent}}>
+                              ★
+                            </span>
+                          ):(
+                            <span
+                              onClick={(e)=>{e.stopPropagation();toggleFavorite(rowKey);}}
+                              title={isFav?"Remove from favorites":"Add to favorites"}
+                              style={{cursor:"pointer",fontSize:16,lineHeight:1,userSelect:"none",
+                                color:isFav?C.accent:C.muted,opacity:isFav?1:0.5,transition:"all .15s"}}>
+                              {isFav?"★":"☆"}
+                            </span>
+                          )}
                         </td>
                         <td style={td}>{row.name}
                           {isMe&&<span style={{background:C.indigo,color:"white",fontSize:10,padding:"1px 5px",borderRadius:4,marginLeft:6}}>YOU</span>}
