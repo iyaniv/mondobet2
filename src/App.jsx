@@ -4178,45 +4178,63 @@ export default function App() {
               </div>
             )}
             {canSim&&(
-              // Stable column: toggle on top, form picker right below it.
-              // The picker row is permanently rendered when the user has 2+
-              // forms so the layout doesn't shift the moment Simulate is hit.
-              // It's just disabled (greyed out) while Actual is selected.
-              <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
-                <div style={{display:"flex",background:C.panel,border:`1px solid ${C.border}`,
-                  borderRadius:6,overflow:"hidden",fontSize:12}}>
-                  <button onClick={()=>setSimMode(false)} style={{
-                    padding:"4px 12px",border:"none",cursor:"pointer",
-                    background:!simMode?C.accent:"transparent",
-                    color:!simMode?"#1a1a1a":C.muted,fontWeight:!simMode?700:400,transition:"all .15s",
-                  }}>Actual</button>
+              // Single segmented control. With 1 form it's the classic
+              //   [ Actual | Simulate ]
+              // With 2+ forms the "Simulate" side expands inline into one
+              // segment per form, e.g.
+              //   [ Actual | Yaniv — bold | Yaniv — safe ]
+              // Picking a form turns Simulate on AND selects which form drives
+              // the simulation. Picking Actual turns it off. No dropdowns, no
+              // layout shift — the shape stays consistent.
+              <div style={{display:"flex",background:C.panel,border:`1px solid ${C.border}`,
+                borderRadius:6,overflow:"hidden",fontSize:12}}>
+                <button onClick={()=>setSimMode(false)} style={{
+                  padding:"4px 12px",border:"none",cursor:"pointer",
+                  background:!simMode?C.accent:"transparent",
+                  color:!simMode?"#1a1a1a":C.muted,fontWeight:!simMode?700:400,
+                  transition:"all .15s",whiteSpace:"nowrap",
+                }}>Actual</button>
+                {entries.length <= 1 ? (
                   <button onClick={()=>setSimMode(true)} style={{
                     padding:"4px 12px",border:"none",cursor:"pointer",
+                    borderLeft:`1px solid ${C.border}`,
                     background:simMode?C.accent:"transparent",
-                    color:simMode?"#1a1a1a":C.muted,fontWeight:simMode?700:400,transition:"all .15s",
+                    color:simMode?"#1a1a1a":C.muted,fontWeight:simMode?700:400,
+                    transition:"all .15s",whiteSpace:"nowrap",
                   }}>Simulate</button>
-                </div>
-                {entries.length > 1 && (
-                  <label style={{display:"flex",alignItems:"center",gap:6,fontSize:11,
-                    color:simMode?C.indigo:C.muted,opacity:simMode?1:0.55,
-                    transition:"opacity .15s, color .15s"}}>
-                    <span>simulating</span>
-                    <select
-                      value={effectiveSimEntryId || ""}
-                      onChange={e=>setSimEntryId(e.target.value)}
-                      disabled={!simMode}
-                      title={simMode?"Switch which of your forms drives the simulation":"Turn on Simulate to pick a form"}
-                      style={{background:C.panel,
-                        border:`1px solid ${simMode?C.indigo:C.border}`,
-                        color:simMode?C.text:C.muted,
-                        padding:"2px 6px",borderRadius:6,fontSize:11,
-                        fontWeight:600,cursor:simMode?"pointer":"not-allowed",
-                        fontFamily:"inherit"}}>
-                      {entries.map(e=>(
-                        <option key={e.id} value={e.id}>{e.name}</option>
-                      ))}
-                    </select>
-                  </label>
+                ) : (
+                  <>
+                    {/* Tiny "Simulate:" label segment so the meaning of the
+                        following form-name segments is obvious. */}
+                    <div style={{
+                      padding:"4px 8px 4px 12px",fontSize:10,letterSpacing:"0.05em",
+                      textTransform:"uppercase",color:simMode?C.indigo:C.muted,
+                      borderLeft:`1px solid ${C.border}`,
+                      display:"flex",alignItems:"center",fontWeight:700,
+                      pointerEvents:"none",userSelect:"none",
+                      background:simMode?"rgba(99,102,241,0.08)":"transparent",
+                      transition:"background .15s, color .15s",
+                    }}>simulate</div>
+                    {entries.map((e) => {
+                      const isThisActive = simMode && effectiveSimEntryId === e.id;
+                      return (
+                        <button key={e.id}
+                          onClick={()=>{ setSimEntryId(e.id); setSimMode(true); }}
+                          title={`Simulate using "${e.name}"`}
+                          style={{
+                            padding:"4px 12px",border:"none",cursor:"pointer",
+                            borderLeft:`1px solid ${C.border}`,
+                            background:isThisActive?C.accent:"transparent",
+                            color:isThisActive?"#1a1a1a":C.muted,
+                            fontWeight:isThisActive?700:400,
+                            transition:"all .15s",whiteSpace:"nowrap",
+                            maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",
+                          }}>
+                          {e.name}
+                        </button>
+                      );
+                    })}
+                  </>
                 )}
               </div>
             )}
