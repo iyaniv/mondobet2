@@ -107,6 +107,21 @@ function resolvedMatch(m, results, allMatches) {
   };
 }
 
+// Small divider label above the two Stage-6 matches so it's clear which is the
+// Final (g="FIN") and which is the 3rd-place play-off (g="3P").
+function StageMatchLabel({ m }) {
+  if (!m || (m.g !== "FIN" && m.g !== "3P")) return null;
+  const fin = m.g === "FIN";
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:8,margin:"10px 2px 4px",
+      fontSize:11,fontWeight:700,letterSpacing:".5px",textTransform:"uppercase",
+      color: fin ? C.accent : C.muted}}>
+      <span style={{whiteSpace:"nowrap"}}>{fin ? "🏆 Final" : "🥉 3rd place"}</span>
+      <span style={{flex:1,height:1,background:C.border}}/>
+    </div>
+  );
+}
+
 const FLAGS = {
   "Algeria":"🇩🇿","Argentina":"🇦🇷","Australia":"🇦🇺","Austria":"🇦🇹",
   "Belgium":"🇧🇪","Bosnia and Herzegovina":"🇧🇦","Brazil":"🇧🇷",
@@ -1698,7 +1713,9 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
                               : res                       ? "rgba(16,185,129,0.2)"
                               : C.border}`;
               return (
-                <div key={m.n} style={{
+                <Fragment key={m.n}>
+                <StageMatchLabel m={m}/>
+                <div style={{
                   display:"grid",gridTemplateColumns:"32px 1fr 88px 1fr",
                   alignItems:"center",gap:6,padding:"7px 10px",borderRadius:6,
                   marginBottom:4,background:rowBg,border:rowBd,fontSize:13,
@@ -1738,6 +1755,7 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
                     {resolvedB} {flag(resolvedB)}
                   </span>
                 </div>
+                </Fragment>
               );
             })}
           </div>
@@ -2165,15 +2183,18 @@ function AdminResults({ config, matches, results, liveMatches, setResults, setLi
             {!isCollapsed && (
               <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10,marginBottom:8}}>
                 {stageMatches.map(m => (
-                  <AdminMatchRow key={m.n}
-                    match={resolvedMatch(m, results, matches)}
-                    result={results[m.n] ?? null}
-                    liveData={liveMatches[m.n] ?? null}
-                    onSaveResult={saveResult}
-                    onGoLive={goLive}
-                    onUpdateLive={updateLive}
-                    onFinalize={finalizeLive}
-                  />
+                  <Fragment key={m.n}>
+                    <StageMatchLabel m={m}/>
+                    <AdminMatchRow
+                      match={resolvedMatch(m, results, matches)}
+                      result={results[m.n] ?? null}
+                      liveData={liveMatches[m.n] ?? null}
+                      onSaveResult={saveResult}
+                      onGoLive={goLive}
+                      onUpdateLive={updateLive}
+                      onFinalize={finalizeLive}
+                    />
+                  </Fragment>
                 ))}
               </div>
             )}
@@ -3149,21 +3170,9 @@ export default function App() {
   // Lifted so LeaderboardView (called inline, not mounted) can branch its
   // layout responsively without itself calling a hook conditionally.
   const isMobile = useIsMobile();
-  // Rank-movement arrows: remember the previous actual standings so each row
-  // can show ▲/▼ since the order last changed. Snapshot only advances when the
-  // ordering actually moves, so an arrow persists until the next shake-up
-  // (not just for one 10s poll). Tracks the real leaderboard, not Simulate.
-  const prevRanksRef = useRef(null);
-  const [rankDelta,setRankDelta]=useState({});
-  useEffect(()=>{
-    if(!leaderboard||leaderboard.length===0) return;
-    const cur={}; leaderboard.forEach((r,i)=>{ cur[r.entry_id||r.user_id]=i+1; });
-    const prev=prevRanksRef.current;
-    if(!prev){ prevRanksRef.current=cur; return; } // seed on first load — no arrows
-    const d={}; let changed=false;
-    for(const k in cur){ const pv=prev[k]; d[k]= pv==null?0:(pv-cur[k]); if(d[k]!==0) changed=true; }
-    if(changed){ setRankDelta(d); prevRanksRef.current=cur; }
-  },[leaderboard]);
+  // Per-stage rank movement is driven by config.stage_baseline (a server-side
+  // snapshot of the standings taken when the stage last advanced) — see
+  // LeaderboardView. No client-side tracking needed.
   const [simMode,setSimMode]=useState(false);
   const [simLb,setSimLb]=useState(null);
   const [simLoading,setSimLoading]=useState(false);
@@ -4279,15 +4288,18 @@ export default function App() {
                   transition:"opacity .3s",marginBottom:8,
                 }}>
                   {stageMatches.map(m=>(
-                    <MatchRow key={m.n} match={resolvedMatch(m, results, matches)}
-                      pred={myPreds[m.n]??null}
-                      result={results[m.n]??null}
-                      liveData={liveMatches[m.n]??null}
-                      editable={matchEditable(m)}
-                      adminResult={false}
-                      roundState={config.round_state}
-                      onSave={savePred}
-                      onResultSave={()=>{}}/>
+                    <Fragment key={m.n}>
+                      <StageMatchLabel m={m}/>
+                      <MatchRow match={resolvedMatch(m, results, matches)}
+                        pred={myPreds[m.n]??null}
+                        result={results[m.n]??null}
+                        liveData={liveMatches[m.n]??null}
+                        editable={matchEditable(m)}
+                        adminResult={false}
+                        roundState={config.round_state}
+                        onSave={savePred}
+                        onResultSave={()=>{}}/>
+                    </Fragment>
                   ))}
                 </div>
               )}
@@ -4340,6 +4352,14 @@ export default function App() {
     // favorite, so the filter is a straight "is this row favorited" check.
     const filteredLb = favOnly ? displayLb.filter(isFavRow) : displayLb;
     const hasFavs = displayLb.some(isFavRow);
+
+    // Per-stage rank movement: standings snapshot taken when the current stage
+    // opened (server-side, in config.stage_baseline). A row's movement = its
+    // rank at the start of this stage minus its current rank (+N climbed,
+    // -N dropped). Only for the current stage's baseline, and not in Simulate.
+    const baselineRanks = (config.stage_baseline
+      && config.stage_baseline.stage === (config.current_stage || 1))
+      ? config.stage_baseline.ranks : null;
 
     // Per-form picker chips (only when the user owns 2+ forms). Shared between
     // the desktop (slide-in beside the toggle) and mobile (wrap below) layouts.
@@ -4514,13 +4534,20 @@ export default function App() {
                           }}>
                         <td style={{...td,textAlign:"center",width:40,padding:"8px 4px"}}>
                           <b>{globalRank}</b>
-                          {!simMode && (rankDelta[rowKey]||0)!==0 && (
-                            <div style={{fontSize:9,fontWeight:700,lineHeight:1,marginTop:1,
-                              color:rankDelta[rowKey]>0?C.green:C.red}}
-                              title={rankDelta[rowKey]>0?`Up ${rankDelta[rowKey]} since the last result`:`Down ${Math.abs(rankDelta[rowKey])} since the last result`}>
-                              {rankDelta[rowKey]>0?`▲${rankDelta[rowKey]}`:`▼${Math.abs(rankDelta[rowKey])}`}
-                            </div>
-                          )}
+                          {(() => {
+                            if (simMode || !baselineRanks) return null;
+                            const baseRank = baselineRanks[row.entry_id];
+                            if (baseRank == null) return null;
+                            const delta = baseRank - globalRank;   // +climbed / -dropped
+                            if (delta === 0) return null;
+                            return (
+                              <div style={{fontSize:10,fontWeight:700,lineHeight:1,marginTop:2,
+                                color:delta>0?C.green:C.red}}
+                                title={delta>0?`Up ${delta} place${delta===1?"":"s"} this stage`:`Down ${-delta} place${delta===-1?"":"s"} this stage`}>
+                                {delta>0?`+${delta}`:`${delta}`}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td style={{...td,textAlign:"center",width:40,padding:"8px 4px"}}>
                           {isMe?(

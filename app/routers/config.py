@@ -15,6 +15,7 @@ def _cfg_out(cfg) -> ConfigOut:
         tournament_winner=cfg.tournament_winner,
         data_source=cfg.data_source,
         current_stage=getattr(cfg, "current_stage", 1),
+        stage_baseline=getattr(cfg, "stage_baseline", None),
     )
 
 

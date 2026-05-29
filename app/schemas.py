@@ -52,6 +52,9 @@ class ConfigOut(BaseModel):
     tournament_winner: Optional[str]
     data_source: str = "manual"
     current_stage: int = 1
+    # {"stage": N, "ranks": {entry_id: rank}} — standings at the start of the
+    # current stage, for per-stage leaderboard movement. None during stage 1.
+    stage_baseline: Optional[dict] = None
 
 
 class ConfigUpdate(BaseModel):

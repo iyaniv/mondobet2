@@ -135,7 +135,10 @@ CREATE TABLE game_config (
     tournament_winner  VARCHAR(100),
     data_source        VARCHAR(20)      NOT NULL    DEFAULT 'manual',
     -- Highest stage open for user predictions (1..6).
-    current_stage      INTEGER          NOT NULL    DEFAULT 1
+    current_stage      INTEGER          NOT NULL    DEFAULT 1,
+    -- Standings snapshot at the start of the current stage, for per-stage
+    -- leaderboard movement: {"stage": N, "ranks": {entry_id: rank}}.
+    stage_baseline     JSONB
 );
 INSERT INTO game_config (id, round_state) VALUES (1, 'idle');
 

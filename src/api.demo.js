@@ -249,6 +249,36 @@ function deriveWinner(sa, sb, etA, etB, penA, penB) {
   return null;
 }
 
+// Resolve a bracket slot ("W M101" / "L M101") to the actual team, mirroring
+// the backend resolver. Bottoms out at group-stage matches (real names).
+const _MATCH_BY_N = {}; MATCHES.forEach(m => { _MATCH_BY_N[m.n] = m; });
+const _SLOT_RE = /^([WL]) M(\d+)$/;
+function resolveTeamName(name, results, depth = 0) {
+  if (depth > 12 || typeof name !== "string") return name;
+  const m = _SLOT_RE.exec(name);
+  if (!m) return name;
+  const typ = m[1], n = Number(m[2]);
+  const src = _MATCH_BY_N[n], res = results[n];
+  if (!src || !res) return name;
+  const sa = res[0], sb = res[1], winner = res[2];
+  const w = winner || (sa > sb ? "a" : sb > sa ? "b" : null);
+  if (!w) return name;
+  const side = typ === "W" ? w : (w === "a" ? "b" : "a");
+  return resolveTeamName(side === "a" ? src.a : src.b, results, depth + 1);
+}
+// When the FINAL (g="FIN") is decided, auto-set the tournament winner. The +10
+// bonus then follows from scoring. Mirrors crud._maybe_crown_champion.
+function maybeCrownChampion(matchN) {
+  const src = _MATCH_BY_N[Number(matchN)];
+  if (!src || src.g !== "FIN") return;
+  const res = S.results[Number(matchN)];
+  if (!res || !res[2]) return;                 // res[2] = winner 'a'/'b'
+  const champSlot = res[2] === "a" ? src.a : src.b;
+  const champ = resolveTeamName(champSlot, S.results);
+  if (!champ || _SLOT_RE.test(String(champ))) return;
+  if (S.config.tournament_winner !== champ) S.config.tournament_winner = champ;
+}
+
 function buildInitialState() {
   return {
     config:{round_state:"closed",tournament_winner:null,data_source:"manual",current_stage:2},
@@ -778,7 +808,17 @@ export const api = {
     if (d.round_state !== undefined) S.config.round_state = d.round_state;
     if ("tournament_winner" in d) S.config.tournament_winner = d.tournament_winner||null;
     if (d.data_source !== undefined) S.config.data_source = d.data_source;
-    if (d.current_stage !== undefined && d.current_stage !== null) S.config.current_stage = d.current_stage;
+    if (d.current_stage !== undefined && d.current_stage !== null) {
+      // Stage advanced — snapshot current standings (end of the finishing
+      // stage) as the baseline for per-stage rank movement.
+      if (d.current_stage > (S.config.current_stage || 1)) {
+        const lb = computeLeaderboard();
+        const ranks = {};
+        lb.forEach((row, i) => { ranks[row.entry_id] = i + 1; });
+        S.config.stage_baseline = { stage: d.current_stage, ranks };
+      }
+      S.config.current_stage = d.current_stage;
+    }
     save(S);
     return S.config;
   },
@@ -794,6 +834,7 @@ export const api = {
       delete S.live[n];
       recordAudit(admin, {match_n:Number(n), action: oldStr==null?"save":"edit",
         old_value:oldStr, new_value:fmtResult(d.score_a,d.score_b,d.et_a,d.et_b,d.pen_a,d.pen_b,w)});
+      maybeCrownChampion(n);
       save(S);
       return {match_n:n,...d,winner:w};
     }
@@ -994,6 +1035,7 @@ export const liveApi = {
     delete S.live[Number(n)];
     recordAudit(admin, {match_n:Number(n), action:"finalize", old_value:oldStr,
       new_value:fmtResult(ld.score_a,ld.score_b,ld.et_a,ld.et_b,ld.pen_a,ld.pen_b,w)});
+    maybeCrownChampion(Number(n));
     save(S);
     return {match_n:Number(n),score_a:ld.score_a,score_b:ld.score_b,winner:w,et_a:ld.et_a??null,et_b:ld.et_b??null,pen_a:ld.pen_a??null,pen_b:ld.pen_b??null};
   },

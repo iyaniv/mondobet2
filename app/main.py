@@ -66,6 +66,11 @@ async def _bootstrap():
             " admin_name VARCHAR(100) NOT NULL DEFAULT '',"
             " created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"
         ))
+        # Migration 12: per-stage leaderboard movement — snapshot of standings
+        # at the start of the current stage, stored on game_config.
+        await conn.execute(text(
+            "ALTER TABLE game_config ADD COLUMN IF NOT EXISTS stage_baseline JSONB"
+        ))
 
     async with AsyncSessionLocal() as db:
         await crud.get_config(db)

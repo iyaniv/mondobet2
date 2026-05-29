@@ -165,6 +165,11 @@ class GameConfig(Base):
     tournament_winner: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     data_source: Mapped[str] = mapped_column(String(20), default="manual", nullable=False, server_default="manual")
     current_stage: Mapped[int] = mapped_column(Integer, default=1, nullable=False, server_default="1")
+    # Snapshot of the leaderboard standings at the moment the current stage
+    # opened (i.e. the END of the previous stage): {"stage": N, "ranks": {entry_id: rank}}.
+    # Lets the leaderboard show per-stage rank movement (+N up / -N down). NULL
+    # during stage 1 (no previous stage to compare against).
+    stage_baseline: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
 
 class LiveMatch(Base):

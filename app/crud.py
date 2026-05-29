@@ -1,6 +1,7 @@
 """Async CRUD operations for WC2026 Predictions."""
 
 from __future__ import annotations
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -12,7 +13,7 @@ from app.models import Entry, GameConfig, LiveMatch, Prediction, Result, ResultA
 from app.auth import hash_password
 from app.scoring import user_totals
 from app.schemas import LeaderboardEntry
-from app.matches import MATCHES
+from app.matches import MATCHES, MATCH_INDEX
 
 
 # ── Users ─────────────────────────────────────────────────────────────────────
@@ -105,6 +106,13 @@ async def update_config(
     if data_source is not None:
         cfg.data_source = data_source
     if current_stage is not None:
+        # When the stage ADVANCES, snapshot the current standings (the end of
+        # the stage just finished) so the leaderboard can show per-stage rank
+        # movement vs this baseline until the next advance.
+        if current_stage > (cfg.current_stage or 1):
+            lb = await get_leaderboard(db)
+            ranks = {row.entry_id: i + 1 for i, row in enumerate(lb)}
+            cfg.stage_baseline = {"stage": current_stage, "ranks": ranks}
         cfg.current_stage = current_stage
     await db.commit()
     await db.refresh(cfg)
@@ -328,6 +336,51 @@ async def record_result_audit(db: AsyncSession, *, match_n, action, old_value, n
     await db.commit()
 
 
+_SLOT_RE = re.compile(r"^([WL]) M(\d+)$")
+
+
+def resolve_team(name: str, results: dict, depth: int = 0):
+    """Resolve a bracket slot ('W M101' / 'L M101') to the actual team using
+    final results. Recurses through the bracket; bottoms out at group-stage
+    matches (real team names). Returns the slot unchanged if undecided."""
+    if depth > 12 or not isinstance(name, str):
+        return name
+    m = _SLOT_RE.match(name)
+    if not m:
+        return name  # already a real team
+    typ, n = m.group(1), int(m.group(2))
+    src = MATCH_INDEX.get(n)
+    res = results.get(n)
+    if not src or not res:
+        return name  # not played yet
+    sa, sb, winner = res[0], res[1], res[2]
+    w = winner or ("a" if sa > sb else "b" if sb > sa else None)
+    if not w:
+        return name  # knockout tie not yet decided
+    side = w if typ == "W" else ("b" if w == "a" else "a")
+    return resolve_team(src["a"] if side == "a" else src["b"], results, depth + 1)
+
+
+async def _maybe_crown_champion(db: AsyncSession, match_n: int, result):
+    """When the FINAL (g='FIN') gets a decided winner, auto-set
+    config.tournament_winner to the winning team. The +10 winner bonus then
+    follows automatically from scoring — no separate points handling needed."""
+    if result is None or not getattr(result, "winner", None):
+        return
+    src = MATCH_INDEX.get(match_n)
+    if not src or src.get("g") != "FIN":
+        return
+    all_results = await get_all_results(db)
+    champ_slot = src["a"] if result.winner == "a" else src["b"]
+    champion = resolve_team(champ_slot, all_results)
+    if not champion or _SLOT_RE.match(str(champion)):
+        return  # couldn't resolve to a real team yet
+    cfg = await get_config(db)
+    if cfg.tournament_winner != champion:
+        cfg.tournament_winner = champion
+        await db.commit()
+
+
 async def get_result_audit(db: AsyncSession, limit: int = 200) -> list:
     r = await db.execute(
         select(ResultAudit).order_by(ResultAudit.created_at.desc(), ResultAudit.id.desc()).limit(limit)
@@ -390,6 +443,8 @@ async def upsert_result(
             new_value=format_result(score_a, score_b, et_a, et_b, pen_a, pen_b, winner),
             admin=admin,
         )
+    # If this was the FINAL and a winner is decided, crown the champion.
+    await _maybe_crown_champion(db, match_n, res)
     return res
 
 
