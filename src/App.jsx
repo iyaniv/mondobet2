@@ -128,18 +128,38 @@ function CsvHelp() {
           <div onClick={(e)=>{stop(e); setOpen(false);}}
             style={{position:"fixed",inset:0,zIndex:60}}/>
           <div onClick={stop}
-            style={{position:"absolute",top:"calc(100% + 8px)",right:0,zIndex:61,width:320,
-              background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,
-              boxShadow:"0 8px 28px rgba(0,0,0,0.45)",padding:"12px 14px",
-              fontSize:12.5,color:C.muted,lineHeight:1.55,textAlign:"left",
-              fontWeight:400,cursor:"default",whiteSpace:"normal"}}>
-            <div style={{fontWeight:700,color:C.text,marginBottom:8,fontSize:13}}>📄 Import predictions from CSV</div>
-            <ul style={{margin:0,paddingLeft:16}}>
-              <li style={{marginBottom:6}}>One line per match — <b style={{color:C.text}}>match number, home score, away score</b>. E.g. <code>81,2,1</code> = match #81 ends 2–1.</li>
-              <li style={{marginBottom:6}}>A header row (<code>match,home,away</code>) is optional; any line that doesn't start with a match number is skipped.</li>
-              <li style={{marginBottom:6}}>Match numbers are shown as <b style={{color:C.text}}>#NN</b> on every row.</li>
-              <li>Only this stage's still-editable matches are filled; closed / finished rows are skipped (a toast says how many). Nothing auto-submits — review, then hit <b style={{color:C.text}}>Submit</b>.</li>
-            </ul>
+            style={{position:"absolute",top:"calc(100% + 10px)",right:0,zIndex:61,width:330,
+              background:C.panel,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,
+              borderRadius:12,boxShadow:"0 12px 36px rgba(0,0,0,0.5)",overflow:"hidden",
+              textAlign:"left",cursor:"default",whiteSpace:"normal"}}>
+            {/* Header — badge + title, like the main help dialogs */}
+            <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px 10px",
+              borderBottom:`1px solid ${C.border}`}}>
+              <span style={{width:30,height:30,borderRadius:"50%",background:C.accentSoft,
+                display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>📄</span>
+              <span style={{fontWeight:700,color:C.text,fontSize:14}}>Import from CSV</span>
+            </div>
+            {/* Body — lime-dot bullets */}
+            <div style={{padding:"12px 16px",fontSize:12.5,color:C.muted,lineHeight:1.55}}>
+              <ul style={{margin:0,padding:0,listStyle:"none"}}>
+                <li style={{position:"relative",paddingLeft:16,marginBottom:9}}>
+                  <span style={{position:"absolute",left:0,top:6,width:6,height:6,borderRadius:"50%",background:C.accent}}/>
+                  One line per match — <b style={{color:C.text}}>match number, home, away</b>.
+                  {" "}<span style={{fontFamily:"monospace",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:4,padding:"1px 5px",color:C.text}}>81,2,1</span> → match #81 ends 2–1.
+                </li>
+                <li style={{position:"relative",paddingLeft:16}}>
+                  <span style={{position:"absolute",left:0,top:6,width:6,height:6,borderRadius:"50%",background:C.accent}}/>
+                  A header row (<span style={{fontFamily:"monospace",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:4,padding:"1px 5px",color:C.text}}>match,home,away</span>) is optional.
+                </li>
+              </ul>
+              {/* Submit reminder — accented note */}
+              <div style={{marginTop:12,background:C.accentSoft,border:`1px solid ${C.accent}`,
+                borderRadius:8,padding:"9px 11px",color:C.text,fontSize:12,fontWeight:600,
+                display:"flex",gap:7,alignItems:"flex-start"}}>
+                <span style={{fontSize:14,lineHeight:1.2}}>📌</span>
+                <span>Don't forget to hit <b style={{color:C.accent}}>Submit</b> after importing — your picks aren't saved until you do.</span>
+              </div>
+            </div>
           </div>
         </>
       )}
@@ -3408,8 +3428,9 @@ export default function App() {
     if(!HELP_TABS.includes(tab)) return;
     const seen = helpSeen;
     if(!seen.welcome){
-      // Welcome covers My predictions too — flip both seen flags on close.
-      setHelpEntry({ ...HELP_CONTENT.welcome, _flagKeys: ["welcome","predictions"] });
+      // Welcome flags ONLY itself. Once it's closed this effect re-runs and,
+      // since the current tab is still unseen, opens that tab's dialog next.
+      setHelpEntry({ ...HELP_CONTENT.welcome, _flagKeys: ["welcome"] });
       return;
     }
     if(!seen[tab]){
