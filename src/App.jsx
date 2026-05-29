@@ -1675,8 +1675,20 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
               const live      = liveMatches[m.n];
               const isMatchLive = !!(live && live.is_live);
               const dispScore = live ? [live.score_a, live.score_b] : res ?? null;
+              // Extra-time / penalty scores + the advancing side ("a"/"b").
+              // For a knockout draw at 90', the winner is decided by these —
+              // so users (not just the admin) see who went through.
+              const winnerField = live ? (live.winner ?? null) : (res ? res[2] : null);
+              const etA  = live ? (live.et_a  ?? null) : (res ? res[3] : null);
+              const etB  = live ? (live.et_b  ?? null) : (res ? res[4] : null);
+              const penA = live ? (live.pen_a ?? null) : (res ? res[5] : null);
+              const penB = live ? (live.pen_b ?? null) : (res ? res[6] : null);
               const winA      = dispScore
-                ? (dispScore[0] > dispScore[1] ? true : dispScore[0] < dispScore[1] ? false : null)
+                ? (dispScore[0] > dispScore[1] ? true
+                   : dispScore[1] > dispScore[0] ? false
+                   : winnerField === 'a' ? true
+                   : winnerField === 'b' ? false
+                   : null)
                 : null;
               const rowBg     = isMatchLive ? "rgba(239,68,68,0.06)"
                               : res         ? "rgba(16,185,129,0.04)"
@@ -1702,15 +1714,21 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
                         <div style={{fontFamily:"monospace",fontWeight:700,color:C.red,fontSize:15}}>
                           {live.score_a}:{live.score_b}
                         </div>
+                        {(etA!=null&&etB!=null)&&<div style={{fontSize:9,color:C.muted,fontFamily:"monospace"}}>a.e.t. {etA}:{etB}</div>}
+                        {(penA!=null&&penB!=null)&&<div style={{fontSize:9,color:C.muted,fontFamily:"monospace"}}>pen {penA}:{penB}</div>}
                         <div style={{fontSize:10,color:C.red,display:"flex",alignItems:"center",gap:2,justifyContent:"center"}}>
                           <span className="live-dot"/>{live.minute}′
                         </div>
                       </>
                     ) : dispScore ? (
-                      <div style={{fontFamily:"monospace",fontWeight:700,
-                        color:res?C.green:C.text,fontSize:15}}>
-                        {dispScore[0]}:{dispScore[1]}
-                      </div>
+                      <>
+                        <div style={{fontFamily:"monospace",fontWeight:700,
+                          color:res?C.green:C.text,fontSize:15}}>
+                          {dispScore[0]}:{dispScore[1]}
+                        </div>
+                        {(etA!=null&&etB!=null)&&<div style={{fontSize:9,color:C.muted,fontFamily:"monospace"}}>a.e.t. {etA}:{etB}</div>}
+                        {(penA!=null&&penB!=null)&&<div style={{fontSize:9,color:C.muted,fontFamily:"monospace"}}>pen {penA}:{penB}</div>}
+                      </>
                     ) : (
                       <span style={{color:C.muted,fontSize:12}}>vs</span>
                     )}
