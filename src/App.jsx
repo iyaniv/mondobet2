@@ -4203,33 +4203,45 @@ export default function App() {
                   }}>Simulate</button>
                 </div>
                 {entries.length > 1 && (
+                  // Chip cluster sits in a collapsible box: when Simulate is
+                  // OFF the box has 0 width (overflow clipped), so the toggle
+                  // sits at its natural rightmost position. Flipping Simulate
+                  // ON expands the box to its content's width, sliding the
+                  // toggle left to make room while chips fade + slide in.
                   <div style={{
-                    display:"inline-flex",gap:6,
+                    display:"inline-flex",alignItems:"center",
+                    overflow:"hidden",
+                    maxWidth:simMode?600:0,
                     marginLeft:simMode?10:0,
-                    opacity:simMode?1:0,
-                    transform:simMode?"translateX(0)":"translateX(-6px)",
-                    pointerEvents:simMode?"auto":"none",
-                    transition:"opacity .22s ease, transform .25s ease, margin-left .25s ease",
+                    transition:"max-width .32s ease, margin-left .28s ease",
                   }}>
-                    {entries.map((e) => {
-                      const isThisActive = effectiveSimEntryId === e.id;
-                      return (
-                        <button key={e.id}
-                          onClick={()=>setSimEntryId(e.id)}
-                          title={`Simulate using "${e.name}"`}
-                          style={{
-                            padding:"4px 12px",borderRadius:999,
-                            border:`1px solid ${C.indigo}`,cursor:"pointer",fontSize:12,
-                            fontWeight:600,whiteSpace:"nowrap",fontFamily:"inherit",
-                            background:isThisActive?C.indigo:"transparent",
-                            color:isThisActive?"white":C.indigo,
-                            transition:"all .15s",
-                            maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",
-                          }}>
-                          {e.name}
-                        </button>
-                      );
-                    })}
+                    <div style={{
+                      display:"inline-flex",gap:6,
+                      opacity:simMode?1:0,
+                      transform:simMode?"translateX(0)":"translateX(-8px)",
+                      pointerEvents:simMode?"auto":"none",
+                      transition:"opacity .22s ease .05s, transform .28s ease",
+                    }}>
+                      {entries.map((e) => {
+                        const isThisActive = effectiveSimEntryId === e.id;
+                        return (
+                          <button key={e.id}
+                            onClick={()=>setSimEntryId(e.id)}
+                            title={`Simulate using "${e.name}"`}
+                            style={{
+                              padding:"4px 12px",borderRadius:999,
+                              border:`1px solid ${C.indigo}`,cursor:"pointer",fontSize:12,
+                              fontWeight:600,whiteSpace:"nowrap",fontFamily:"inherit",
+                              background:isThisActive?C.indigo:"transparent",
+                              color:isThisActive?"white":C.indigo,
+                              transition:"all .15s",
+                              maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",
+                            }}>
+                            {e.name}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
