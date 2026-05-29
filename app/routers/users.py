@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import crud
 from app.auth import get_current_user, require_admin
 from app.database import get_db
-from app.schemas import UserOut, UserPatch, UserProfileUpdate
+from app.schemas import HelpSeenIn, UserOut, UserPatch, UserProfileUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -44,6 +44,21 @@ async def get_me(user=Depends(get_current_user)):
 @router.patch("/me", response_model=UserOut)
 async def update_me(data: UserProfileUpdate, user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     updated = await crud.update_user_profile(db, user.id, data.name)
+    if not updated:
+        raise HTTPException(404, "User not found.")
+    return updated
+
+
+@router.put("/me/help-seen", response_model=UserOut)
+async def set_my_help_seen(
+    data: HelpSeenIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Replace the caller's help_seen map. Used by the onboarding popups so
+    the same first-time tips don't re-trigger on a new device or browser.
+    """
+    updated = await crud.set_user_help_seen(db, user.id, data.help_seen or {})
     if not updated:
         raise HTTPException(404, "User not found.")
     return updated

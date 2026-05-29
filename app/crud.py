@@ -62,6 +62,19 @@ async def update_user_profile(db: AsyncSession, user_id: int, name: str) -> Opti
     return user
 
 
+async def set_user_help_seen(db: AsyncSession, user_id: int, help_seen: dict) -> Optional[User]:
+    """Replace the user's help_seen map (full replacement, not patch)."""
+    user = await db.get(User, user_id)
+    if not user:
+        return None
+    # Normalize: only keep bool true keys, drop anything else.
+    cleaned = {k: True for k, v in (help_seen or {}).items() if v and isinstance(k, str)}
+    user.help_seen = cleaned
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
 # ── Game Config ───────────────────────────────────────────────────────────────
 
 async def get_config(db: AsyncSession) -> GameConfig:

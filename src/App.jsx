@@ -2196,6 +2196,10 @@ const TIMEZONES = [
 // State lives in localStorage at `mb_help_seen_v1_<userId>` (JSON map of
 // {welcome,tournament,leaderboard,byuser,predictions,settings,results,dashboard}).
 
+// help_seen now lives on the user row (DB / demo store). The localStorage
+// helpers below are kept ONLY as a one-time migration: if an older client
+// already flagged tabs locally, we surface those flags on first load so the
+// popups don't replay, then clear them. New writes go straight to the API.
 const HELP_VERSION = "v1";
 const HELP_CONTENT = {
   welcome: {
@@ -2282,14 +2286,17 @@ const HELP_CONTENT = {
 // Tabs that should never auto-open a dialog (welcome is special; auth isn't a real tab).
 const HELP_TABS = ["predictions","tournament","leaderboard","byuser","settings","results","dashboard"];
 
-function loadHelpSeen(userId){
+// Read any pre-existing localStorage flags from older builds so a returning
+// user doesn't see the welcome again. Wipe the key after reading.
+function consumeLegacyHelpSeen(userId){
   if(!userId) return {};
-  try { return JSON.parse(localStorage.getItem(`mb_help_seen_${HELP_VERSION}_${userId}`)||"{}") || {}; }
-  catch { return {}; }
-}
-function saveHelpSeen(userId, seen){
-  if(!userId) return;
-  try { localStorage.setItem(`mb_help_seen_${HELP_VERSION}_${userId}`, JSON.stringify(seen)); } catch{}
+  const key = `mb_help_seen_${HELP_VERSION}_${userId}`;
+  try {
+    const raw = localStorage.getItem(key);
+    if(!raw) return {};
+    localStorage.removeItem(key);
+    return JSON.parse(raw) || {};
+  } catch { return {}; }
 }
 
 // Tiny markdown: **bold** → <strong>, *italic* → <em>. No HTML otherwise.
@@ -2324,6 +2331,15 @@ function HelpDialog({ entry, onClose, helpBtnRef }){
   // entry: { badge, title, body[] } | null
   const [closing, setClosing] = useState(false);
   const dialogRef = useRef(null);
+  // Phone-friendly layout: shrink paddings + fonts + cap height with scroll.
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" && window.innerWidth < 520
+  );
+  useEffect(()=>{
+    const onResize = ()=> setIsMobile(window.innerWidth < 520);
+    window.addEventListener("resize", onResize);
+    return ()=> window.removeEventListener("resize", onResize);
+  }, []);
 
   // Esc closes
   useEffect(()=>{
@@ -2354,56 +2370,70 @@ function HelpDialog({ entry, onClose, helpBtnRef }){
   }
 
   if(!entry) return null;
+  // Responsive size knobs — desktop vs phone.
+  const sz = isMobile
+    ? { wrapPad:"10px", radius:14, hdrPad:"14px 16px", badge:32, badgeFs:18, gap:10,
+        titleFs:17, closeFs:22, closePad:"4px 6px", bodyPad:"16px 18px 12px",
+        bodyFs:14, lineHeight:1.5, introFs:14.5, introMb:12, bulletGap:11,
+        subGap:5, ftrPad:"12px 16px", tipFs:12, btnPad:"8px 16px", btnFs:13 }
+    : { wrapPad:"24px", radius:16, hdrPad:"20px 26px", badge:40, badgeFs:22, gap:14,
+        titleFs:20, closeFs:24, closePad:"4px 10px", bodyPad:"22px 28px 18px",
+        bodyFs:15, lineHeight:1.65, introFs:15.5, introMb:16, bulletGap:14,
+        subGap:6, ftrPad:"16px 26px", tipFs:13, btnPad:"9px 20px", btnFs:14 };
   return (
     <div
       onClick={(e)=>{ if(e.target === e.currentTarget) triggerClose(); }}
       style={{position:"fixed",inset:0,zIndex:200,display:"flex",alignItems:"center",
-        justifyContent:"center",padding:"24px",background:"transparent"}}>
+        justifyContent:"center",padding:sz.wrapPad,background:"transparent"}}>
       <div
         ref={dialogRef}
         className="dialog-shrinking"
         style={{
           background:C.bg, color:C.text,
-          border:`1px solid ${C.border}`, borderRadius:16,
+          border:`1px solid ${C.border}`, borderRadius:sz.radius,
           maxWidth:680, width:"100%",
+          maxHeight:"calc(100vh - 20px)",
           boxShadow:"0 24px 60px rgba(0,0,0,.32), 0 8px 18px rgba(0,0,0,.18)",
           overflow:"hidden", transformOrigin:"top right",
+          display:"flex", flexDirection:"column",
         }}>
-        <div style={{display:"flex",alignItems:"center",gap:14,
-          padding:"20px 26px", borderBottom:`1px solid ${C.border}`,
-          background:`linear-gradient(180deg, var(--c-accent-soft) 0%, transparent 100%)`}}>
-          <span style={{background:C.accent,color:"white",width:40,height:40,borderRadius:"50%",
-            display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:sz.gap,
+          padding:sz.hdrPad, borderBottom:`1px solid ${C.border}`,
+          background:`linear-gradient(180deg, var(--c-accent-soft) 0%, transparent 100%)`,
+          flexShrink:0}}>
+          <span style={{background:C.accent,color:"white",width:sz.badge,height:sz.badge,borderRadius:"50%",
+            display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:sz.badgeFs,flexShrink:0}}>
             {entry.badge}
           </span>
-          <h3 style={{margin:0,fontSize:20,fontWeight:700,color:C.text,flex:1,letterSpacing:0.2}}>
+          <h3 style={{margin:0,fontSize:sz.titleFs,fontWeight:700,color:C.text,flex:1,letterSpacing:0.2}}>
             {entry.title}
           </h3>
           <button onClick={triggerClose} title="Close (Esc)"
-            style={{background:"transparent",border:0,color:C.muted,fontSize:24,
-              cursor:"pointer",lineHeight:1,padding:"4px 10px"}}>×</button>
+            style={{background:"transparent",border:0,color:C.muted,fontSize:sz.closeFs,
+              cursor:"pointer",lineHeight:1,padding:sz.closePad}}>×</button>
         </div>
-        <div style={{padding:"22px 28px 18px",fontSize:15,lineHeight:1.65,color:C.text}}>
+        <div style={{padding:sz.bodyPad,fontSize:sz.bodyFs,lineHeight:sz.lineHeight,color:C.text,
+          overflowY:"auto",flex:1,WebkitOverflowScrolling:"touch"}}>
           {entry.body.map((item, idx) => {
             // String item that doesn't use any markdown → intro paragraph (no bullet).
             if(typeof item === "string"){
               const isIntro = idx === 0 && !item.includes("**") && !item.startsWith("*");
               if(isIntro) return (
-                <p key={idx} style={{margin:"0 0 16px",fontSize:15.5,color:C.text}}>
+                <p key={idx} style={{margin:`0 0 ${sz.introMb}px`,fontSize:sz.introFs,color:C.text}}>
                   {renderHelpLine(item)}
                 </p>
               );
             }
             return null;
           })}
-          <ul style={{margin:"0",paddingLeft:22,listStyle:"none"}}>
+          <ul style={{margin:"0",paddingLeft:isMobile?16:22,listStyle:"none"}}>
             {entry.body.map((item, idx) => {
               if(typeof item === "string"){
                 const isIntro = idx === 0 && !item.includes("**") && !item.startsWith("*");
                 if(isIntro) return null;
                 return (
-                  <li key={idx} style={{marginBottom:14, paddingLeft:14, position:"relative"}}>
-                    <span style={{position:"absolute", left:-2, top:11,
+                  <li key={idx} style={{marginBottom:sz.bulletGap, paddingLeft:14, position:"relative"}}>
+                    <span style={{position:"absolute", left:-2, top:isMobile?9:11,
                       width:6, height:6, borderRadius:"50%",
                       background:C.accent, display:"inline-block"}}/>
                     {renderHelpLine(item)}
@@ -2413,15 +2443,15 @@ function HelpDialog({ entry, onClose, helpBtnRef }){
               // Object item: { text, subs:[] } — main bullet + nested sub-bullets.
               const { text, subs } = item;
               return (
-                <li key={idx} style={{marginBottom:14, paddingLeft:14, position:"relative"}}>
-                  <span style={{position:"absolute", left:-2, top:11,
+                <li key={idx} style={{marginBottom:sz.bulletGap, paddingLeft:14, position:"relative"}}>
+                  <span style={{position:"absolute", left:-2, top:isMobile?9:11,
                     width:6, height:6, borderRadius:"50%",
                     background:C.accent, display:"inline-block"}}/>
                   {renderHelpLine(text)}
-                  <ul style={{margin:"6px 0 0",paddingLeft:18,listStyle:"none"}}>
+                  <ul style={{margin:"6px 0 0",paddingLeft:isMobile?12:18,listStyle:"none"}}>
                     {subs.map((s, j) => (
-                      <li key={j} style={{marginBottom:5, paddingLeft:12, position:"relative"}}>
-                        <span style={{position:"absolute", left:0, top:11,
+                      <li key={j} style={{marginBottom:sz.subGap, paddingLeft:12, position:"relative"}}>
+                        <span style={{position:"absolute", left:0, top:isMobile?9:11,
                           width:5, height:1.5, background:C.muted, display:"inline-block"}}/>
                         {renderHelpLine(s)}
                       </li>
@@ -2432,14 +2462,17 @@ function HelpDialog({ entry, onClose, helpBtnRef }){
             })}
           </ul>
         </div>
-        <div style={{padding:"16px 26px",borderTop:`1px solid ${C.border}`,
-          background:C.panel,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
-          <span style={{fontSize:13,color:C.muted}}>
+        <div style={{padding:sz.ftrPad,borderTop:`1px solid ${C.border}`,
+          background:C.panel,display:"flex",alignItems:"center",justifyContent:"space-between",
+          gap:10,flexWrap:"wrap",flexShrink:0}}>
+          <span style={{fontSize:sz.tipFs,color:C.muted,flex:isMobile?"1 1 100%":"unset",
+            order:isMobile?2:1}}>
             Tip: re-open this anytime via the <b style={{color:C.accent}}>ⓘ</b> button in the nav.
           </span>
           <button onClick={triggerClose}
             style={{background:C.accent,color:"white",fontWeight:700,border:0,
-              borderRadius:8,padding:"9px 20px",cursor:"pointer",fontSize:14}}>
+              borderRadius:8,padding:sz.btnPad,cursor:"pointer",fontSize:sz.btnFs,
+              order:isMobile?1:2,alignSelf:isMobile?"flex-end":"auto"}}>
             Got it →
           </button>
         </div>
@@ -3179,15 +3212,27 @@ export default function App() {
   }, [user?.id, config.round_state]);
 
   // ── Onboarding (per-user, per-tab) ──────────────────────────────────────
+  // Seen-state lives on the user row (DB / demo store) — `user.help_seen` is
+  // the source of truth, persisted via api.setHelpSeen so the popups don't
+  // re-trigger on a new device or after a localStorage wipe.
   const helpBtnRef = useRef(null);
   const [helpEntry, setHelpEntry]   = useState(null);       // currently shown HelpDialog payload
-  const [helpSeen, setHelpSeen]     = useState({});         // {welcome,tournament,...}
   const [helpBlink, setHelpBlink]   = useState(false);      // triggers the 2× pulse on the nav button
-  // Hydrate seen-map from localStorage when the user changes.
+  // Locally-mirrored seen map for snappy UI; sync'd with the user record on every change.
+  const helpSeen = user?.help_seen || {};
+
+  // One-time migration: if an older client wrote flags to localStorage, push
+  // them up to the server now and wipe the local copy.
   useEffect(()=>{
-    if(!user){ setHelpSeen({}); setHelpEntry(null); return; }
-    setHelpSeen(loadHelpSeen(user.id));
+    if(!user || user.is_admin) return;
+    const legacy = consumeLegacyHelpSeen(user.id);
+    if(!Object.keys(legacy).length) return;
+    const merged = { ...(user.help_seen||{}), ...legacy };
+    setUser({ ...user, help_seen: merged });
+    api.setHelpSeen(merged).catch(()=>{});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
+
   // Auto-open: welcome (first ever) or current tab's dialog (first visit to that tab).
   useEffect(()=>{
     if(!user || user.is_admin) return;          // skip admins — they know the app
@@ -3210,8 +3255,9 @@ export default function App() {
     if(user && flagKeys.length){
       const next = { ...helpSeen };
       for(const k of flagKeys) next[k] = true;
-      setHelpSeen(next);
-      saveHelpSeen(user.id, next);
+      // Optimistic local update, then fire-and-forget server sync.
+      setUser({ ...user, help_seen: next });
+      api.setHelpSeen(next).catch(()=>{});
     }
     setHelpEntry(null);
     // Blink the ⓘ button 2× so the user notices where the help moved to.
@@ -3226,9 +3272,9 @@ export default function App() {
   }
   function resetOnboarding(){
     if(!user) return;
-    saveHelpSeen(user.id, {});
-    setHelpSeen({});
+    setUser({ ...user, help_seen: {} });
     setHelpEntry(null);
+    api.setHelpSeen({}).catch(()=>{});
   }
   function doLogout(){setToken(null);setUser(null);setTab("auth");setMyPreds({});setMyWinner(null);setLeaderboard([]);setParticipants([]);setEntries([]);setActiveEntryId(null);setLockedWinner(null);setAdminParticipants([]);}
 

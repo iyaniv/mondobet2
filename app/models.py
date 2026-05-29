@@ -33,6 +33,11 @@ class User(Base):
     has_paid: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     phone: Mapped[str] = mapped_column(String(50), nullable=False, server_default="")
     locked_winner: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    # Per-user, per-tab onboarding flags. Keys: welcome, predictions, tournament,
+    # leaderboard, byuser, settings, results, dashboard.
+    help_seen: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default="{}", default=dict
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

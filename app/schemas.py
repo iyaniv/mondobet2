@@ -29,7 +29,15 @@ class UserOut(BaseModel):
     is_admin: bool
     has_paid: bool
     locked_winner: Optional[str] = None
+    # Per-user, per-tab onboarding flags (kept on the user so they don't
+    # re-appear on a new device / browser).
+    help_seen: dict = {}
     created_at: datetime
+
+
+class HelpSeenIn(BaseModel):
+    """Body for PUT /users/me/help-seen — full replacement (small JSON)."""
+    help_seen: dict
 
 
 class AuthResponse(BaseModel):

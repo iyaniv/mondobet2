@@ -339,8 +339,8 @@ function buildFreshState() {
 // each.
 const VARIANT_KEY = "mb_demo_variant";
 const STORAGE_KEYS = {
-  current: "mb_demo_v6",
-  fresh:   "mb_demo_v6_fresh",
+  current: "mb_demo_v7",
+  fresh:   "mb_demo_v7_fresh",
 };
 function getVariant() {
   const v = localStorage.getItem(VARIANT_KEY);
@@ -420,7 +420,7 @@ function requireAdmin() {
 const delay = (ms=70) => new Promise(r => setTimeout(r, ms + Math.random()*30));
 
 function userOut(u) {
-  return {id:u.id,name:u.name,email:u.email,phone:u.phone||"",is_admin:u.is_admin,has_paid:u.has_paid,locked_winner:u.locked_winner||null};
+  return {id:u.id,name:u.name,email:u.email,phone:u.phone||"",is_admin:u.is_admin,has_paid:u.has_paid,locked_winner:u.locked_winner||null,help_seen:u.help_seen||{}};
 }
 function entryOut(e) {
   return {id:e.id,name:e.name,created_at:e.created_at,submitted_at:e.submitted_at||null,stages_submitted:e.stages_submitted||{}};
@@ -879,6 +879,19 @@ export const api = {
     await delay();
     const user = requireUser();
     if (d.name) user.name = d.name.trim();
+    save(S);
+    return userOut(user);
+  },
+
+  setHelpSeen: async (m) => {
+    await delay(30);
+    const user = requireUser();
+    // Normalize: keep only truthy string keys.
+    const cleaned = {};
+    for (const [k, v] of Object.entries(m || {})) {
+      if (v && typeof k === "string") cleaned[k] = true;
+    }
+    user.help_seen = cleaned;
     save(S);
     return userOut(user);
   },

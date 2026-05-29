@@ -45,6 +45,12 @@ async def _bootstrap():
                 await conn.execute(text(
                     f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS {col} SMALLINT"
                 ))
+        # Migration 10: per-user onboarding-popup state. Lives on the users
+        # row as JSONB so the popups don't re-trigger on a new device/browser.
+        await conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS help_seen JSONB "
+            "NOT NULL DEFAULT '{}'::jsonb"
+        ))
 
     async with AsyncSessionLocal() as db:
         await crud.get_config(db)

@@ -51,6 +51,10 @@ CREATE TABLE users (
     -- Tournament winner the user committed to with their first stage-1 submit.
     -- Once set, it can't change (per game rules).
     locked_winner  VARCHAR(100),
+    -- Per-user, per-tab onboarding flags. Keys: welcome, predictions, tournament,
+    -- leaderboard, byuser, settings, results, dashboard. Stored DB-side so the
+    -- popups don't re-appear when a user signs in from a new device or browser.
+    help_seen      JSONB         NOT NULL DEFAULT '{}'::jsonb,
     created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_users_email UNIQUE (email)
 );

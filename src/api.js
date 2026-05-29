@@ -95,6 +95,7 @@ export const api = {
   getUsers:             ()       => request("/api/users/"),
   patchUser:            (uid, d) => request(`/api/users/${uid}`,             { method: "PATCH", body: d }),
   updateMe:             (d)      => request("/api/users/me",                 { method: "PATCH", body: d }),
+  setHelpSeen:          (m)      => request("/api/users/me/help-seen",       { method: "PUT",   body: { help_seen: m } }),
   getAdminParticipants: ()       => request("/api/users/admin/participants"),
 };
 
