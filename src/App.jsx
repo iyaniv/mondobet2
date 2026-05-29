@@ -2213,7 +2213,7 @@ const HELP_CONTENT = {
         "**Leaderboard** — live rankings across every form, plus a Simulate mode that shows where you'd land if your remaining picks come true.",
         "**By participant** — peek at any other player's submitted forms once the stage is closed.",
         "**My predictions** — where you fill in scores, pick a tournament winner, and submit each stage.",
-        "**Settings** — your timezone, rivals to watch, theme, and reset the onboarding tips.",
+        "**Settings** — your timezone, theme, and reset the onboarding tips.",
       ]},
       "**Important** — a form must submit its **stage 1** picks before stage 1 closes. Otherwise it's parked and can't be edited or submitted for the rest of the tournament.",
     ],
@@ -2244,6 +2244,7 @@ const HELP_CONTENT = {
     body: [
       "Rankings across every submitted form, updated as results come in.",
       "Click a row to see that participant's full picks (or your own).",
+      "Tap the **★** next to any name to add that form to your **favorites**, then tap the **★** in the column header to show only you and your favorites.",
       "**Simulate** ▾ — see hypothetical standings *if* every remaining pick of yours comes true. Only you see the simulation.",
     ],
   },
@@ -2261,7 +2262,6 @@ const HELP_CONTENT = {
     body: [
       "Set your timezone for kickoff times in the Tournament tab.",
       "Toggle dark / light from the moon/sun button in the nav.",
-      "Pick rivals to watch on the Leaderboard.",
       "Use **Reset onboarding** below to see these tips again.",
     ],
   },
@@ -2485,26 +2485,10 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
   // Timezone (localStorage)
   const [tz, setTz] = useState(() => localStorage.getItem("mb_timezone") || "auto");
 
-  // Rivals (localStorage — array of user IDs, keyed per user)
-  const rivalsKey = `mb_rivals_${user?.id}`;
-  const [rivals, setRivals] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(`mb_rivals_${user?.id}`) || "[]"); }
-    catch { return []; }
-  });
-
-  const seen=new Set();
-  const participants=leaderboard.filter(e=>{if(e.user_id===user?.id||seen.has(e.user_id))return false;seen.add(e.user_id);return true;});
-
   function saveTz(val) {
     setTz(val);
     localStorage.setItem("mb_timezone", val);
     showToast("Timezone saved");
-  }
-
-  function toggleRival(uid) {
-    const next = rivals.includes(uid) ? rivals.filter(r=>r!==uid) : [...rivals, uid];
-    setRivals(next);
-    localStorage.setItem(rivalsKey, JSON.stringify(next));
   }
 
   const sectionStyle = {
@@ -2568,37 +2552,6 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
               padding:"6px 14px",borderRadius:6,cursor:"pointer",fontSize:13,fontWeight:600}}>
             Reset onboarding
           </button>
-        </div>
-      )}
-
-      {/* Rivals — participants only */}
-      {!user?.is_admin && (
-        <div style={sectionStyle}>
-          <h2 style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:4}}>My rivals</h2>
-          <p style={{fontSize:13,color:C.muted,marginBottom:12}}>
-            Rivals are highlighted with a ★ badge in the leaderboard.
-          </p>
-          {participants.length === 0
-            ? <p style={{fontSize:13,color:C.muted}}>No other participants yet.</p>
-            : participants.map(p => {
-              const isRival = rivals.includes(p.user_id);
-              return (
-                <div key={p.user_id} onClick={()=>toggleRival(p.user_id)}
-                  style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",
-                    borderRadius:8,cursor:"pointer",marginBottom:4,
-                    background:isRival?"rgba(163,230,53,0.07)":C.panel2,
-                    border:`1px solid ${isRival?C.accent:C.border}`,
-                    transition:"all .15s"}}>
-                  <span style={{fontSize:16}}>{isRival?"★":"☆"}</span>
-                  <div style={{flex:1}}>
-                    <span style={{fontSize:13,color:C.text,fontWeight:isRival?600:400}}>{p.name}</span>
-                    <span style={{fontSize:11,color:C.muted,marginLeft:8}}>{p.total} pts</span>
-                  </div>
-                  {isRival&&<span style={{fontSize:11,color:C.accent,fontWeight:600}}>RIVAL</span>}
-                </div>
-              );
-            })
-          }
         </div>
       )}
 
@@ -3074,9 +3027,29 @@ export default function App() {
   // ── Leaderboard-tab UI state ────────────────────────────────────────────────
   // Lifted out of LeaderboardView so that view can render inline without
   // remounting on every App re-render. As <LeaderboardView/> it was remounted
-  // by the 10s poll (setLeaderboard), which reset the Simulate / Rivals toggles
+  // by the 10s poll (setLeaderboard), which reset the Simulate / Favorites toggles
   // back to "Actual" after a few seconds.
-  const [rivalsOnly,setRivalsOnly]=useState(false);
+  const [favOnly,setFavOnly]=useState(false);
+  // Favorites = leaderboard rows (forms) the user starred, persisted per user
+  // in localStorage. Keyed by row id (entry_id, falling back to user_id) so two
+  // forms from the same player can be favorited independently. Selected right on
+  // the Leaderboard via the ★ in each row; the ★ in the table header toggles the
+  // "favorites only" filter.
+  const favoritesKey = user?.id ? `mb_favorites_${user.id}` : null;
+  const [favorites,setFavorites]=useState([]);
+  useEffect(()=>{
+    if(!favoritesKey){ setFavorites([]); return; }
+    try { setFavorites(JSON.parse(localStorage.getItem(favoritesKey)||"[]")); }
+    catch { setFavorites([]); }
+  },[favoritesKey]);
+  const toggleFavorite=useCallback((rowKey)=>{
+    if(!favoritesKey||rowKey==null) return;
+    setFavorites(prev=>{
+      const next = prev.includes(rowKey) ? prev.filter(k=>k!==rowKey) : [...prev,rowKey];
+      try { localStorage.setItem(favoritesKey, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  },[favoritesKey]);
   const [hoveredRow,setHoveredRow]=useState(null);
   const [simMode,setSimMode]=useState(false);
   const [simLb,setSimLb]=useState(null);
@@ -4121,8 +4094,12 @@ export default function App() {
   // ── Leaderboard ───────────────────────────────────────────────────────────
   function LeaderboardView(){
     const winnerKnown=!!config.tournament_winner;
-    const myRivals = (() => { try { return JSON.parse(localStorage.getItem(`mb_rivals_${user?.id}`)||"[]"); } catch { return []; } })();
-    // NOTE: rivalsOnly / hoveredRow / simMode / simLb / simLoading and the sim
+    // Favorites (favorites array + favOnly filter + toggleFavorite) are lifted to
+    // App so the 10s leaderboard poll doesn't reset them. A row is favorited by
+    // its key (entry_id, falling back to user_id).
+    const rowKeyOf = (row) => row.entry_id || row.user_id;
+    const isFavRow = (row) => favorites.includes(rowKeyOf(row));
+    // NOTE: favOnly / hoveredRow / simMode / simLb / simLoading and the sim
     // fetch effect live in App (lifted) so this view can be called inline as
     // {LeaderboardView()} without remounting on the 10s poll.
     // Clicking a leaderboard row jumps to that participant's bets. Allow it
@@ -4149,10 +4126,11 @@ export default function App() {
       ? simLb.map(e => ({...e, _simDiff: e.total - (actualTotalsByEntry[e.entry_id] ?? e.total)}))
       : leaderboard;
 
-    // Rivals filter — always keeps current user in view
-    const filteredLb = rivalsOnly
-      ? displayLb.filter(row => row.user_id===user?.id || myRivals.includes(row.user_id))
+    // Favorites filter — always keeps current user's own rows in view
+    const filteredLb = favOnly
+      ? displayLb.filter(row => row.user_id===user?.id || isFavRow(row))
       : displayLb;
+    const hasFavs = displayLb.some(row => row.user_id!==user?.id && isFavRow(row));
 
     return (
       <div>
@@ -4162,21 +4140,6 @@ export default function App() {
           marginBottom:12,flexWrap:"wrap",gap:8}}>
           <h1 style={{color:C.accent,fontSize:20,margin:0}}>🏆 Leaderboard</h1>
           <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-            {myRivals.length>0&&!user?.is_admin&&(
-              <div style={{display:"flex",background:C.panel,border:`1px solid ${C.border}`,
-                borderRadius:6,overflow:"hidden",fontSize:12}}>
-                <button onClick={()=>setRivalsOnly(false)} style={{
-                  padding:"4px 12px",border:"none",cursor:"pointer",
-                  background:!rivalsOnly?C.accent:"transparent",
-                  color:!rivalsOnly?"#1a1a1a":C.muted,fontWeight:!rivalsOnly?700:400,transition:"all .15s",
-                }}>All</button>
-                <button onClick={()=>setRivalsOnly(true)} style={{
-                  padding:"4px 12px",border:"none",cursor:"pointer",
-                  background:rivalsOnly?C.accent:"transparent",
-                  color:rivalsOnly?"#1a1a1a":C.muted,fontWeight:rivalsOnly?700:400,transition:"all .15s",
-                }}>★ Rivals</button>
-              </div>
-            )}
             {canSim&&(
               // Option B layout: classic Actual / Simulate toggle. When the
               // user has 2+ forms AND Simulate is ON, indigo pill-chips slide
@@ -4262,16 +4225,26 @@ export default function App() {
           ?<div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>No participants yet.</div>
           :(
             <>
-            {rivalsOnly&&filteredLb.length===0&&(
-              <div style={{textAlign:"center",padding:"30px 20px",color:C.muted,fontSize:14}}>
-                No rivals yet — add them from the Settings tab.
+            {favOnly&&!hasFavs&&(
+              <div style={{textAlign:"center",padding:"14px 20px",color:C.muted,fontSize:13,marginBottom:10,background:C.panel,border:`1px solid ${C.border}`,borderRadius:8}}>
+                No favorites yet — turn the ★ filter off and tap <span style={{color:C.muted}}>☆</span> on any row to add one.
               </div>
             )}
             {filteredLb.length>0&&(
             <div className="lb-table-wrap" style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:14,minWidth:320}}>
                 <thead><tr style={{background:C.panel2}}>
-                  {["#","Name","Points","Winner pick"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Points"?"center":"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}
+                  <th style={{padding:"8px 10px",textAlign:"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>#</th>
+                  <th style={{padding:"8px 6px",width:34,textAlign:"center",borderBottom:`1px solid ${C.border}`}}>
+                    <span
+                      onClick={()=>setFavOnly(v=>!v)}
+                      title={favOnly?"Showing favorites only — click to show all":"Show favorites only"}
+                      style={{cursor:"pointer",fontSize:17,lineHeight:1,userSelect:"none",
+                        color:favOnly?C.accent:C.muted,opacity:favOnly?1:0.7,transition:"all .15s"}}>
+                      {favOnly?"★":"☆"}
+                    </span>
+                  </th>
+                  {["Name","Points","Winner pick"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Points"?"center":"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}
                   {canJumpToParticipant&&<th style={{padding:"8px 6px",width:28,borderBottom:`1px solid ${C.border}`}}/>}
                 </tr></thead>
                 <tbody>
@@ -4279,7 +4252,7 @@ export default function App() {
                     // Always show global rank (position in the unfiltered display list)
                     const globalRank = displayLb.indexOf(row) + 1;
                     const isMe=row.user_id===user?.id;
-                    const isRival=!isMe&&myRivals.includes(row.user_id);
+                    const isFav=!isMe&&isFavRow(row);
                     // Visual sim-mode (indigo row + total) is on whenever the
                     // user toggled Simulate. The "+N sim" diff badge is only
                     // shown when this row's total actually moved.
@@ -4287,14 +4260,14 @@ export default function App() {
                     const simDiff=row._simDiff||0;
                     const hasSimDiff=simMode&&row._simDiff!=null&&row._simDiff!==0;
                     const i = globalRank - 1;
-                    const rowBg=i===0?"rgba(163,230,53,0.12)":i===1?"rgba(163,230,53,0.07)":i===2?"rgba(163,230,53,0.03)":isRival?"rgba(163,230,53,0.05)":"transparent";
+                    const rowBg=i===0?"rgba(163,230,53,0.12)":i===1?"rgba(163,230,53,0.07)":i===2?"rgba(163,230,53,0.03)":isFav?"rgba(163,230,53,0.05)":"transparent";
                     let winnerCell;
                     if(winnerKnown)winnerCell=row.winner_pick?<>{withFlag(row.winner_pick)}{row.winner_bonus>0&&<span style={{color:C.green}}> +10</span>}</>:"—";
                     else winnerCell=row.winner_pick?withFlag(row.winner_pick):"—";
                     const rowKey=row.entry_id||row.user_id;
                     const isHovered=hoveredRow===rowKey;
                     const baseBg=isSim?"rgba(99,102,241,0.06)":rowBg;
-                    const hoverBg=isMe?"rgba(163,230,53,0.22)":isRival?"rgba(163,230,53,0.15)":"rgba(163,230,53,0.08)";
+                    const hoverBg=isMe?"rgba(163,230,53,0.22)":isFav?"rgba(163,230,53,0.15)":"rgba(163,230,53,0.08)";
                     return (
                       <tr key={rowKey}
                           onMouseEnter={canJumpToParticipant?()=>setHoveredRow(rowKey):undefined}
@@ -4303,14 +4276,24 @@ export default function App() {
                           title={canJumpToParticipant?"View this form's predictions":undefined}
                           style={{
                             background:(canJumpToParticipant&&isHovered)?hoverBg:baseBg,
-                            borderLeft: isMe ? `3px solid ${C.accent}` : isRival ? `3px solid ${C.accent}` : "3px solid transparent",
+                            borderLeft: isMe ? `3px solid ${C.accent}` : isFav ? `3px solid ${C.accent}` : "3px solid transparent",
                             cursor:canJumpToParticipant?"pointer":"default",
                             transition:"background .12s",
                           }}>
                         <td style={td}><b>{globalRank}</b></td>
+                        <td style={{...td,textAlign:"center",width:34,paddingLeft:6,paddingRight:6}}>
+                          {!isMe&&(
+                            <span
+                              onClick={(e)=>{e.stopPropagation();toggleFavorite(rowKey);}}
+                              title={isFav?"Remove from favorites":"Add to favorites"}
+                              style={{cursor:"pointer",fontSize:16,lineHeight:1,userSelect:"none",
+                                color:isFav?C.accent:C.muted,opacity:isFav?1:0.5,transition:"all .15s"}}>
+                              {isFav?"★":"☆"}
+                            </span>
+                          )}
+                        </td>
                         <td style={td}>{row.name}
                           {isMe&&<span style={{background:C.indigo,color:"white",fontSize:10,padding:"1px 5px",borderRadius:4,marginLeft:6}}>YOU</span>}
-                          {isRival&&!isMe&&<span style={{background:"transparent",border:`1px solid ${C.accent}`,color:C.accent,fontSize:10,padding:"1px 5px",borderRadius:4,marginLeft:6}}>★ RIVAL</span>}
                         </td>
                         <td style={{...td,textAlign:"center",color:isSim?C.indigo:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:17}}>
                           {row.total}
