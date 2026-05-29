@@ -3706,10 +3706,14 @@ export default function App() {
       reader.onerror = () => showToast("Couldn't read that file","err");
       reader.onload = () => {
         try {
-          const lines = String(reader.result||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+          // Strip a UTF-8 BOM (Excel/Sheets add one — it would break row 1),
+          // accept comma / semicolon / tab delimiters, and tolerate quoted
+          // cells like "1","2","1" — all common spreadsheet exports.
+          const raw = String(reader.result||"").replace(/^﻿/, "");
+          const lines = raw.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
           const parsed = [];
           for(const line of lines){
-            const c = line.split(",").map(x=>x.trim());
+            const c = line.split(/[,;\t]/).map(x=>x.trim().replace(/^"(.*)"$/, "$1").trim());
             const n=Number(c[0]), a=Number(c[1]), b=Number(c[2]);
             if(!Number.isInteger(n)) continue;                 // header / junk row
             if(!Number.isFinite(a)||!Number.isFinite(b)) continue;
@@ -3724,6 +3728,11 @@ export default function App() {
           const apply = parsed.filter(p => editableNs.has(p.n));
           const skipped = parsed.length - apply.length;
           if(apply.length===0){ showToast(parsed.length?`No editable matches in that file (${skipped} skipped)`:"No valid rows found in CSV","warn"); return; }
+          // How many of this stage's matches are still empty afterwards, so the
+          // user knows if their file was partial and Submit will stay blocked.
+          const filledNow = new Set(apply.map(f=>f.n));
+          for(const mm of matches){ if(editableNs.has(mm.n) && myPreds[mm.n]?.[0]!=null && myPreds[mm.n]?.[1]!=null) filledNow.add(mm.n); }
+          const remaining = editableNs.size - filledNow.size;
           const affected = new Set(apply.map(p=>matchStageObj(p.n).n));
           const targetEntry = entries.find(e=>e.id===targetId);
           if(!targetEntry) return;
@@ -3738,7 +3747,11 @@ export default function App() {
             return {...e, predictions:preds, stages_submitted:ss};
           }));
           setMyPreds(p=>{ const np={...p}; apply.forEach(f=>{ np[f.n]=[f.a,f.b]; }); return np; });
-          showToast(`Imported ${apply.length} match${apply.length===1?"":"es"}${skipped?` · ${skipped} skipped`:""} 📄`);
+          showToast(
+            `Imported ${apply.length} match${apply.length===1?"":"es"}${skipped?` · ${skipped} skipped`:""}`
+            + (remaining>0?` · ${remaining} still empty — fill & Submit` : "") + " 📄",
+            remaining>0?"warn":"ok"
+          );
           Promise.allSettled(apply.map(f=>api.setPrediction(f.n,{score_a:f.a,score_b:f.b},targetId))).then(()=>refreshLb());
         } catch { showToast("Couldn't parse that CSV","err"); }
       };
