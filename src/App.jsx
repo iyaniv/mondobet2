@@ -107,6 +107,46 @@ function resolvedMatch(m, results, allMatches) {
   };
 }
 
+// "?" help icon next to the Import CSV button — a click pops a small panel
+// with the full how-to (replaces the long button tooltip).
+function CsvHelp() {
+  const [open, setOpen] = useState(false);
+  const stop = (e) => e.stopPropagation();
+  return (
+    <span style={{position:"relative", display:"inline-flex"}} onClick={stop}>
+      <button
+        onClick={(e)=>{stop(e); setOpen(v=>!v);}}
+        aria-label="How CSV import works"
+        style={{width:18,height:18,borderRadius:"50%",border:`1px solid ${C.accent}`,
+          background:open?C.accent:"transparent",color:open?"#1a1a1a":C.accent,
+          fontSize:11,fontWeight:700,cursor:"pointer",lineHeight:1,padding:0,
+          display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
+        ?
+      </button>
+      {open && (
+        <>
+          <div onClick={(e)=>{stop(e); setOpen(false);}}
+            style={{position:"fixed",inset:0,zIndex:60}}/>
+          <div onClick={stop}
+            style={{position:"absolute",top:"calc(100% + 8px)",right:0,zIndex:61,width:320,
+              background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,
+              boxShadow:"0 8px 28px rgba(0,0,0,0.45)",padding:"12px 14px",
+              fontSize:12.5,color:C.muted,lineHeight:1.55,textAlign:"left",
+              fontWeight:400,cursor:"default",whiteSpace:"normal"}}>
+            <div style={{fontWeight:700,color:C.text,marginBottom:8,fontSize:13}}>📄 Import predictions from CSV</div>
+            <ul style={{margin:0,paddingLeft:16}}>
+              <li style={{marginBottom:6}}>One line per match — <b style={{color:C.text}}>match number, home score, away score</b>. E.g. <code>81,2,1</code> = match #81 ends 2–1.</li>
+              <li style={{marginBottom:6}}>A header row (<code>match,home,away</code>) is optional; any line that doesn't start with a match number is skipped.</li>
+              <li style={{marginBottom:6}}>Match numbers are shown as <b style={{color:C.text}}>#NN</b> on every row.</li>
+              <li>Only this stage's still-editable matches are filled; closed / finished rows are skipped (a toast says how many). Nothing auto-submits — review, then hit <b style={{color:C.text}}>Submit</b>.</li>
+            </ul>
+          </div>
+        </>
+      )}
+    </span>
+  );
+}
+
 // Small divider label above the two Stage-6 matches so it's clear which is the
 // Final (g="FIN") and which is the 3rd-place play-off (g="3P").
 function StageMatchLabel({ m }) {
@@ -2340,12 +2380,7 @@ const HELP_CONTENT = {
       "Pick a **tournament winner** (+10 pts) — locked once stage 1 closes.",
       "Hit **Submit** when a stage is complete. You can keep editing the current stage and re-submit until it closes.",
       "Stuck on multiple strategies? Click **+ Add form** to maintain another set of picks.",
-      { text: "**Import CSV** — fill a whole stage at once from a spreadsheet:", subs: [
-        "Make a file with **one line per match**: `match number, home score, away score` — for example `81,2,1` means match #81 ends 2–1.",
-        "A header row like `match,home,away` is optional; any line that doesn't start with a match number is skipped.",
-        "Click **⬆ Import CSV** next to **Random Results** on the stage you want to fill, then pick your file. The match number is shown as **#NN** on each row.",
-        "Only the open stage's still-editable matches are filled; rows for closed or finished matches are skipped (a toast tells you how many). Nothing is submitted automatically — review, then hit **Submit**.",
-      ]},
+      "**Import CSV** — fill a whole stage from a spreadsheet (one line per match: `match number,home,away`). Tap the **?** beside the button for the full how-to.",
     ],
   },
   tournament: {
@@ -4267,18 +4302,21 @@ export default function App() {
                     </button>
                   )}
                   {isCurrent && editable && !(activeEntry?.stages_submitted||{})[s.n] && (
-                    <label
-                      onClick={(ev)=>ev.stopPropagation()}
-                      title="Import predictions for this stage from a CSV — one line per match: match number, home score, away score (e.g. 81,2,1). Header row optional."
-                      style={{
-                        display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer",
-                        padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,
-                        background:"transparent",color:C.accent,border:`1px solid ${C.accent}`,
-                      }}>
-                      ⬆ Import CSV
-                      <input type="file" accept=".csv,text/csv" style={{display:"none"}}
-                        onChange={(e)=>{const f=e.target.files&&e.target.files[0]; if(f) importCsv(f, s.n); e.target.value="";}}/>
-                    </label>
+                    <>
+                      <label
+                        onClick={(ev)=>ev.stopPropagation()}
+                        title="Import predictions from a CSV"
+                        style={{
+                          display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer",
+                          padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,
+                          background:"transparent",color:C.accent,border:`1px solid ${C.accent}`,
+                        }}>
+                        ⬆ Import CSV
+                        <input type="file" accept=".csv,text/csv" style={{display:"none"}}
+                          onChange={(e)=>{const f=e.target.files&&e.target.files[0]; if(f) importCsv(f, s.n); e.target.value="";}}/>
+                      </label>
+                      <CsvHelp/>
+                    </>
                   )}
                   <span style={{fontSize:13,color:C.muted,lineHeight:1}}>
                     {isCollapsed ? "▸" : "▾"}
