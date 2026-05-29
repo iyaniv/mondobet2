@@ -2340,6 +2340,12 @@ const HELP_CONTENT = {
       "Pick a **tournament winner** (+10 pts) — locked once stage 1 closes.",
       "Hit **Submit** when a stage is complete. You can keep editing the current stage and re-submit until it closes.",
       "Stuck on multiple strategies? Click **+ Add form** to maintain another set of picks.",
+      { text: "**Import CSV** — fill a whole stage at once from a spreadsheet:", subs: [
+        "Make a file with **one line per match**: `match number, home score, away score` — for example `81,2,1` means match #81 ends 2–1.",
+        "A header row like `match,home,away` is optional; any line that doesn't start with a match number is skipped.",
+        "Click **⬆ Import CSV** next to **Random Results** on the stage you want to fill, then pick your file. The match number is shown as **#NN** on each row.",
+        "Only the open stage's still-editable matches are filled; rows for closed or finished matches are skipped (a toast tells you how many). Nothing is submitted automatically — review, then hit **Submit**.",
+      ]},
     ],
   },
   tournament: {
@@ -4263,7 +4269,7 @@ export default function App() {
                   {isCurrent && editable && !(activeEntry?.stages_submitted||{})[s.n] && (
                     <label
                       onClick={(ev)=>ev.stopPropagation()}
-                      title="Import predictions for this stage from a CSV — one line per match: match,home,away"
+                      title="Import predictions for this stage from a CSV — one line per match: match number, home score, away score (e.g. 81,2,1). Header row optional."
                       style={{
                         display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer",
                         padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,
