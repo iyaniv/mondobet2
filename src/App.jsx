@@ -3867,7 +3867,11 @@ export default function App() {
                 <>
                   <Btn green onClick={submitEntry} disabled={!canSubmit||submitting}
                     title={blockers.length ? `Can't submit yet: ${blockers.join(", ")}` : ""}>
-                    {submitting?"…":`Submit stage ${openStage}`}
+                    {submitting
+                      ? "…"
+                      : entries.length > 1
+                        ? `Submit "${activeEntry?.name||"this form"}" · stage ${openStage}`
+                        : `Submit stage ${openStage}`}
                   </Btn>
                   {!canSubmit&&blockers.length>0&&(
                     <span style={{
@@ -4174,7 +4178,11 @@ export default function App() {
               </div>
             )}
             {canSim&&(
-              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              // Stable column: toggle on top, form picker right below it.
+              // The picker row is permanently rendered when the user has 2+
+              // forms so the layout doesn't shift the moment Simulate is hit.
+              // It's just disabled (greyed out) while Actual is selected.
+              <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
                 <div style={{display:"flex",background:C.panel,border:`1px solid ${C.border}`,
                   borderRadius:6,overflow:"hidden",fontSize:12}}>
                   <button onClick={()=>setSimMode(false)} style={{
@@ -4188,16 +4196,22 @@ export default function App() {
                     color:simMode?"#1a1a1a":C.muted,fontWeight:simMode?700:400,transition:"all .15s",
                   }}>Simulate</button>
                 </div>
-                {/* Per-form picker — only meaningful when the user has 2+ forms and Simulate is on. */}
-                {simMode && entries.length > 1 && (
-                  <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.muted}}>
-                    <span>using</span>
+                {entries.length > 1 && (
+                  <label style={{display:"flex",alignItems:"center",gap:6,fontSize:11,
+                    color:simMode?C.indigo:C.muted,opacity:simMode?1:0.55,
+                    transition:"opacity .15s, color .15s"}}>
+                    <span>simulating</span>
                     <select
                       value={effectiveSimEntryId || ""}
                       onChange={e=>setSimEntryId(e.target.value)}
-                      style={{background:C.panel,border:`1px solid ${C.indigo}`,
-                        color:C.text,padding:"3px 6px",borderRadius:6,fontSize:12,
-                        fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+                      disabled={!simMode}
+                      title={simMode?"Switch which of your forms drives the simulation":"Turn on Simulate to pick a form"}
+                      style={{background:C.panel,
+                        border:`1px solid ${simMode?C.indigo:C.border}`,
+                        color:simMode?C.text:C.muted,
+                        padding:"2px 6px",borderRadius:6,fontSize:11,
+                        fontWeight:600,cursor:simMode?"pointer":"not-allowed",
+                        fontFamily:"inherit"}}>
                       {entries.map(e=>(
                         <option key={e.id} value={e.id}>{e.name}</option>
                       ))}
