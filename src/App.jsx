@@ -4382,17 +4382,30 @@ export default function App() {
           <button onClick={()=>setGlobalErr("")} style={{background:"none",border:0,color:C.red,cursor:"pointer"}}>✕</button>
         </div>
       )}
-      {simActive&&["leaderboard","byuser","tournament"].includes(tab)&&(
-        <div style={{background:"rgba(99,102,241,0.12)",borderBottom:`1px solid ${C.indigo}`,
-          padding:"8px 16px",fontSize:13,color:C.indigo,display:"flex",alignItems:"center",
-          justifyContent:"space-between",gap:10,flexWrap:"wrap",fontWeight:600}}>
-          <span>🔮 <b>Simulation</b> — unplayed games are shown as if they finish exactly as <b>your</b> predictions. Scores &amp; standings are hypothetical (only you see this).</span>
-          <button onClick={()=>setSimMode(false)} style={{background:C.indigo,color:"white",
-            border:0,borderRadius:6,padding:"4px 12px",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>
-            Exit simulation
-          </button>
-        </div>
-      )}
+      {/* Simulation banner slides down/up smoothly when sim mode toggles.
+          The wrapper stays rendered so we can animate max-height + opacity. */}
+      {(() => {
+        const showBanner = simActive && ["leaderboard","byuser","tournament"].includes(tab);
+        return (
+          <div style={{
+            overflow:"hidden",
+            maxHeight:showBanner?80:0,
+            opacity:showBanner?1:0,
+            transition:"max-height .55s cubic-bezier(.4,0,.2,1), opacity .4s ease",
+            borderBottom:showBanner?`1px solid ${C.indigo}`:`1px solid transparent`,
+          }}>
+            <div style={{background:"rgba(99,102,241,0.12)",
+              padding:"8px 16px",fontSize:13,color:C.indigo,display:"flex",alignItems:"center",
+              justifyContent:"space-between",gap:10,flexWrap:"wrap",fontWeight:600}}>
+              <span>🔮 <b>Simulation</b> — unplayed games are shown as if they finish exactly as <b>your</b> predictions. Scores &amp; standings are hypothetical (only you see this).</span>
+              <button onClick={()=>setSimMode(false)} style={{background:C.indigo,color:"white",
+                border:0,borderRadius:6,padding:"4px 12px",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>
+                Exit simulation
+              </button>
+            </div>
+          </div>
+        );
+      })()}
       <div style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px 40px"}}>
         {!user&&<AuthView roundState={config.round_state} onSuccess={doLogin}/>}
         {user&&tab==="predictions"&&MyPredictions()}
