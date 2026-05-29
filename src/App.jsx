@@ -3081,25 +3081,57 @@ export default function App() {
   const [simMode,setSimMode]=useState(false);
   const [simLb,setSimLb]=useState(null);
   const [simLoading,setSimLoading]=useState(false);
-  const unplayedPredMatches = matches.filter(m=>!results[m.n]&&!liveMatches[m.n]&&myPreds?.[m.n]?.[0]!=null);
+  // When the user owns multiple forms, they can pick which form's predictions
+  // drive the simulation. Defaults to the currently active form. Other forms'
+  // predictions are fetched on demand and cached here.
+  const [simEntryId,setSimEntryId]=useState(null);
+  const [simPredsByEntry,setSimPredsByEntry]=useState({}); // {entryId: {match_n:[a,b]}}
+  // The active form is always available via myPreds — seed it into the cache
+  // so picking the active form costs no fetch.
+  useEffect(()=>{
+    if(!activeEntryId) return;
+    setSimPredsByEntry(p=>({ ...p, [activeEntryId]: myPreds }));
+  },[activeEntryId,myPreds]);
+  // Default the picker to the active form whenever it changes.
+  useEffect(()=>{
+    if(activeEntryId && simEntryId==null) setSimEntryId(activeEntryId);
+  },[activeEntryId,simEntryId]);
+  // The form actually being simulated right now.
+  const effectiveSimEntryId = simEntryId || activeEntryId;
+  const simPreds = (effectiveSimEntryId && simPredsByEntry[effectiveSimEntryId]) || myPreds;
+  const unplayedPredMatches = matches.filter(m=>!results[m.n]&&!liveMatches[m.n]&&simPreds?.[m.n]?.[0]!=null);
   // Simulate / Actual toggle is always available for a stable UI. When there
   // are no unplayed predictions the simulated leaderboard equals the actual
   // one, so flipping the toggle is just a no-op rather than the button
   // disappearing.
   const canSim = !!user;
-  // Fetch the simulated leaderboard when Simulate turns on — unplayed matches
-  // resolve to my own predictions and (if no champion yet) my winner pick.
+  // Fetch the simulated leaderboard when Simulate turns on, or when the user
+  // switches which form to simulate from. Unplayed matches resolve to the
+  // chosen form's predictions (and, if no champion yet, my winner pick).
   useEffect(()=>{
     if(!simMode||!canSim){ setSimLb(null); return; }
     const override={};
-    for(const m of unplayedPredMatches){ const p=myPreds[m.n]; if(p?.[0]!=null&&p?.[1]!=null) override[m.n]=[p[0],p[1]]; }
+    for(const m of unplayedPredMatches){ const p=simPreds[m.n]; if(p?.[0]!=null&&p?.[1]!=null) override[m.n]=[p[0],p[1]]; }
     const winnerPick = lockedWinner||myWinner;
     const winnerOverride = (!config.tournament_winner&&winnerPick)?winnerPick:null;
     setSimLoading(true);
     api.getSimulatedLeaderboard(override,winnerOverride)
       .then(rows=>setSimLb(rows)).catch(()=>setSimLb(null)).finally(()=>setSimLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[simMode]);
+  },[simMode,effectiveSimEntryId,simPreds]);
+  // Fetch predictions for the chosen form if we don't already have them cached.
+  useEffect(()=>{
+    if(!simMode||!effectiveSimEntryId) return;
+    if(simPredsByEntry[effectiveSimEntryId]) return;
+    api.getMyPredictions(effectiveSimEntryId)
+      .then(list=>{
+        const map={};
+        for(const p of list){ map[p.match_n]=[p.score_a,p.score_b]; }
+        setSimPredsByEntry(prev=>({...prev,[effectiveSimEntryId]:map}));
+      })
+      .catch(()=>{});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[simMode,effectiveSimEntryId]);
 
   // Simulation is "active" once the simulated leaderboard has loaded. While
   // active, every view (By-participant, bracket) should treat unplayed matches
@@ -3112,7 +3144,7 @@ export default function App() {
     if (!simActive) return results;
     const merged = { ...results };
     for (const m of unplayedPredMatches) {
-      const p = myPreds[m.n];
+      const p = simPreds[m.n];
       if (p?.[0] != null && p?.[1] != null) merged[m.n] = [p[0], p[1]];
     }
     return merged;
@@ -4142,18 +4174,36 @@ export default function App() {
               </div>
             )}
             {canSim&&(
-              <div style={{display:"flex",background:C.panel,border:`1px solid ${C.border}`,
-                borderRadius:6,overflow:"hidden",fontSize:12}}>
-                <button onClick={()=>setSimMode(false)} style={{
-                  padding:"4px 12px",border:"none",cursor:"pointer",
-                  background:!simMode?C.accent:"transparent",
-                  color:!simMode?"#1a1a1a":C.muted,fontWeight:!simMode?700:400,transition:"all .15s",
-                }}>Actual</button>
-                <button onClick={()=>setSimMode(true)} style={{
-                  padding:"4px 12px",border:"none",cursor:"pointer",
-                  background:simMode?C.accent:"transparent",
-                  color:simMode?"#1a1a1a":C.muted,fontWeight:simMode?700:400,transition:"all .15s",
-                }}>Simulate</button>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <div style={{display:"flex",background:C.panel,border:`1px solid ${C.border}`,
+                  borderRadius:6,overflow:"hidden",fontSize:12}}>
+                  <button onClick={()=>setSimMode(false)} style={{
+                    padding:"4px 12px",border:"none",cursor:"pointer",
+                    background:!simMode?C.accent:"transparent",
+                    color:!simMode?"#1a1a1a":C.muted,fontWeight:!simMode?700:400,transition:"all .15s",
+                  }}>Actual</button>
+                  <button onClick={()=>setSimMode(true)} style={{
+                    padding:"4px 12px",border:"none",cursor:"pointer",
+                    background:simMode?C.accent:"transparent",
+                    color:simMode?"#1a1a1a":C.muted,fontWeight:simMode?700:400,transition:"all .15s",
+                  }}>Simulate</button>
+                </div>
+                {/* Per-form picker — only meaningful when the user has 2+ forms and Simulate is on. */}
+                {simMode && entries.length > 1 && (
+                  <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.muted}}>
+                    <span>using</span>
+                    <select
+                      value={effectiveSimEntryId || ""}
+                      onChange={e=>setSimEntryId(e.target.value)}
+                      style={{background:C.panel,border:`1px solid ${C.indigo}`,
+                        color:C.text,padding:"3px 6px",borderRadius:6,fontSize:12,
+                        fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+                      {entries.map(e=>(
+                        <option key={e.id} value={e.id}>{e.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
               </div>
             )}
           </div>
