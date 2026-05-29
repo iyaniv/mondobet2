@@ -3552,23 +3552,39 @@ export default function App() {
           stages_submitted: {...(e.stages_submitted||{}), [openStage]: now},
         }));
         if(openStage===1 && !lockedWinner) setLockedWinner(myWinner);
+        refreshLb();
         // If the user has OTHER active forms that haven't submitted this stage
-        // yet, nudge them so they don't forget. Locked/inactive forms (missed
-        // the stage-1 deadline) are excluded — they can't submit anyway.
+        // yet, NAG them with a popup so it's impossible to miss. Locked /
+        // inactive forms (missed the stage-1 deadline) are excluded — they
+        // can't submit anyway.
         const stageKey = String(openStage);
         const pending = entries.filter(e =>
           e.id !== activeEntryId
           && isFormActive(e)
           && !((e.stages_submitted||{})[stageKey] || (e.stages_submitted||{})[openStage])
         );
-        if (pending.length > 0) {
-          const names = pending.slice(0,2).map(e=>`"${e.name}"`).join(", ");
-          const more  = pending.length > 2 ? ` +${pending.length-2} more` : "";
-          showToast(`Stage ${openStage} submitted ✓ · still pending: ${names}${more}`);
-        } else {
+        if (pending.length === 0) {
           showToast(`Stage ${openStage} submitted! 🎉`);
+        } else {
+          showToast(`Stage ${openStage} submitted ✓`);
+          // Defer slightly so the green toast paints before the modal — gives
+          // the user a moment to register "ok, that one's done" before the
+          // warning lands.
+          const next = pending[0];
+          const list = pending.map(e => `• ${e.name}`).join("\n");
+          setTimeout(async () => {
+            const goNext = await confirmDialog({
+              title: `Don't forget your other form${pending.length>1?"s":""}!`,
+              message:
+                `You still have ${pending.length} form${pending.length>1?"s":""} that haven't submitted stage ${openStage}:\n\n` +
+                `${list}\n\n` +
+                `Submit them before stage ${openStage} closes or they won't count.`,
+              confirmLabel: `Open "${next.name}"`,
+              cancelLabel: "Later",
+            });
+            if (goNext) switchEntry(next.id);
+          }, 250);
         }
-        refreshLb();
       }catch(e){showToast(e.message,"err");}
       finally{setSubmitting(false);}
     }
