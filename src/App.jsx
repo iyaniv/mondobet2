@@ -3510,6 +3510,60 @@ export default function App() {
       ).then(() => { refreshLb(); });
     }
 
+    // Import predictions from a CSV. Format: "match,home,away" per line
+    // (match = match number, home/away = predicted scores). A header row is
+    // optional — any row whose first cell isn't an integer is skipped. When a
+    // stageN is given (the per-stage button next to Random Results) only that
+    // stage's editable matches are applied; otherwise any currently-editable
+    // match. Rows for closed/finished matches are skipped. Mirrors
+    // randomFillStage: optimistic update + background persist, user still
+    // submits afterwards.
+    function importCsv(file, stageN){
+      if(!editable||!activeEntry){ showToast("Open the round before importing","warn"); return; }
+      const targetId = activeEntryId;
+      const reader = new FileReader();
+      reader.onerror = () => showToast("Couldn't read that file","err");
+      reader.onload = () => {
+        try {
+          const lines = String(reader.result||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+          const parsed = [];
+          for(const line of lines){
+            const c = line.split(",").map(x=>x.trim());
+            const n=Number(c[0]), a=Number(c[1]), b=Number(c[2]);
+            if(!Number.isInteger(n)) continue;                 // header / junk row
+            if(!Number.isFinite(a)||!Number.isFinite(b)) continue;
+            parsed.push({ n, a:Math.max(0,Math.round(a)), b:Math.max(0,Math.round(b)) });
+          }
+          const editableNs = new Set(
+            matches.filter(m =>
+              (stageN ? matchStageObj(m.n).n === stageN : matchStageObj(m.n).n <= openStage)
+              && !results[m.n] && !liveMatches[m.n]
+            ).map(m=>m.n)
+          );
+          const apply = parsed.filter(p => editableNs.has(p.n));
+          const skipped = parsed.length - apply.length;
+          if(apply.length===0){ showToast(parsed.length?`No editable matches in that file (${skipped} skipped)`:"No valid rows found in CSV","warn"); return; }
+          const affected = new Set(apply.map(p=>matchStageObj(p.n).n));
+          const targetEntry = entries.find(e=>e.id===targetId);
+          if(!targetEntry) return;
+          // Optimistic update — scoped to the target form; invalidate the
+          // affected stages' submissions so Submit reappears.
+          setEntries(es=>es.map(e=>{
+            if(e.id!==targetId) return e;
+            const keep=(e.predictions||[]).filter(p=>!apply.some(f=>f.n===p.match_n));
+            const preds=[...keep, ...apply.map(f=>({match_n:f.n,score_a:f.a,score_b:f.b}))];
+            const ss={...(e.stages_submitted||{})};
+            affected.forEach(sn=>{ delete ss[sn]; delete ss[String(sn)]; });
+            return {...e, predictions:preds, stages_submitted:ss};
+          }));
+          setMyPreds(p=>{ const np={...p}; apply.forEach(f=>{ np[f.n]=[f.a,f.b]; }); return np; });
+          showToast(`Imported ${apply.length} match${apply.length===1?"":"es"}${skipped?` · ${skipped} skipped`:""} 📄`);
+          Promise.allSettled(apply.map(f=>api.setPrediction(f.n,{score_a:f.a,score_b:f.b},targetId))).then(()=>refreshLb());
+        } catch { showToast("Couldn't parse that CSV","err"); }
+      };
+      reader.readAsText(file);
+    }
+
     async function saveWinner(team){
       const prev=myWinner;
       setMyWinner(team||null);
@@ -4086,6 +4140,20 @@ export default function App() {
                       }}>
                       🎲 Random Results
                     </button>
+                  )}
+                  {isCurrent && editable && !(activeEntry?.stages_submitted||{})[s.n] && (
+                    <label
+                      onClick={(ev)=>ev.stopPropagation()}
+                      title="Import predictions for this stage from a CSV — one line per match: match,home,away"
+                      style={{
+                        display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer",
+                        padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,
+                        background:"transparent",color:C.accent,border:`1px solid ${C.accent}`,
+                      }}>
+                      ⬆ Import CSV
+                      <input type="file" accept=".csv,text/csv" style={{display:"none"}}
+                        onChange={(e)=>{const f=e.target.files&&e.target.files[0]; if(f) importCsv(f, s.n); e.target.value="";}}/>
+                    </label>
                   )}
                   <span style={{fontSize:13,color:C.muted,lineHeight:1}}>
                     {isCollapsed ? "▸" : "▾"}
