@@ -3063,6 +3063,9 @@ export default function App() {
   // to live in the persisted `favorites` list. Only other people's forms are
   // toggled into/out of localStorage.
   const [hoveredRow,setHoveredRow]=useState(null);
+  // Lifted so LeaderboardView (called inline, not mounted) can branch its
+  // layout responsively without itself calling a hook conditionally.
+  const isMobile = useIsMobile();
   const [simMode,setSimMode]=useState(false);
   const [simLb,setSimLb]=useState(null);
   const [simLoading,setSimLoading]=useState(false);
@@ -4160,6 +4163,28 @@ export default function App() {
     const filteredLb = favOnly ? displayLb.filter(isFavRow) : displayLb;
     const hasFavs = displayLb.some(isFavRow);
 
+    // Per-form picker chips (only when the user owns 2+ forms). Shared between
+    // the desktop (slide-in beside the toggle) and mobile (wrap below) layouts.
+    const formChips = entries.map((e) => {
+      const isThisActive = effectiveSimEntryId === e.id;
+      return (
+        <button key={e.id}
+          onClick={()=>setSimEntryId(e.id)}
+          title={`Simulate using "${e.name}"`}
+          style={{
+            padding:"4px 12px",borderRadius:999,
+            border:`1px solid ${C.indigo}`,cursor:"pointer",fontSize:12,
+            fontWeight:600,whiteSpace:"nowrap",fontFamily:"inherit",
+            background:isThisActive?C.indigo:"transparent",
+            color:isThisActive?"white":C.indigo,
+            transition:"all .15s",
+            maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",
+          }}>
+          {e.name}
+        </button>
+      );
+    });
+
     return (
       <div>
         <LiveNowSection liveMatches={liveMatches} matches={matches}/>
@@ -4175,7 +4200,11 @@ export default function App() {
               // switches which form drives the simulation. Chips fade out
               // when Simulate is turned off (the toggle itself stays in
               // place, so the primary on/off is always a single click away).
-              <div style={{display:"inline-flex",alignItems:"center"}}>
+              <div style={{display:"inline-flex",
+                flexDirection:isMobile?"column":"row",
+                alignItems:isMobile?"flex-start":"center",
+                gap:isMobile?8:0,
+                width:isMobile?"100%":"auto"}}>
                 <div style={{display:"flex",background:C.panel,
                   border:`1px solid ${C.border}`,borderRadius:6,overflow:"hidden",
                   fontSize:12}}>
@@ -4193,12 +4222,27 @@ export default function App() {
                     transition:"all .15s",whiteSpace:"nowrap",
                   }}>Simulate</button>
                 </div>
-                {entries.length > 1 && (
-                  // Chip cluster sits in a collapsible box: when Simulate is
-                  // OFF the box has 0 width (overflow clipped), so the toggle
-                  // sits at its natural rightmost position. Flipping Simulate
-                  // ON expands the box to its content's width, sliding the
-                  // toggle left to make room while chips fade + slide in.
+                {entries.length > 1 && (isMobile ? (
+                  // Mobile: there's no horizontal room beside the toggle, so the
+                  // chips wrap onto their own row(s) below it, revealed by a
+                  // vertical (max-height) expand instead of a sideways slide.
+                  <div style={{
+                    width:"100%",overflow:"hidden",
+                    maxHeight:simMode?260:0,
+                    opacity:simMode?1:0,
+                    pointerEvents:simMode?"auto":"none",
+                    transition:"max-height .45s cubic-bezier(.4,0,.2,1), opacity .35s ease",
+                  }}>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:6,paddingTop:2}}>
+                      {formChips}
+                    </div>
+                  </div>
+                ) : (
+                  // Desktop: chip cluster sits in a collapsible box — when
+                  // Simulate is OFF the box has 0 width (overflow clipped), so
+                  // the toggle sits at its natural rightmost position. Flipping
+                  // Simulate ON expands it, sliding the toggle left while the
+                  // chips fade + slide in.
                   <div style={{
                     display:"inline-flex",alignItems:"center",
                     overflow:"hidden",
@@ -4213,28 +4257,10 @@ export default function App() {
                       pointerEvents:simMode?"auto":"none",
                       transition:"opacity .4s ease .12s, transform .5s cubic-bezier(.4,0,.2,1)",
                     }}>
-                      {entries.map((e) => {
-                        const isThisActive = effectiveSimEntryId === e.id;
-                        return (
-                          <button key={e.id}
-                            onClick={()=>setSimEntryId(e.id)}
-                            title={`Simulate using "${e.name}"`}
-                            style={{
-                              padding:"4px 12px",borderRadius:999,
-                              border:`1px solid ${C.indigo}`,cursor:"pointer",fontSize:12,
-                              fontWeight:600,whiteSpace:"nowrap",fontFamily:"inherit",
-                              background:isThisActive?C.indigo:"transparent",
-                              color:isThisActive?"white":C.indigo,
-                              transition:"all .15s",
-                              maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",
-                            }}>
-                            {e.name}
-                          </button>
-                        );
-                      })}
+                      {formChips}
                     </div>
                   </div>
-                )}
+                ))}
               </div>
             )}
           </div>
