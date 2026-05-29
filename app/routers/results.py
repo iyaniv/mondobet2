@@ -7,7 +7,7 @@ from app import crud
 from app.auth import require_admin
 from app.database import get_db
 from app.matches import MATCH_INDEX
-from app.schemas import ResultIn, ResultOut
+from app.schemas import ResultAuditOut, ResultIn, ResultOut
 
 router = APIRouter(prefix="/results", tags=["results"])
 
@@ -22,11 +22,20 @@ async def list_results(db: AsyncSession = Depends(get_db)):
     ]
 
 
+@router.get("/audit", response_model=list[ResultAuditOut])
+async def result_audit(
+    _=Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only: recent result edits (who/when/what), newest first."""
+    return await crud.get_result_audit(db, limit=200)
+
+
 @router.put("/{match_n}", response_model=dict)
 async def set_result(
     match_n: int,
     data: ResultIn,
-    _=Depends(require_admin),
+    admin=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     if match_n not in MATCH_INDEX:
@@ -34,6 +43,7 @@ async def set_result(
     res = await crud.upsert_result(
         db, match_n, data.score_a, data.score_b,
         et_a=data.et_a, et_b=data.et_b, pen_a=data.pen_a, pen_b=data.pen_b,
+        admin=admin,
     )
     return {
         "match_n": match_n, "score_a": data.score_a, "score_b": data.score_b,
@@ -44,7 +54,7 @@ async def set_result(
 
 @router.post("/reset", response_model=dict)
 async def reset_all_results(
-    _=Depends(require_admin),
+    admin=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Admin testing helper — wipes every final result AND every live record.
@@ -52,7 +62,7 @@ async def reset_all_results(
     Predictions, entries, users, winner picks, config and stages are all
     left untouched; only the admin-entered scores go.
     """
-    deleted = await crud.delete_all_results_and_live(db)
+    deleted = await crud.delete_all_results_and_live(db, admin=admin)
     return {"deleted": deleted}
 
 

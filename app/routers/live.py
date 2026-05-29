@@ -59,10 +59,10 @@ async def remove_live(
 @router.post("/{match_n}/finalize", response_model=LiveMatchOut)
 async def finalize_live(
     match_n: int,
-    _=Depends(require_admin),
+    admin=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await crud.finalize_live_match(db, match_n)
+    result = await crud.finalize_live_match(db, match_n, admin=admin)
     if not result:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No live match found.")
     return LiveMatchOut(

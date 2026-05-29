@@ -122,6 +122,19 @@ class ResultOut(BaseModel):
     winner: Optional[str] = None
 
 
+class ResultAuditOut(BaseModel):
+    """One entry in the admin result-edit audit log."""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    match_n: Optional[int] = None
+    action: str
+    old_value: Optional[str] = None
+    new_value: Optional[str] = None
+    admin_id: Optional[int] = None
+    admin_name: str
+    created_at: datetime
+
+
 # ── Users (admin) ─────────────────────────────────────────────────────────────
 
 class UserPatch(BaseModel):

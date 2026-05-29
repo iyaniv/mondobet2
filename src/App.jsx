@@ -1036,6 +1036,17 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
   // Stage management
   const currentStage = config.current_stage || 1;
 
+  // Result-edit audit log — who changed which result, when. Fetched on mount
+  // and on demand; collapsed by default to keep the dashboard tidy.
+  const [audit, setAudit] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const loadAudit = useCallback(() => {
+    setAuditLoading(true);
+    api.getResultAudit().then(setAudit).catch(()=>{}).finally(()=>setAuditLoading(false));
+  }, []);
+  useEffect(() => { loadAudit(); }, [loadAudit]);
+
   // Per-form per-stage badge row — green ✓ for submitted, orange with filled/total
   // for the current open stage, muted for future stages, red for past stages
   // that somehow stayed unsubmitted.
@@ -1261,6 +1272,60 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap",marginBottom:20,position:"relative",zIndex:10}}>
         <TeamPicker value={config.tournament_winner||null} onChange={setWinner} teams={teams} clearable placeholder="— no winner set —"/>
         <span style={{color:C.muted,fontSize:12,alignSelf:"center"}}>Awards +10 pts to everyone who picked correctly.</span>
+      </div>
+
+      {/* ── Result history (audit log) ──────────────────────────────────── */}
+      <div style={{marginBottom:20}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8,gap:8,flexWrap:"wrap"}}>
+          <h2 style={{color:C.accent,fontSize:16,margin:0}}>🧾 Result history</h2>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <button onClick={loadAudit} title="Refresh the log"
+              style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,padding:"3px 10px",borderRadius:4,cursor:"pointer",fontSize:12}}>
+              ↻ Refresh
+            </button>
+            <button onClick={()=>setAuditOpen(v=>!v)}
+              style={{background:"transparent",border:`1px solid ${C.accent}`,color:C.accent,padding:"3px 12px",borderRadius:4,cursor:"pointer",fontSize:12,fontWeight:600}}>
+              {auditOpen ? "Hide" : `Show (${audit.length})`}
+            </button>
+          </div>
+        </div>
+        {auditOpen && (
+          <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden"}}>
+            {auditLoading && audit.length===0
+              ? <div style={{padding:16,color:C.muted,fontSize:13,textAlign:"center"}}>Loading…</div>
+              : audit.length===0
+                ? <div style={{padding:16,color:C.muted,fontSize:13,textAlign:"center"}}>No result edits recorded yet.</div>
+                : (
+                  <div style={{maxHeight:340,overflowY:"auto"}}>
+                    {audit.map(a => {
+                      const m = matches.find(x=>x.n===a.match_n);
+                      const matchLabel = a.match_n==null ? "All results"
+                        : (m ? `#${a.match_n} ${m.a}–${m.b}` : `#${a.match_n}`);
+                      const palette = a.action==="finalize" ? C.green
+                        : (a.action==="clear"||a.action==="reset_all") ? C.red : C.accent;
+                      return (
+                        <div key={a.id} style={{display:"flex",gap:10,alignItems:"baseline",padding:"8px 12px",
+                          borderBottom:`1px solid ${C.border}`,fontSize:12.5,flexWrap:"wrap"}}>
+                          <span style={{color:C.muted,fontFamily:"monospace",fontSize:11,whiteSpace:"nowrap"}}>
+                            {new Date(a.created_at).toLocaleString()}
+                          </span>
+                          <span style={{textTransform:"uppercase",fontWeight:700,fontSize:10,color:palette,
+                            border:`1px solid ${palette}`,borderRadius:4,padding:"1px 6px",whiteSpace:"nowrap"}}>
+                            {a.action}
+                          </span>
+                          <span style={{color:C.text,fontWeight:600,whiteSpace:"nowrap"}}>{matchLabel}</span>
+                          <span style={{color:C.muted}}>
+                            {a.old_value ? <><span style={{textDecoration:"line-through",opacity:0.65}}>{a.old_value}</span>{" → "}</> : null}
+                            <span style={{color:C.text}}>{a.new_value || "—"}</span>
+                          </span>
+                          <span style={{marginLeft:"auto",color:C.indigo,fontWeight:600,whiteSpace:"nowrap"}}>by {a.admin_name}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+          </div>
+        )}
       </div>
 
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
@@ -3066,6 +3131,21 @@ export default function App() {
   // Lifted so LeaderboardView (called inline, not mounted) can branch its
   // layout responsively without itself calling a hook conditionally.
   const isMobile = useIsMobile();
+  // Rank-movement arrows: remember the previous actual standings so each row
+  // can show ▲/▼ since the order last changed. Snapshot only advances when the
+  // ordering actually moves, so an arrow persists until the next shake-up
+  // (not just for one 10s poll). Tracks the real leaderboard, not Simulate.
+  const prevRanksRef = useRef(null);
+  const [rankDelta,setRankDelta]=useState({});
+  useEffect(()=>{
+    if(!leaderboard||leaderboard.length===0) return;
+    const cur={}; leaderboard.forEach((r,i)=>{ cur[r.entry_id||r.user_id]=i+1; });
+    const prev=prevRanksRef.current;
+    if(!prev){ prevRanksRef.current=cur; return; } // seed on first load — no arrows
+    const d={}; let changed=false;
+    for(const k in cur){ const pv=prev[k]; d[k]= pv==null?0:(pv-cur[k]); if(d[k]!==0) changed=true; }
+    if(changed){ setRankDelta(d); prevRanksRef.current=cur; }
+  },[leaderboard]);
   const [simMode,setSimMode]=useState(false);
   const [simLb,setSimLb]=useState(null);
   const [simLoading,setSimLoading]=useState(false);
@@ -3353,21 +3433,33 @@ export default function App() {
     } catch(e) { console.error("refreshResults:", e); }
   }
 
+  // Re-fetch round config (round_state, current_stage, tournament_winner) so the
+  // admin's state transitions — open/close the round, advance the stage, set the
+  // tournament winner — propagate to every client without a reload. Skipped on
+  // the admin's Dashboard, where they're the ones driving those changes.
+  async function refreshConfig(){
+    if(user?.is_admin && tab==="dashboard") return;
+    try { const cfg=await api.getConfig(); setConfig(cfg); }
+    catch(e) { console.error("refreshConfig:", e); }
+  }
+
   // ── Live-update polling ───────────────────────────────────────────────────
-  // While the user is signed in and a round is in motion (open or closed —
-  // anything other than 'idle'), poll the backend every ~10s so that all
-  // clients see admin-entered scores and the leaderboard re-sort in real
-  // time, not only after a refresh. Stops when there's nothing to update.
+  // While the user is signed in, poll the backend every ~10s so all clients see
+  // admin changes without a reload. Config is polled even while idle, so an
+  // idle→open transition (admin opens the round) propagates; live scores, the
+  // leaderboard and finalized results are only polled once a round is in motion.
   useEffect(() => {
     if (!user) return;
-    if (config.round_state === "idle") return;
     // Pause polling while the admin is actively entering results. The poll
     // re-fetches and REPLACES liveMatches, which was wiping freshly-typed
     // scores and yanking the cursor out mid-edit. The admin is the source of
     // truth on this tab — their own edits persist via updateLive regardless —
     // so there's nothing to poll for here. Resumes on any other tab.
     if (user.is_admin && tab === "results") return;
-    const tick = () => { refreshLive(); refreshLb(); refreshResults(); };
+    const tick = () => {
+      refreshConfig();                                       // even while idle
+      if (config.round_state !== "idle") { refreshLive(); refreshLb(); refreshResults(); }
+    };
     const id = setInterval(tick, 10000);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -4402,7 +4494,16 @@ export default function App() {
                             cursor:canJumpToParticipant?"pointer":"default",
                             transition:"background .12s",
                           }}>
-                        <td style={{...td,textAlign:"center",width:40,padding:"8px 4px"}}><b>{globalRank}</b></td>
+                        <td style={{...td,textAlign:"center",width:40,padding:"8px 4px"}}>
+                          <b>{globalRank}</b>
+                          {!simMode && (rankDelta[rowKey]||0)!==0 && (
+                            <div style={{fontSize:9,fontWeight:700,lineHeight:1,marginTop:1,
+                              color:rankDelta[rowKey]>0?C.green:C.red}}
+                              title={rankDelta[rowKey]>0?`Up ${rankDelta[rowKey]} since the last result`:`Down ${Math.abs(rankDelta[rowKey])} since the last result`}>
+                              {rankDelta[rowKey]>0?`▲${rankDelta[rowKey]}`:`▼${Math.abs(rankDelta[rowKey])}`}
+                            </div>
+                          )}
+                        </td>
                         <td style={{...td,textAlign:"center",width:40,padding:"8px 4px"}}>
                           {isMe?(
                             <span

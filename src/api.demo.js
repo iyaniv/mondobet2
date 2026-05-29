@@ -416,6 +416,28 @@ function requireAdmin() {
   return u;
 }
 
+// Human-readable result string for the audit log (mirrors crud.format_result).
+function fmtResult(sa, sb, etA, etB, penA, penB, winner) {
+  if (sa == null || sb == null) return null;
+  let s = `${sa}:${sb}`;
+  if (etA != null && etB != null) s += ` · a.e.t. ${etA}:${etB}`;
+  if (penA != null && penB != null) s += ` · pen ${penA}:${penB}`;
+  if (winner) s += ` · won ${winner}`;
+  return s;
+}
+// Append a row to the admin result-edit audit log (newest first).
+function recordAudit(admin, { match_n = null, action, old_value = null, new_value = null }) {
+  if (!S.audit) S.audit = [];
+  const id = (S._auditSeq = (S._auditSeq || 0) + 1);
+  S.audit.unshift({
+    id, match_n, action, old_value, new_value,
+    admin_id: admin ? admin.id : null,
+    admin_name: admin ? admin.name : "system",
+    created_at: new Date().toISOString(),
+  });
+  if (S.audit.length > 200) S.audit.length = 200;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const delay = (ms=70) => new Promise(r => setTimeout(r, ms + Math.random()*30));
 
@@ -763,28 +785,36 @@ export const api = {
 
   setResult: async (n, d) => {
     await delay();
-    requireAdmin();
+    const admin = requireAdmin();
+    const prev = S.results[n];
+    const oldStr = prev ? fmtResult(prev[0],prev[1],prev[3],prev[4],prev[5],prev[6],prev[2]) : null;
     if (d.score_a!=null&&d.score_b!=null) {
       const w = deriveWinner(d.score_a,d.score_b,d.et_a,d.et_b,d.pen_a,d.pen_b);
       S.results[n]=[d.score_a,d.score_b,w,d.et_a??null,d.et_b??null,d.pen_a??null,d.pen_b??null];
       delete S.live[n];
+      recordAudit(admin, {match_n:Number(n), action: oldStr==null?"save":"edit",
+        old_value:oldStr, new_value:fmtResult(d.score_a,d.score_b,d.et_a,d.et_b,d.pen_a,d.pen_b,w)});
       save(S);
       return {match_n:n,...d,winner:w};
     }
     delete S.results[n];
+    if (prev) recordAudit(admin, {match_n:Number(n), action:"clear", old_value:oldStr, new_value:null});
     save(S);
     return {match_n:n,...d};
   },
+
+  getResultAudit: async () => { await delay(30); requireAdmin(); return (S.audit||[]).slice(0,200); },
 
   // Admin testing helper: wipe every final result and every live record.
   // Predictions / entries / users / winner picks / config are untouched.
   resetAllResults: async () => {
     await delay();
-    requireAdmin();
+    const admin = requireAdmin();
     const r = Object.keys(S.results).length;
     const l = Object.keys(S.live).length;
     S.results = {};
     S.live = {};
+    recordAudit(admin, {action:"reset_all", new_value:`cleared ${r} result(s), ${l} live`});
     save(S);
     return {deleted:{results:r, live:l}};
   },
@@ -954,12 +984,16 @@ export const liveApi = {
   },
   finalize: async (n) => {
     await delay();
-    requireAdmin();
+    const admin = requireAdmin();
     const ld = S.live[Number(n)];
     if (!ld) throw new Error("Match has no score yet");
+    const prev = S.results[Number(n)];
+    const oldStr = prev ? fmtResult(prev[0],prev[1],prev[3],prev[4],prev[5],prev[6],prev[2]) : null;
     const w = deriveWinner(ld.score_a, ld.score_b, ld.et_a, ld.et_b, ld.pen_a, ld.pen_b);
     S.results[Number(n)] = [ld.score_a, ld.score_b, w, ld.et_a??null, ld.et_b??null, ld.pen_a??null, ld.pen_b??null];
     delete S.live[Number(n)];
+    recordAudit(admin, {match_n:Number(n), action:"finalize", old_value:oldStr,
+      new_value:fmtResult(ld.score_a,ld.score_b,ld.et_a,ld.et_b,ld.pen_a,ld.pen_b,w)});
     save(S);
     return {match_n:Number(n),score_a:ld.score_a,score_b:ld.score_b,winner:w,et_a:ld.et_a??null,et_b:ld.et_b??null,pen_a:ld.pen_a??null,pen_b:ld.pen_b??null};
   },

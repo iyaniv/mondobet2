@@ -24,6 +24,7 @@ BEGIN;
 
 -- ── 1. Drop everything (FK dependency order, with CASCADE for safety) ────────
 DROP TABLE IF EXISTS predictions   CASCADE;
+DROP TABLE IF EXISTS result_audit  CASCADE;
 DROP TABLE IF EXISTS winner_picks  CASCADE;
 DROP TABLE IF EXISTS entries       CASCADE;
 DROP TABLE IF EXISTS results       CASCADE;
@@ -110,6 +111,22 @@ CREATE TABLE winner_picks (
     entry_id  UUID         PRIMARY KEY REFERENCES entries (id) ON DELETE CASCADE,
     team      VARCHAR(100) NOT NULL
 );
+
+-- ── 8b. Result audit log ─────────────────────────────────────────────────────
+-- Append-only record of admin edits to match results (who / when / what).
+-- match_n is NULL for global actions like "reset all results".
+CREATE TABLE result_audit (
+    id          SERIAL       PRIMARY KEY,
+    match_n     INT,
+    action      VARCHAR(20)  NOT NULL,
+    old_value   VARCHAR(160),
+    new_value   VARCHAR(160),
+    admin_id    INT          REFERENCES users (id) ON DELETE SET NULL,
+    admin_name  VARCHAR(100) NOT NULL DEFAULT '',
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX ix_result_audit_match_n    ON result_audit (match_n);
+CREATE INDEX ix_result_audit_created_at ON result_audit (created_at);
 
 -- ── 9. Game config (singleton, id = 1) ───────────────────────────────────────
 CREATE TABLE game_config (

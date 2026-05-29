@@ -18,6 +18,7 @@ PostgreSQL schema for the WC2026 Predictions app. Designed for Neon but works on
 | **`08_add_winner_to_results.sql`** | Adds `results.winner` + `live_matches.winner` (knockout-stage winner code). |
 | **`09_add_et_pen_scores.sql`** | Adds `et_a/et_b/pen_a/pen_b` SMALLINTs to `results` and `live_matches`. |
 | **`10_add_help_seen.sql`** | Adds `users.help_seen` (JSONB) — per-user onboarding-popup flags. |
+| **`11_add_result_audit.sql`** | Adds the `result_audit` table — append-only log of admin result edits (who/when/what), shown on the Dashboard. |
 
 ## Schema overview
 
