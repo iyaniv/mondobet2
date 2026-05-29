@@ -4213,14 +4213,14 @@ export default function App() {
                     overflow:"hidden",
                     maxWidth:simMode?600:0,
                     marginLeft:simMode?10:0,
-                    transition:"max-width .32s ease, margin-left .28s ease",
+                    transition:"max-width .55s cubic-bezier(.4,0,.2,1), margin-left .55s cubic-bezier(.4,0,.2,1)",
                   }}>
                     <div style={{
                       display:"inline-flex",gap:6,
                       opacity:simMode?1:0,
-                      transform:simMode?"translateX(0)":"translateX(-8px)",
+                      transform:simMode?"translateX(0)":"translateX(-10px)",
                       pointerEvents:simMode?"auto":"none",
-                      transition:"opacity .22s ease .05s, transform .28s ease",
+                      transition:"opacity .4s ease .12s, transform .5s cubic-bezier(.4,0,.2,1)",
                     }}>
                       {entries.map((e) => {
                         const isThisActive = effectiveSimEntryId === e.id;
