@@ -2244,7 +2244,7 @@ const HELP_CONTENT = {
     body: [
       "Rankings across every submitted form, updated as results come in.",
       "Click a row to see that participant's full picks (or your own).",
-      "Tap the **★** next to any name to add that form to your **favorites**, then tap the **★** in the column header to show only you and your favorites.",
+      "Tap the **★** next to any name to favorite that form — your own forms start out favorited. Tap the **★** in the column header to show only your favorites.",
       "**Simulate** ▾ — see hypothetical standings *if* every remaining pick of yours comes true. Only you see the simulation.",
     ],
   },
@@ -3050,6 +3050,19 @@ export default function App() {
       return next;
     });
   },[favoritesKey]);
+  // Seed the user's own forms as favorites the first time only (before they've
+  // touched the stars), so their own cards are starred by default. Once the key
+  // exists in localStorage — even as an empty list — we never re-seed, so the
+  // user's later choices (including un-starring their own forms) are respected.
+  useEffect(()=>{
+    if(!favoritesKey||!user?.id) return;
+    if(localStorage.getItem(favoritesKey)!=null) return; // already initialised
+    if(!leaderboard.length) return;                      // wait for data
+    const ownKeys = leaderboard.filter(r=>r.user_id===user.id).map(r=>r.entry_id||r.user_id);
+    if(!ownKeys.length) return;
+    try { localStorage.setItem(favoritesKey, JSON.stringify(ownKeys)); } catch {}
+    setFavorites(ownKeys);
+  },[favoritesKey,leaderboard,user]);
   const [hoveredRow,setHoveredRow]=useState(null);
   const [simMode,setSimMode]=useState(false);
   const [simLb,setSimLb]=useState(null);
@@ -4126,11 +4139,10 @@ export default function App() {
       ? simLb.map(e => ({...e, _simDiff: e.total - (actualTotalsByEntry[e.entry_id] ?? e.total)}))
       : leaderboard;
 
-    // Favorites filter — always keeps current user's own rows in view
-    const filteredLb = favOnly
-      ? displayLb.filter(row => row.user_id===user?.id || isFavRow(row))
-      : displayLb;
-    const hasFavs = displayLb.some(row => row.user_id!==user?.id && isFavRow(row));
+    // Favorites filter — every row (including the user's own forms) can be a
+    // favorite, so the filter is a straight "is this row favorited" check.
+    const filteredLb = favOnly ? displayLb.filter(isFavRow) : displayLb;
+    const hasFavs = displayLb.some(isFavRow);
 
     return (
       <div>
@@ -4234,8 +4246,8 @@ export default function App() {
             <div className="lb-table-wrap" style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:14,minWidth:320}}>
                 <thead><tr style={{background:C.panel2}}>
-                  <th style={{padding:"8px 10px",textAlign:"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>#</th>
-                  <th style={{padding:"8px 6px",width:34,textAlign:"center",borderBottom:`1px solid ${C.border}`}}>
+                  <th style={{padding:"8px 4px",width:40,textAlign:"center",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>#</th>
+                  <th style={{padding:"8px 4px",width:40,textAlign:"center",borderBottom:`1px solid ${C.border}`}}>
                     <span
                       onClick={()=>setFavOnly(v=>!v)}
                       title={favOnly?"Showing favorites only — click to show all":"Show favorites only"}
@@ -4252,7 +4264,7 @@ export default function App() {
                     // Always show global rank (position in the unfiltered display list)
                     const globalRank = displayLb.indexOf(row) + 1;
                     const isMe=row.user_id===user?.id;
-                    const isFav=!isMe&&isFavRow(row);
+                    const isFav=isFavRow(row);
                     // Visual sim-mode (indigo row + total) is on whenever the
                     // user toggled Simulate. The "+N sim" diff badge is only
                     // shown when this row's total actually moved.
@@ -4280,17 +4292,15 @@ export default function App() {
                             cursor:canJumpToParticipant?"pointer":"default",
                             transition:"background .12s",
                           }}>
-                        <td style={td}><b>{globalRank}</b></td>
-                        <td style={{...td,textAlign:"center",width:34,paddingLeft:6,paddingRight:6}}>
-                          {!isMe&&(
-                            <span
-                              onClick={(e)=>{e.stopPropagation();toggleFavorite(rowKey);}}
-                              title={isFav?"Remove from favorites":"Add to favorites"}
-                              style={{cursor:"pointer",fontSize:16,lineHeight:1,userSelect:"none",
-                                color:isFav?C.accent:C.muted,opacity:isFav?1:0.5,transition:"all .15s"}}>
-                              {isFav?"★":"☆"}
-                            </span>
-                          )}
+                        <td style={{...td,textAlign:"center",width:40,padding:"8px 4px"}}><b>{globalRank}</b></td>
+                        <td style={{...td,textAlign:"center",width:40,padding:"8px 4px"}}>
+                          <span
+                            onClick={(e)=>{e.stopPropagation();toggleFavorite(rowKey);}}
+                            title={isFav?"Remove from favorites":"Add to favorites"}
+                            style={{cursor:"pointer",fontSize:16,lineHeight:1,userSelect:"none",
+                              color:isFav?C.accent:C.muted,opacity:isFav?1:0.5,transition:"all .15s"}}>
+                            {isFav?"★":"☆"}
+                          </span>
                         </td>
                         <td style={td}>{row.name}
                           {isMe&&<span style={{background:C.indigo,color:"white",fontSize:10,padding:"1px 5px",borderRadius:4,marginLeft:6}}>YOU</span>}
