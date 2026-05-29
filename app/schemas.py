@@ -97,6 +97,18 @@ class PredictionOut(BaseModel):
     score_b: Optional[int]
 
 
+class BulkPredictionItem(BaseModel):
+    match_n: int
+    score_a: Optional[int] = Field(None, ge=0, le=99)
+    score_b: Optional[int] = Field(None, ge=0, le=99)
+
+
+class BulkPredictionsIn(BaseModel):
+    # Set many predictions in one request (CSV import / random fill) so we don't
+    # fire N concurrent writes. Invalid / non-editable matches are skipped.
+    predictions: list[BulkPredictionItem]
+
+
 class WinnerPickIn(BaseModel):
     team: Optional[str] = None
 

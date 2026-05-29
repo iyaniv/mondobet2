@@ -68,6 +68,10 @@ export const api = {
     request(`/api/predictions/me${entryId ? `?entry_id=${entryId}` : ""}`),
   setPrediction: (n, d, entryId) =>
     request(`/api/predictions/${n}${entryId ? `?entry_id=${entryId}` : ""}`, { method: "PUT", body: d }),
+  // Bulk set (CSV import / random fill) — one request, one transaction.
+  // preds: [{match_n, score_a, score_b}]
+  setPredictionsBulk: (preds, entryId) =>
+    request(`/api/predictions/me/bulk${entryId ? `?entry_id=${entryId}` : ""}`, { method: "PUT", body: { predictions: preds } }),
   setWinnerPick: (d, entryId) =>
     request(`/api/predictions/winner/me${entryId ? `?entry_id=${entryId}` : ""}`, { method: "PUT", body: d }),
 

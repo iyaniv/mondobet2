@@ -9,7 +9,7 @@ from app.auth import get_current_user
 from app.database import get_db
 from app.matches import MATCH_INDEX
 from app.models import RoundStateEnum
-from app.schemas import PredictionIn, PredictionOut, WinnerPickIn
+from app.schemas import BulkPredictionsIn, PredictionIn, PredictionOut, WinnerPickIn
 
 router = APIRouter(prefix="/predictions", tags=["predictions"])
 
@@ -38,6 +38,59 @@ async def my_predictions(
     entry = await _resolve_entry(entry_id, user, db)
     preds = await crud.get_entry_predictions(db, entry.id)
     return [PredictionOut(match_n=n, score_a=v[0], score_b=v[1]) for n, v in preds.items()]
+
+
+@router.put("/me/bulk", response_model=dict)
+async def set_predictions_bulk(
+    data: BulkPredictionsIn,
+    entry_id: Optional[str] = Query(None),
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Set many predictions for one entry in a single request/transaction.
+
+    Used by CSV import and random-fill so the client doesn't fire dozens of
+    concurrent PUTs (which exhausted DB connections / contended on the entry
+    row → 500s). Only current-stage matches without a result/live score are
+    written; anything else is skipped.
+    """
+    cfg = await crud.get_config(db)
+    if cfg.round_state != RoundStateEnum.open:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Betting round is not open.")
+    entry = await _resolve_entry(entry_id, user, db)
+    cur = cfg.current_stage or 1
+    if cur > 1 and "1" not in (entry.stages_submitted or {}):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "This form didn't submit stage 1 before it closed — it's no longer active."
+        )
+    results_map = await crud.get_all_results(db)
+    live_map = await crud.get_live_matches(db)
+    items, affected = [], set()
+    for p in data.predictions:
+        m = MATCH_INDEX.get(p.match_n)
+        if not m:
+            continue
+        st = m.get("s") if isinstance(m, dict) else getattr(m, "s", None)
+        if st != cur:                       # only the current open stage is editable
+            continue
+        if p.match_n in results_map or p.match_n in live_map:
+            continue
+        items.append((p.match_n, p.score_a, p.score_b))
+        affected.add(st)
+    written = await crud.bulk_upsert_predictions(db, entry.id, items)
+    # Editing invalidates the affected stage's submission — user must re-Submit.
+    if written:
+        stages = dict(entry.stages_submitted or {})
+        changed = False
+        for st in affected:
+            if str(st) in stages:
+                del stages[str(st)]
+                changed = True
+        if changed:
+            entry.stages_submitted = stages
+            await db.commit()
+    return {"written": written, "skipped": len(data.predictions) - written}
 
 
 @router.put("/{match_n}", response_model=PredictionOut)

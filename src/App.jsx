@@ -3685,10 +3685,10 @@ export default function App() {
       });
       showToast(`Random-filled ${filled.length} match${filled.length===1?"":"es"} · stage ${stageN} 🎲`);
 
-      // 2) Persist in the BACKGROUND, all in parallel (fast), to the target form.
-      Promise.allSettled(
-        filled.map(f => api.setPrediction(f.n, { score_a: f.a, score_b: f.b }, targetId))
-      ).then(() => { refreshLb(); });
+      // 2) Persist in the BACKGROUND as ONE bulk write (not N concurrent PUTs).
+      api.setPredictionsBulk(filled.map(f => ({match_n:f.n, score_a:f.a, score_b:f.b})), targetId)
+        .then(() => { refreshLb(); })
+        .catch(() => {});
     }
 
     // Import predictions from a CSV. Format: "match,home,away" per line
@@ -3752,7 +3752,9 @@ export default function App() {
             + (remaining>0?` · ${remaining} still empty — fill & Submit` : "") + " 📄",
             remaining>0?"warn":"ok"
           );
-          Promise.allSettled(apply.map(f=>api.setPrediction(f.n,{score_a:f.a,score_b:f.b},targetId))).then(()=>refreshLb());
+          api.setPredictionsBulk(apply.map(f=>({match_n:f.n,score_a:f.a,score_b:f.b})), targetId)
+            .then(()=>refreshLb())
+            .catch(()=>showToast("Couldn't save the import — please try again","err"));
         } catch { showToast("Couldn't parse that CSV","err"); }
       };
       reader.readAsText(file);

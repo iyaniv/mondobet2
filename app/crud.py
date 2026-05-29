@@ -259,6 +259,31 @@ async def upsert_prediction(db: AsyncSession, entry_id: str, match_n: int, score
     return pred
 
 
+async def bulk_upsert_predictions(db: AsyncSession, entry_id: str, items: list) -> int:
+    """Upsert many predictions for one entry in a SINGLE transaction.
+
+    `items` is a list of (match_n, score_a, score_b). Existing rows are
+    updated, missing ones inserted. One commit at the end — avoids the
+    N-concurrent-writes storm that the per-match endpoint caused on import.
+    Returns the number of rows written.
+    """
+    if not items:
+        return 0
+    match_ns = [it[0] for it in items]
+    r = await db.execute(
+        select(Prediction).where(Prediction.entry_id == entry_id, Prediction.match_n.in_(match_ns))
+    )
+    existing = {p.match_n: p for p in r.scalars().all()}
+    for match_n, score_a, score_b in items:
+        pred = existing.get(match_n)
+        if pred:
+            pred.score_a, pred.score_b = score_a, score_b
+        else:
+            db.add(Prediction(entry_id=entry_id, match_n=match_n, score_a=score_a, score_b=score_b))
+    await db.commit()
+    return len(items)
+
+
 async def copy_entry_predictions(db: AsyncSession, from_entry_id: str, to_entry_id: str) -> None:
     r = await db.execute(select(Prediction).where(Prediction.entry_id == from_entry_id))
     for src in r.scalars().all():

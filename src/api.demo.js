@@ -755,6 +755,35 @@ export const api = {
     return {match_n:matchN,score_a:d.score_a,score_b:d.score_b};
   },
 
+  // Bulk set (CSV import / random fill) — mirrors the backend bulk endpoint.
+  setPredictionsBulk: async (preds, entryId) => {
+    await delay(40);
+    const user = requireUser();
+    if (S.config.round_state !== "open") throw new Error("Round is not open");
+    const eid = resolveEntryId(user, entryId);
+    if (!eid) throw new Error("No entry");
+    const cur = S.config.current_stage || 1;
+    const entryRef = S.entries[eid];
+    if (cur > 1 && !(entryRef?.stages_submitted || {})["1"]) {
+      throw new Error("This form didn't submit stage 1 before it closed — it's no longer active.");
+    }
+    if (!S.predictions[eid]) S.predictions[eid] = {};
+    let written = 0; const affected = new Set();
+    for (const p of (preds || [])) {
+      const match = MATCHES.find(m => m.n === Number(p.match_n));
+      if (!match || match.s !== cur) continue;
+      if (S.results[p.match_n] || S.live[p.match_n]) continue;
+      S.predictions[eid][p.match_n] = [p.score_a, p.score_b];
+      affected.add(match.s);
+      written++;
+    }
+    if (written && entryRef && entryRef.stages_submitted) {
+      affected.forEach(st => { delete entryRef.stages_submitted[st]; delete entryRef.stages_submitted[String(st)]; });
+    }
+    save(S);
+    return { written, skipped: (preds || []).length - written };
+  },
+
   setWinnerPick: async (d, entryId) => {
     await delay(30);
     const user = requireUser();
