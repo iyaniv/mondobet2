@@ -1764,6 +1764,9 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
   const winA = (hasScore||isFinal)
     ? (curWinner==='a' ? true : curWinner==='b' ? false : null)
     : null;
+  // Knockout matches (stage 2+) can't end in a draw — block FINAL until a
+  // winner is decided (90-min, then extra-time, then penalties).
+  const finalBlocked = isKnockout && !curWinner;
   // Progressive disclosure: ET appears when 90-min is a draw, pens when ET ties.
   const ftDraw  = isKnockout && resA!=="" && resB!=="" && Number(resA)===Number(resB);
   const etDraw  = ftDraw && etA!=="" && etB!=="" && Number(etA)===Number(etB);
@@ -1874,14 +1877,20 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
         </span>
       )}
       {hasScore && !isFinal && (
-        <button onClick={()=>onFinalize(match.n, {
-          score_a: Number(resA)||0, score_b: Number(resB)||0,
-          minute: liveData?.minute||0, is_live: !!liveData?.is_live,
-          et_a: numOrNull(etA), et_b: numOrNull(etB),
-          pen_a: numOrNull(penA), pen_b: numOrNull(penB),
-        })} style={{
-          background:C.green,color:"white",border:0,padding:"2px 8px",
-          borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>
+        <button
+          onClick={()=>{ if(finalBlocked) return; onFinalize(match.n, {
+            score_a: Number(resA)||0, score_b: Number(resB)||0,
+            minute: liveData?.minute||0, is_live: !!liveData?.is_live,
+            et_a: numOrNull(etA), et_b: numOrNull(etB),
+            pen_a: numOrNull(penA), pen_b: numOrNull(penB),
+          }); }}
+          disabled={finalBlocked}
+          title={finalBlocked ? "A knockout match can't end in a draw — enter extra-time / penalties to decide a winner first" : undefined}
+          style={{
+          background:finalBlocked?C.panel2:C.green,color:finalBlocked?C.muted:"white",
+          border:finalBlocked?`1px solid ${C.border}`:0,padding:"2px 8px",
+          borderRadius:4,cursor:finalBlocked?"not-allowed":"pointer",
+          fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>
           ✓ FINAL
         </button>
       )}
@@ -2300,7 +2309,7 @@ function consumeLegacyHelpSeen(userId){
 }
 
 // Tiny markdown: **bold** → <strong>, *italic* → <em>. No HTML otherwise.
-function renderHelpLine(text){
+function renderHelpLine(text, boldStyle){
   const parts = [];
   let i=0, key=0;
   while(i < text.length){
@@ -2311,7 +2320,7 @@ function renderHelpLine(text){
       if(bStart > i) parts.push(text.slice(i, bStart));
       const bEnd = text.indexOf("**", bStart+2);
       if(bEnd === -1){ parts.push(text.slice(bStart)); break; }
-      parts.push(<strong key={key++}>{text.slice(bStart+2, bEnd)}</strong>);
+      parts.push(<strong key={key++} style={boldStyle}>{text.slice(bStart+2, bEnd)}</strong>);
       i = bEnd+2;
     } else if(iStart !== -1){
       if(iStart > i) parts.push(text.slice(i, iStart));
@@ -2448,12 +2457,11 @@ function HelpDialog({ entry, onClose, helpBtnRef }){
                     width:6, height:6, borderRadius:"50%",
                     background:C.accent, display:"inline-block"}}/>
                   {renderHelpLine(text)}
-                  <ul style={{margin:"6px 0 0",paddingLeft:isMobile?12:18,listStyle:"none"}}>
+                  <ul style={{margin:"8px 0 2px",padding:`2px 0 2px ${isMobile?12:16}px`,
+                    listStyle:"none", borderLeft:`2px solid ${C.accentSoft}`}}>
                     {subs.map((s, j) => (
-                      <li key={j} style={{marginBottom:sz.subGap, paddingLeft:12, position:"relative"}}>
-                        <span style={{position:"absolute", left:0, top:isMobile?9:11,
-                          width:5, height:1.5, background:C.muted, display:"inline-block"}}/>
-                        {renderHelpLine(s)}
+                      <li key={j} style={{marginBottom:j===subs.length-1?0:sz.subGap, color:C.muted}}>
+                        {renderHelpLine(s, {color:C.accent, fontWeight:600})}
                       </li>
                     ))}
                   </ul>
@@ -3306,6 +3314,9 @@ export default function App() {
         const m={}; for(const x of list) m[x.match_n]={score_a:x.score_a,score_b:x.score_b,minute:x.minute,is_live:!!x.is_live,winner:x.winner??null,et_a:x.et_a??null,et_b:x.et_b??null,pen_a:x.pen_a??null,pen_b:x.pen_b??null};
         setLiveMatches(m);
       }).catch(()=>{});
+      // A finalize in another tab moves a match from live → results, so pull
+      // the updated standings + finalized results here too.
+      refreshLb(); refreshResults();
     }
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
@@ -3327,6 +3338,18 @@ export default function App() {
     } catch(e) { console.error("refreshLb:", e); }
   }
 
+  // Re-fetch finalized results so the Tournament grid and By-participant scoring
+  // reflect admin updates without a page reload. Skipped while the admin is on
+  // the Results tab (they're the source of truth there and shouldn't be clobbered).
+  async function refreshResults(){
+    if(user?.is_admin && tab==="results") return;
+    try {
+      const list=await api.getResults();
+      const m={}; for(const r of list) m[r.match_n]=[r.score_a,r.score_b,r.winner??null,r.et_a??null,r.et_b??null,r.pen_a??null,r.pen_b??null];
+      setResults(m);
+    } catch(e) { console.error("refreshResults:", e); }
+  }
+
   // ── Live-update polling ───────────────────────────────────────────────────
   // While the user is signed in and a round is in motion (open or closed —
   // anything other than 'idle'), poll the backend every ~10s so that all
@@ -3341,7 +3364,7 @@ export default function App() {
     // truth on this tab — their own edits persist via updateLive regardless —
     // so there's nothing to poll for here. Resumes on any other tab.
     if (user.is_admin && tab === "results") return;
-    const tick = () => { refreshLive(); refreshLb(); };
+    const tick = () => { refreshLive(); refreshLb(); refreshResults(); };
     const id = setInterval(tick, 10000);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3847,8 +3870,8 @@ export default function App() {
                     {submitting
                       ? "…"
                       : entries.length > 1
-                        ? `Submit "${activeEntry?.name||"this form"}" · stage ${openStage}`
-                        : `Submit stage ${openStage}`}
+                        ? `Submit "${activeEntry?.name||"this form"}"`
+                        : "Submit"}
                   </Btn>
                   {!canSubmit&&blockers.length>0&&(
                     <span style={{
