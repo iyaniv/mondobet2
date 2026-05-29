@@ -3667,14 +3667,34 @@ export default function App() {
                       ):(
                         <>
                           <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",opacity:isFormActive(e)?1:0.55}}>{e.name}</span>
-                          {!isFormActive(e)
-                            ? <span title="Inactive — didn't submit stage 1 before it closed" style={{fontSize:12,color:C.muted,lineHeight:1}}>🔒</span>
-                            : submitted
-                              ? <span style={{fontSize:13,color:C.green,fontWeight:700}}>✓</span>
-                              : config.round_state==="open"
-                                ? <span title={`Not submitted for stage ${openStage}`} style={{fontSize:10,color:"#f59e0b",fontWeight:700,lineHeight:1,letterSpacing:0}}>●</span>
-                                : <span title={`Not submitted — stage ${openStage} is closed`} style={{fontSize:10,color:C.red,fontWeight:700,lineHeight:1,letterSpacing:0}}>●</span>
-                          }
+                          {(() => {
+                            // One unified status badge — same size + shape regardless of state
+                            // so users can scan the row of forms at a glance.
+                            const base = {
+                              display:"inline-flex",alignItems:"center",justifyContent:"center",
+                              width:24,height:24,borderRadius:"50%",
+                              fontSize:14,fontWeight:800,lineHeight:1,flexShrink:0,
+                            };
+                            if(!isFormActive(e)) return (
+                              <span title="Inactive — didn't submit stage 1 before it closed"
+                                style={{...base,background:"rgba(120,119,116,0.18)",color:C.muted,fontSize:13}}>🔒</span>
+                            );
+                            if(submitted) return (
+                              <span title={`Submitted for stage ${openStage}`}
+                                style={{...base,background:"rgba(16,185,129,0.20)",color:C.green,
+                                  border:`1px solid ${C.green}`}}>✓</span>
+                            );
+                            if(config.round_state==="open") return (
+                              <span title={`Not submitted for stage ${openStage}`}
+                                style={{...base,background:"rgba(245,158,11,0.22)",color:"#f59e0b",
+                                  border:`1px solid #f59e0b`,fontSize:16}}>●</span>
+                            );
+                            return (
+                              <span title={`Not submitted — stage ${openStage} is closed`}
+                                style={{...base,background:"rgba(239,68,68,0.20)",color:C.red,
+                                  border:`1px solid ${C.red}`,fontSize:16}}>●</span>
+                            );
+                          })()}
                           {openStage===1&&(
                             <span onClick={ev=>startRename(ev,e)} title="Rename form" style={{
                               fontSize:13,opacity:isActive?0.65:0.35,cursor:"pointer",lineHeight:1,
