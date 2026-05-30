@@ -1061,6 +1061,7 @@ function AuthView({ roundState, onSuccess }) {
   const [mode,setMode]=useState("login");
   const [name,setName]=useState("");
   const [email,setEmail]=useState("");
+  const [confirmPassword,setConfirmPassword]=useState("");
   const [phone,setPhone]=useState("");
   const [password,setPassword]=useState("");
   const [err,setErr]=useState("");
@@ -1075,7 +1076,16 @@ function AuthView({ roundState, onSuccess }) {
   const pill=pills[roundState]||pills.idle;
 
   async function submit(e) {
-    e.preventDefault(); setErr(""); setLoading(true);
+    e.preventDefault(); setErr("");
+    if (mode==="signup" && !/^\d{10}$/.test(phone.trim())) {
+      setErr("Enter a valid 10-digit phone number.");
+      return;
+    }
+    if (mode==="signup" && password !== confirmPassword) {
+      setErr("The two passwords don't match — please re-check.");
+      return;
+    }
+    setLoading(true);
     try {
       const res=mode==="signup"
         ?await api.signup({name:name.trim(),email:email.trim().toLowerCase(),phone:phone.trim(),password})
@@ -1100,14 +1110,15 @@ function AuthView({ roundState, onSuccess }) {
         </div>
         <form onSubmit={submit}>
           {mode==="signup"&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Full name" required style={inputStyle}/>}
-          {mode==="signup"&&<input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Phone number" required type="tel" minLength={7} style={inputStyle}/>}
-          <input value={email} onChange={e=>setEmail(e.target.value)} placeholder={mode==="login"?"Email  (admin: admin)":"Email"} required style={inputStyle}/>
+          {mode==="signup"&&<input value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g,"").slice(0,10))} placeholder="Phone (10 digits, e.g. 0501234567)" required type="tel" inputMode="numeric" maxLength={10} style={inputStyle}/>}
+          <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" required type={mode==="signup"?"email":"text"} style={inputStyle}/>
           <div style={{position:"relative"}}>
             <input type={showPsw?"text":"password"} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" required minLength={4} style={{...inputStyle,marginBottom:0,paddingRight:36}}/>
             <button type="button" onClick={()=>setShowPsw(v=>!v)} tabIndex={-1} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:16,lineHeight:1,padding:"2px 4px"}}>
               {showPsw?"🙈":"👁️"}
             </button>
           </div>
+          {mode==="signup"&&<input type={showPsw?"text":"password"} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Confirm password" required minLength={4} onPaste={e=>e.preventDefault()} style={{...inputStyle,marginTop:10}}/>}
           {err&&<p style={{color:C.red,fontSize:13,marginBottom:8}}>{err}</p>}
           <button type="submit" disabled={loading} style={{width:"100%",background:C.accent,color:"#1a1a1a",border:0,padding:"10px 0",borderRadius:6,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.6:1}}>
             {loading?"…":mode==="signup"?"Create account":"Log in"}
@@ -3501,11 +3512,16 @@ export default function App() {
     // so there's nothing to poll for here. Resumes on any other tab.
     if (user.is_admin && tab === "results") return;
     const tick = () => {
+      // Don't burn CPU/network while the tab is in the background — that's what
+      // trips Chrome's "tab slowing your browser" prompt. We refresh on return.
+      if (document.hidden) return;
       refreshConfig();                                       // even while idle
       if (config.round_state !== "idle") { refreshLive(); refreshLb(); refreshResults(); }
     };
     const id = setInterval(tick, 10000);
-    return () => clearInterval(id);
+    const onVisible = () => { if (!document.hidden) tick(); };  // catch up when the tab comes back
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", onVisible); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, config.round_state, tab]);
 
@@ -4092,83 +4108,87 @@ export default function App() {
             <div style={{position:"sticky",top:0,zIndex:30,marginBottom:14}}>
             <div style={{
               background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,
-              borderRadius:10,padding:"9px 12px",display:"flex",gap:12,alignItems:"center",
-              flexWrap:"wrap",boxShadow:"0 6px 18px rgba(0,0,0,0.35)",
+              borderRadius:10,padding:"9px 12px",boxShadow:"0 6px 18px rgba(0,0,0,0.35)",
+              ...(isMobile
+                ? {display:"flex",flexWrap:"wrap",alignItems:"center",gap:10,justifyContent:"center"}
+                : {display:"grid",gridTemplateColumns:"1fr auto 1fr",alignItems:"center",gap:12}),
             }}>
-              {/* Progress pill */}
-              <span style={{
-                display:"inline-flex",alignItems:"center",gap:6,padding:"4px 11px",borderRadius:999,
-                fontSize:12,fontWeight:600,whiteSpace:"nowrap",
-                background: complete ? "rgba(16,185,129,0.12)" : "rgba(245,158,11,0.12)",
-                color: complete ? C.green : "#f59e0b",
-                border: `1px solid ${complete ? "rgba(16,185,129,0.4)" : "rgba(245,158,11,0.4)"}`,
-              }}>
-                {complete ? "✓" : "🏁"} <b style={{fontFamily:"monospace"}}>{filledCount}/{total}</b> filled
-              </span>
-
-              {/* Champion (box picker, or locked chip on later stages) */}
-              {winnerLocked ? (
-                <span title="Tournament winner pick (+10 pts)" style={{
-                  display:"inline-flex",alignItems:"center",gap:6,fontSize:13,
-                  background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"5px 10px",whiteSpace:"nowrap",
-                }}>
-                  🏆 <b style={{fontWeight:700}}>{shownWinner?withFlag(shownWinner):"—"}</b>
-                  <span style={{background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700}}>🔒</span>
-                </span>
-              ) : (
-                <div data-champion-box style={{display:"flex",alignItems:"center",gap:8}}>
-                  <span style={{color:C.muted,fontSize:11,whiteSpace:"nowrap",textTransform:"uppercase",letterSpacing:".4px",fontWeight:700}}>🏆 Champion</span>
-                  <TeamPicker value={myWinner} onChange={saveWinner} teams={teams} disabled={false} variant="box"/>
-                </div>
-              )}
-
-              <span style={{flex:1,minWidth:0}}/>
-
-              {/* Middle: rank + points — borderless, prominent, format "#3 142" */}
-              <span title={myLbEntry?`"${activeEntry.name}" — ${myLbEntry.total} pts${rank?`, rank ${rank}`:""}`:"Submit to get on the leaderboard"}
-                style={{display:"inline-flex",alignItems:"baseline",gap:8,whiteSpace:"nowrap"}}>
-                {rank&&<span style={{color:C.muted,fontSize:17,fontWeight:800,fontFamily:"monospace"}}>#{rank}</span>}
-                <b style={{color:C.accent,fontSize:25,fontFamily:"monospace",fontWeight:800,lineHeight:1}}>{myLbEntry?myLbEntry.total:0}</b>
-                <span style={{color:C.muted,fontSize:13}}>pts</span>
-              </span>
-
-              <span style={{flex:1,minWidth:0}}/>
-
-              {/* Right: blocker hint (why Submit is off) + Delete + Submit/badge */}
-              {editable && !currentStageSubmitted && !canSubmit && blockers.length>0 && (
-                <button onClick={jumpToFirstMissing}
-                  title="Go to the next thing to complete"
-                  style={{
-                    display:"inline-flex",alignItems:"center",gap:6,cursor:"pointer",fontFamily:"inherit",
-                    background:"rgba(245,158,11,0.10)",color:"#f59e0b",border:"1px solid rgba(245,158,11,0.4)",
-                    padding:"4px 11px",borderRadius:999,fontSize:12,fontWeight:600,whiteSpace:"nowrap",
-                  }}>{blockers.join(" · ")} ›</button>
-              )}
-              {showDelete && (
-                <Btn ghost red onClick={()=>deleteEntryById(activeEntry.id)}>Delete</Btn>
-              )}
-              {editable && currentStageSubmitted ? (
+              {/* LEFT — progress + champion */}
+              <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",minWidth:0}}>
                 <span style={{
-                  background:"rgba(16,185,129,0.10)",color:C.green,
-                  border:"1px solid rgba(16,185,129,0.35)",
-                  padding:"6px 14px",borderRadius:8,fontSize:13,fontWeight:700,whiteSpace:"nowrap",
-                }}>✓ Stage {openStage} submitted</span>
-              ) : editable ? (
-                <button
-                  onClick={submitEntry}
-                  disabled={!canSubmit||submitting}
-                  className={canSubmit&&!submitting?"submit-ready":undefined}
-                  title={!canSubmit&&blockers.length?`To submit: ${blockers.join(" · ")}`:""}
-                  style={{
-                    border:0,borderRadius:8,padding:"9px 18px",fontSize:13,fontWeight:700,
-                    fontFamily:"inherit",whiteSpace:"nowrap",
-                    cursor:(!canSubmit||submitting)?"not-allowed":"pointer",
-                    background:(!canSubmit||submitting)?"#23304a":C.green,
-                    color:(!canSubmit||submitting)?"#5d7290":"#fff",
+                  display:"inline-flex",alignItems:"center",gap:6,padding:"4px 11px",borderRadius:999,
+                  fontSize:12,fontWeight:600,whiteSpace:"nowrap",
+                  background: complete ? "rgba(16,185,129,0.12)" : "rgba(245,158,11,0.12)",
+                  color: complete ? C.green : "#f59e0b",
+                  border: `1px solid ${complete ? "rgba(16,185,129,0.4)" : "rgba(245,158,11,0.4)"}`,
+                }}>
+                  {complete ? "✓" : "🏁"} <b style={{fontFamily:"monospace"}}>{filledCount}/{total}</b> filled
+                </span>
+                {winnerLocked ? (
+                  <span title="Tournament winner pick (+10 pts)" style={{
+                    display:"inline-flex",alignItems:"center",gap:6,fontSize:13,
+                    background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"5px 10px",whiteSpace:"nowrap",
                   }}>
-                  {submitting ? "…" : entries.length>1 ? `Submit "${activeEntry?.name||"this form"}"` : "Submit"}
-                </button>
-              ) : null}
+                    🏆 <b style={{fontWeight:700}}>{shownWinner?withFlag(shownWinner):"—"}</b>
+                    <span style={{background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700}}>🔒</span>
+                  </span>
+                ) : (
+                  <div data-champion-box style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{color:C.muted,fontSize:11,whiteSpace:"nowrap",textTransform:"uppercase",letterSpacing:".4px",fontWeight:700}}>🏆 Champion</span>
+                    <TeamPicker value={myWinner} onChange={saveWinner} teams={teams} disabled={false} variant="box"/>
+                  </div>
+                )}
+              </div>
+
+              {/* CENTER — rank + points, boxed in the app's score-box style,
+                  centered over the score column below. #rank in lime. */}
+              <span title={myLbEntry?`"${activeEntry.name}" — ${myLbEntry.total} pts${rank?`, rank ${rank}`:""}`:"Submit to get on the leaderboard"}
+                style={{
+                  justifySelf:"center", display:"inline-flex",alignItems:"baseline",gap:7,
+                  padding:"4px 13px",borderRadius:8,background:C.bg,border:`1px solid ${C.accent}`,whiteSpace:"nowrap",
+                }}>
+                {rank&&<span style={{color:C.accent,fontSize:16,fontWeight:800,fontFamily:"monospace"}}>#{rank}</span>}
+                <b style={{color:C.accent,fontSize:23,fontFamily:"monospace",fontWeight:800,lineHeight:1}}>{myLbEntry?myLbEntry.total:0}</b>
+                <span style={{color:C.muted,fontSize:12}}>pts</span>
+              </span>
+
+              {/* RIGHT — blocker hint (why Submit is off) + Delete + Submit/badge */}
+              <div style={{display:"flex",alignItems:"center",gap:10,justifyContent:"flex-end",flexWrap:"wrap",minWidth:0}}>
+                {editable && !currentStageSubmitted && !canSubmit && blockers.length>0 && (
+                  <button onClick={jumpToFirstMissing}
+                    title="Go to the next thing to complete"
+                    style={{
+                      display:"inline-flex",alignItems:"center",gap:6,cursor:"pointer",fontFamily:"inherit",
+                      background:"rgba(245,158,11,0.10)",color:"#f59e0b",border:"1px solid rgba(245,158,11,0.4)",
+                      padding:"4px 11px",borderRadius:999,fontSize:12,fontWeight:600,whiteSpace:"nowrap",
+                    }}>{blockers.join(" · ")} ›</button>
+                )}
+                {showDelete && (
+                  <Btn ghost red onClick={()=>deleteEntryById(activeEntry.id)}>Delete</Btn>
+                )}
+                {editable && currentStageSubmitted ? (
+                  <span style={{
+                    background:"rgba(16,185,129,0.10)",color:C.green,
+                    border:"1px solid rgba(16,185,129,0.35)",
+                    padding:"6px 14px",borderRadius:8,fontSize:13,fontWeight:700,whiteSpace:"nowrap",
+                  }}>✓ Stage {openStage} submitted</span>
+                ) : editable ? (
+                  <button
+                    onClick={submitEntry}
+                    disabled={!canSubmit||submitting}
+                    className={canSubmit&&!submitting?"submit-ready":undefined}
+                    title={!canSubmit&&blockers.length?`To submit: ${blockers.join(" · ")}`:""}
+                    style={{
+                      border:0,borderRadius:8,padding:"9px 18px",fontSize:13,fontWeight:700,
+                      fontFamily:"inherit",whiteSpace:"nowrap",
+                      cursor:(!canSubmit||submitting)?"not-allowed":"pointer",
+                      background:(!canSubmit||submitting)?"#23304a":C.green,
+                      color:(!canSubmit||submitting)?"#5d7290":"#fff",
+                    }}>
+                    {submitting ? "…" : entries.length>1 ? `Submit "${activeEntry?.name||"this form"}"` : "Submit"}
+                  </button>
+                ) : null}
+              </div>
             </div>
             </div>
           );

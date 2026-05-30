@@ -77,13 +77,20 @@ html { -webkit-text-size-adjust: 100%; }
 .help-blink { animation: helpBlink 1.2s ease-out 1; }
 
 /* Submit button "ready to go" pulse — used on the My-predictions action bar
-   once the form is complete (all matches + champion). */
+   once the form is complete (all matches + champion). Uses a pseudo-element
+   ring animated with transform+opacity (GPU-composited) instead of box-shadow,
+   so it costs ~no CPU even running continuously. */
 @keyframes submitPulse {
-  0%   { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
-  70%  { box-shadow: 0 0 0 10px rgba(16,185,129,0); }
-  100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+  0%   { transform: scale(1);    opacity: 0.6; }
+  100% { transform: scale(1.18); opacity: 0;   }
 }
-.submit-ready { animation: submitPulse 1.5s ease-in-out infinite; }
+.submit-ready { position: relative; }
+.submit-ready::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  border: 2px solid rgba(16,185,129,0.7);
+  animation: submitPulse 1.5s ease-out infinite;
+  pointer-events: none;
+}
 
 .dialog-shrinking {
   transition: transform .32s cubic-bezier(.55,0,.5,1), opacity .32s ease-out;
