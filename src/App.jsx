@@ -4162,8 +4162,11 @@ export default function App() {
                 )}
               </div>
 
-              {/* CENTER — Rank · Points, centered over the score column */}
-              <div style={{justifySelf:"center", display:"flex", alignItems:"stretch", gap:8}}>
+              {/* CENTER — Rank · Points, aligned over the score column. The bar's
+                  1fr·auto·1fr grid centers this group on the page, but each match
+                  row's score block sits ~34px left of page-center (the row's right
+                  controls column is wider than its left # column), so nudge to match. */}
+              <div style={{justifySelf:"center", display:"flex", alignItems:"stretch", gap:8, transform: isMobile?undefined:"translateX(-34px)"}}>
                 <div style={tileBase}>
                   <span style={tileLabel}>Rank</span>
                   <b style={{...tileVal,color:C.text}}>{rank?`#${rank}`:"—"}</b>
@@ -4174,17 +4177,10 @@ export default function App() {
                 </div>
               </div>
 
-              {/* RIGHT — blocker hint (why Submit is off) + Delete + Submit/badge */}
-              <div style={{display:"flex",alignItems:"center",gap:10,justifyContent:"flex-end",flexWrap:"wrap",minWidth:0}}>
-                {editable && !currentStageSubmitted && !canSubmit && blockers.length>0 && (
-                  <button onClick={jumpToFirstMissing}
-                    title="Go to the next thing to complete"
-                    style={{
-                      display:"inline-flex",alignItems:"center",gap:6,cursor:"pointer",fontFamily:"inherit",
-                      background:"rgba(245,158,11,0.10)",color:"#f59e0b",border:"1px solid rgba(245,158,11,0.4)",
-                      padding:"4px 11px",borderRadius:999,fontSize:12,fontWeight:600,whiteSpace:"nowrap",
-                    }}>{blockers.join(" · ")} ›</button>
-                )}
+              {/* RIGHT — Delete + Submit/badge. (The "why submit is off" hint is
+                  conveyed by the amber progress pill + empty Champion tile + the
+                  disabled Submit's tooltip, so no extra line that could wrap.) */}
+              <div style={{display:"flex",alignItems:"center",gap:10,justifyContent:"flex-end",flexWrap:"nowrap",minWidth:0}}>
                 {showDelete && (
                   <Btn ghost red onClick={()=>deleteEntryById(activeEntry.id)}>Delete</Btn>
                 )}
