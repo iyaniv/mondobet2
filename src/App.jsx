@@ -4135,21 +4135,17 @@ export default function App() {
                 ? {display:"flex",flexWrap:"wrap",alignItems:"stretch",gap:10,justifyContent:"center"}
                 : {display:"grid",gridTemplateColumns:"1fr auto 1fr",alignItems:"center",gap:12}),
             }}>
-              {/* LEFT — progress */}
-              <div style={{display:"flex",alignItems:"center"}}>
+              {/* LEFT — progress + champion */}
+              <div style={{display:"flex",alignItems:"stretch",gap:10,minWidth:0}}>
                 <span style={{
                   display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:999,
-                  fontSize:12,fontWeight:600,whiteSpace:"nowrap",
+                  fontSize:12,fontWeight:600,whiteSpace:"nowrap",alignSelf:"center",
                   background: complete ? "rgba(16,185,129,0.12)" : "rgba(245,158,11,0.12)",
                   color: complete ? C.green : "#f59e0b",
                   border: `1px solid ${complete ? "rgba(16,185,129,0.4)" : "rgba(245,158,11,0.4)"}`,
                 }}>
                   {complete ? "✓" : "🏁"} <b style={{fontFamily:"monospace"}}>{filledCount}/{total}</b> filled
                 </span>
-              </div>
-
-              {/* CENTER — Champion · Rank · Points as matching tiles */}
-              <div style={{justifySelf:"center", display:"flex", alignItems:"stretch", gap:8}}>
                 {winnerLocked ? (
                   <div title="Tournament winner pick (+10 pts)" style={tileBase}>
                     <span style={tileLabel}>Champion</span>
@@ -4164,6 +4160,10 @@ export default function App() {
                     <TeamPicker value={myWinner} onChange={saveWinner} teams={teams} disabled={false} variant="tile" label="Champion"/>
                   </span>
                 )}
+              </div>
+
+              {/* CENTER — Rank · Points, centered over the score column */}
+              <div style={{justifySelf:"center", display:"flex", alignItems:"stretch", gap:8}}>
                 <div style={tileBase}>
                   <span style={tileLabel}>Rank</span>
                   <b style={{...tileVal,color:C.text}}>{rank?`#${rank}`:"—"}</b>
