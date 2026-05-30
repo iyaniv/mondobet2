@@ -4511,9 +4511,9 @@ export default function App() {
         <div style={{marginBottom:14}}><RoundPill/></div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
           marginBottom:12,flexWrap:"wrap",gap:8}}>
-          <h1 style={{color:C.accent,fontSize:20,margin:0}}>🏆 Leaderboard</h1>
-          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-            {/* ── My stats button + floating dropdown ── */}
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <h1 style={{color:C.accent,fontSize:20,margin:0}}>🏆 Leaderboard</h1>
+            {/* ── My stats icon button + floating dropdown ── */}
             {user && (() => {
               const myRow = leaderboard.find(e => e.entry_id === activeEntryId);
               if (!myRow || !myRow.scored_matches) return null;
@@ -4531,16 +4531,17 @@ export default function App() {
                 <div style={{position:"relative"}}>
                   <button
                     onClick={()=>setStatsOpen(o=>!o)}
+                    title="My stats"
                     style={{
-                      background:statsOpen?"rgba(163,230,53,0.08)":C.panel,
-                      border:`1px solid ${statsOpen?C.accent:C.border}`,
-                      borderRadius:8,padding:"6px 12px",cursor:"pointer",
+                      background:statsOpen?"rgba(163,230,53,0.08)":"transparent",
+                      border:`1px solid ${statsOpen?C.accent:"transparent"}`,
+                      borderRadius:8,padding:"4px 6px",cursor:"pointer",
                       color:statsOpen?C.accent:C.muted,
-                      display:"flex",alignItems:"center",gap:6,
-                      fontSize:13,fontWeight:600,fontFamily:"inherit",
+                      display:"flex",alignItems:"center",
+                      fontSize:18,lineHeight:1,fontFamily:"inherit",
                       transition:"all .15s",
                     }}>
-                    📊 My stats
+                    📊
                   </button>
                   {/* floating dropdown */}
                   {statsOpen && (
@@ -4562,12 +4563,14 @@ export default function App() {
                           </span>
                           <span>{myRow.scored_matches} matches with results</span>
                         </div>
-                        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7}}>
+                        <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:7}}>
                           {[
                             {label:"From leader",value:gapLeader===0?"+0":(gapLeader>0?`+${gapLeader}`:gapLeader),sub:leader.name+" · "+leader.total+" pts",color:gapLeader>=0?C.green:C.red,border:gapLeader>=0?C.green:C.red,icon:"📉"},
                             {label:"Correct direction",value:`${myRow.scored_matches>0?Math.round(myRow.correct_dir/myRow.scored_matches*100):0}%`,sub:`${myRow.correct_dir} of ${myRow.scored_matches}`,color:C.green,border:C.green,icon:"↗️"},
                             {label:"Exact scores",value:`${myRow.exact}`,sub:`${myRow.scored_matches>0?Math.round(myRow.exact/myRow.scored_matches*100):0}% of matches`,color:C.accent,border:C.accent,icon:"🎯",valueSuffix:`/${myRow.scored_matches}`},
-                            ...(closestFav?[{label:"From favorite",value:gapFav===0?"+0":(gapFav>0?`+${gapFav}`:gapFav),sub:closestFav.name+" · "+closestFav.total+" pts"+(gapFav>0?" ↓":" ↑"),color:"#facc15",border:"#facc15",icon:"★"}]:[]),
+                            closestFav
+                              ? {label:"From favorite",value:gapFav===0?"+0":(gapFav>0?`+${gapFav}`:gapFav),sub:closestFav.name+" · "+closestFav.total+" pts"+(gapFav>0?" ↓":" ↑"),color:"#facc15",border:"#facc15",icon:"★"}
+                              : {label:"Your rank",value:`#${leaderboard.indexOf(myRow)+1}`,sub:`of ${leaderboard.length} participants`,color:C.indigo,border:C.indigo,icon:"🏅"},
                           ].map((s,i)=>(
                             <div key={i} style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${s.border}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
                               <div style={{fontSize:14,marginBottom:2}}>{s.icon}</div>
@@ -4585,6 +4588,8 @@ export default function App() {
                 </div>
               );
             })()}
+          </div>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
             {canSim&&(
               // Option B layout: classic Actual / Simulate toggle. When the
               // user has 2+ forms AND Simulate is ON, indigo pill-chips slide
