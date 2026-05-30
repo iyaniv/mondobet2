@@ -514,7 +514,7 @@ function useIsMobile(bp = 520) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Searchable team picker with flags
-function TeamPicker({ value, onChange, teams, disabled, clearable=false, placeholder="Choose a team…", variant="default" }) {
+function TeamPicker({ value, onChange, teams, disabled, clearable=false, placeholder="Choose a team…", variant="default", label }) {
   const [open,   setOpen]   = useState(false);
   const [search, setSearch] = useState("");
   const [hov,    setHov]    = useState(null);
@@ -542,12 +542,30 @@ function TeamPicker({ value, onChange, teams, disabled, clearable=false, placeho
   }
 
   const isBox = variant === "box";
+  const isTile = variant === "tile";
 
   return (
-    <div ref={wrapRef} style={{ position:"relative", minWidth:isBox?0:240, display:isBox?"inline-block":"block" }}>
+    <div ref={wrapRef} style={{ position:"relative", minWidth:(isBox||isTile)?0:240, display:(isBox||isTile)?"inline-block":"block" }}>
       {/* Trigger — "box" variant matches the score-input boxes: dark + lime
           border/text when a champion is picked, muted dash when empty. */}
-      {isBox ? (
+      {isTile ? (
+        <button type="button" onClick={() => !disabled && setOpen(o => !o)} title={value || "Pick your champion (+10 pts)"} style={{
+          display:"inline-flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:1,
+          minWidth:96, maxWidth:200, height:"100%", padding:"4px 12px", borderRadius:8, fontFamily:"inherit",
+          background:C.bg, border:`1px solid ${value ? C.accent : (open ? C.accent : C.border)}`,
+          cursor:disabled?"not-allowed":"pointer", opacity:disabled?0.6:1, outline:"none",
+          transition:"border-color .15s",
+        }}>
+          <span style={{ fontSize:9, letterSpacing:".6px", textTransform:"uppercase", color:C.muted, fontWeight:700 }}>{label || "Champion"}</span>
+          <span style={{ display:"inline-flex", alignItems:"center", gap:5, maxWidth:178, overflow:"hidden",
+            fontSize:15, fontWeight:700, lineHeight:1.1, whiteSpace:"nowrap",
+            color: value ? C.accent : C.muted }}>
+            <span style={{ fontSize:15, lineHeight:1, flexShrink:0 }}>{value ? flag(value) : "🏆"}</span>
+            <span style={{ overflow:"hidden", textOverflow:"ellipsis" }}>{value || "Pick a team"}</span>
+            <span style={{ fontSize:8, opacity:.7, transition:"transform .2s", transform:open?"rotate(180deg)":"none" }}>▾</span>
+          </span>
+        </button>
+      ) : isBox ? (
         <button type="button" onClick={() => !disabled && setOpen(o => !o)} title={value || "Pick your champion (+10 pts)"} style={{
           display:"inline-flex", alignItems:"center", gap:6,
           height:34, padding:"0 12px", borderRadius:6, fontFamily:"inherit",
@@ -578,8 +596,8 @@ function TeamPicker({ value, onChange, teams, disabled, clearable=false, placeho
       {/* Dropdown panel */}
       {open && (
         <div style={{
-          position:"absolute", top:"calc(100% + 4px)", left:0, right:isBox?"auto":0, zIndex:200,
-          minWidth:isBox?260:undefined,
+          position:"absolute", top:"calc(100% + 4px)", left:0, right:(isBox||isTile)?"auto":0, zIndex:200,
+          minWidth:(isBox||isTile)?260:undefined,
           background:C.panel, border:`1px solid ${C.border}`, borderRadius:10,
           boxShadow:"0 8px 28px rgba(0,0,0,0.18)", overflow:"hidden",
         }}>
@@ -4104,19 +4122,23 @@ export default function App() {
           const showDelete = !activeEntry.submitted_at && entries.length>1 && editable;
           // Rank for the middle of the bar (points come from myLbEntry.total).
           const rank = myLbEntry ? leaderboard.indexOf(myLbEntry)+1 : null;
+          // Shared tile look for the centered Champion / Rank / Points group.
+          const tileBase = {display:"inline-flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,minWidth:62,padding:"4px 12px",borderRadius:8,background:C.bg,border:`1px solid ${C.border}`};
+          const tileLabel = {fontSize:9,letterSpacing:".6px",textTransform:"uppercase",color:C.muted,fontWeight:700};
+          const tileVal = {fontSize:19,fontFamily:"monospace",fontWeight:800,lineHeight:1.15};
           return (
             <div style={{position:"sticky",top:0,zIndex:30,marginBottom:14}}>
             <div style={{
               background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,
               borderRadius:10,padding:"9px 12px",boxShadow:"0 6px 18px rgba(0,0,0,0.35)",
               ...(isMobile
-                ? {display:"flex",flexWrap:"wrap",alignItems:"center",gap:10,justifyContent:"center"}
+                ? {display:"flex",flexWrap:"wrap",alignItems:"stretch",gap:10,justifyContent:"center"}
                 : {display:"grid",gridTemplateColumns:"1fr auto 1fr",alignItems:"center",gap:12}),
             }}>
-              {/* LEFT — progress + champion */}
-              <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",minWidth:0}}>
+              {/* LEFT — progress */}
+              <div style={{display:"flex",alignItems:"center"}}>
                 <span style={{
-                  display:"inline-flex",alignItems:"center",gap:6,padding:"4px 11px",borderRadius:999,
+                  display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:999,
                   fontSize:12,fontWeight:600,whiteSpace:"nowrap",
                   background: complete ? "rgba(16,185,129,0.12)" : "rgba(245,158,11,0.12)",
                   color: complete ? C.green : "#f59e0b",
@@ -4124,33 +4146,33 @@ export default function App() {
                 }}>
                   {complete ? "✓" : "🏁"} <b style={{fontFamily:"monospace"}}>{filledCount}/{total}</b> filled
                 </span>
-                {winnerLocked ? (
-                  <span title="Tournament winner pick (+10 pts)" style={{
-                    display:"inline-flex",alignItems:"center",gap:6,fontSize:13,
-                    background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"5px 10px",whiteSpace:"nowrap",
-                  }}>
-                    🏆 <b style={{fontWeight:700}}>{shownWinner?withFlag(shownWinner):"—"}</b>
-                    <span style={{background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700}}>🔒</span>
-                  </span>
-                ) : (
-                  <div data-champion-box style={{display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{color:C.muted,fontSize:11,whiteSpace:"nowrap",textTransform:"uppercase",letterSpacing:".4px",fontWeight:700}}>🏆 Champion</span>
-                    <TeamPicker value={myWinner} onChange={saveWinner} teams={teams} disabled={false} variant="box"/>
-                  </div>
-                )}
               </div>
 
-              {/* CENTER — rank + points, boxed in the app's score-box style,
-                  centered over the score column below. #rank in lime. */}
-              <span title={myLbEntry?`"${activeEntry.name}" — ${myLbEntry.total} pts${rank?`, rank ${rank}`:""}`:"Submit to get on the leaderboard"}
-                style={{
-                  justifySelf:"center", display:"inline-flex",alignItems:"baseline",gap:7,
-                  padding:"4px 13px",borderRadius:8,background:C.bg,border:`1px solid ${C.accent}`,whiteSpace:"nowrap",
-                }}>
-                {rank&&<span style={{color:C.accent,fontSize:16,fontWeight:800,fontFamily:"monospace"}}>#{rank}</span>}
-                <b style={{color:C.accent,fontSize:23,fontFamily:"monospace",fontWeight:800,lineHeight:1}}>{myLbEntry?myLbEntry.total:0}</b>
-                <span style={{color:C.muted,fontSize:12}}>pts</span>
-              </span>
+              {/* CENTER — Champion · Rank · Points as matching tiles */}
+              <div style={{justifySelf:"center", display:"flex", alignItems:"stretch", gap:8}}>
+                {winnerLocked ? (
+                  <div title="Tournament winner pick (+10 pts)" style={tileBase}>
+                    <span style={tileLabel}>Champion</span>
+                    <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:14,fontWeight:700,color:C.accent,maxWidth:178,whiteSpace:"nowrap",overflow:"hidden"}}>
+                      <span style={{flexShrink:0}}>{shownWinner?flag(shownWinner):"🏆"}</span>
+                      <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{shownWinner||"—"}</span>
+                      <span style={{fontSize:9,opacity:.8}}>🔒</span>
+                    </span>
+                  </div>
+                ) : (
+                  <span data-champion-box style={{display:"inline-flex"}}>
+                    <TeamPicker value={myWinner} onChange={saveWinner} teams={teams} disabled={false} variant="tile" label="Champion"/>
+                  </span>
+                )}
+                <div style={tileBase}>
+                  <span style={tileLabel}>Rank</span>
+                  <b style={{...tileVal,color:C.text}}>{rank?`#${rank}`:"—"}</b>
+                </div>
+                <div title={myLbEntry?`"${activeEntry.name}" — ${myLbEntry.total} pts`:"Submit to get on the leaderboard"} style={tileBase}>
+                  <span style={tileLabel}>Points</span>
+                  <b style={{...tileVal,color:C.accent}}>{myLbEntry?myLbEntry.total:0}</b>
+                </div>
+              </div>
 
               {/* RIGHT — blocker hint (why Submit is off) + Delete + Submit/badge */}
               <div style={{display:"flex",alignItems:"center",gap:10,justifyContent:"flex-end",flexWrap:"wrap",minWidth:0}}>
