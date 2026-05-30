@@ -3236,6 +3236,7 @@ export default function App() {
   // predictions are fetched on demand and cached here.
   const [simEntryId,setSimEntryId]=useState(null);
   const [simPredsByEntry,setSimPredsByEntry]=useState({}); // {entryId: {match_n:[a,b]}}
+  const [statsOpen,setStatsOpen]=useState(false);
   // The active form is always available via myPreds — seed it into the cache
   // so picking the active form costs no fetch.
   useEffect(()=>{
@@ -4512,6 +4513,78 @@ export default function App() {
           marginBottom:12,flexWrap:"wrap",gap:8}}>
           <h1 style={{color:C.accent,fontSize:20,margin:0}}>🏆 Leaderboard</h1>
           <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            {/* ── My stats button + floating dropdown ── */}
+            {user && (() => {
+              const myRow = leaderboard.find(e => e.entry_id === activeEntryId);
+              if (!myRow || !myRow.scored_matches) return null;
+              const leader = leaderboard[0];
+              const favRows = leaderboard.filter(e =>
+                (e.entry_id||e.user_id) !== (myRow.entry_id||myRow.user_id) &&
+                favorites.includes(e.entry_id||e.user_id)
+              );
+              const closestFav = favRows.length
+                ? favRows.reduce((a,b) => Math.abs(b.total-myRow.total) < Math.abs(a.total-myRow.total) ? b : a)
+                : null;
+              const gapLeader = myRow.total - leader.total;
+              const gapFav = closestFav ? myRow.total - closestFav.total : null;
+              return (
+                <div style={{position:"relative"}}>
+                  <button
+                    onClick={()=>setStatsOpen(o=>!o)}
+                    style={{
+                      background:statsOpen?"rgba(163,230,53,0.08)":C.panel,
+                      border:`1px solid ${statsOpen?C.accent:C.border}`,
+                      borderRadius:8,padding:"6px 12px",cursor:"pointer",
+                      color:statsOpen?C.accent:C.muted,
+                      display:"flex",alignItems:"center",gap:6,
+                      fontSize:13,fontWeight:600,fontFamily:"inherit",
+                      transition:"all .15s",
+                    }}>
+                    📊 My stats
+                  </button>
+                  {/* floating dropdown */}
+                  {statsOpen && (
+                    <>
+                      {/* backdrop to close on outside click */}
+                      <div onClick={()=>setStatsOpen(false)}
+                        style={{position:"fixed",inset:0,zIndex:98}}/>
+                      <div style={{
+                        position:"absolute",top:"calc(100% + 8px)",right:0,
+                        width:"min(340px, calc(100vw - 40px))",
+                        background:C.panel,border:`1px solid ${C.border}`,
+                        borderRadius:12,padding:14,
+                        boxShadow:"0 8px 32px rgba(0,0,0,0.5)",
+                        zIndex:99,
+                      }}>
+                        <div style={{fontSize:11,color:C.muted,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
+                          <span style={{background:"rgba(163,230,53,0.1)",color:C.accent,border:`1px solid rgba(163,230,53,0.25)`,borderRadius:999,padding:"2px 9px",fontSize:11,fontWeight:700}}>
+                            {myRow.name}
+                          </span>
+                          <span>{myRow.scored_matches} matches with results</span>
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7}}>
+                          {[
+                            {label:"From leader",value:gapLeader===0?"+0":(gapLeader>0?`+${gapLeader}`:gapLeader),sub:leader.name+" · "+leader.total+" pts",color:gapLeader>=0?C.green:C.red,border:gapLeader>=0?C.green:C.red,icon:"📉"},
+                            {label:"Correct direction",value:`${myRow.scored_matches>0?Math.round(myRow.correct_dir/myRow.scored_matches*100):0}%`,sub:`${myRow.correct_dir} of ${myRow.scored_matches}`,color:C.green,border:C.green,icon:"↗️"},
+                            {label:"Exact scores",value:`${myRow.exact}`,sub:`${myRow.scored_matches>0?Math.round(myRow.exact/myRow.scored_matches*100):0}% of matches`,color:C.accent,border:C.accent,icon:"🎯",valueSuffix:`/${myRow.scored_matches}`},
+                            ...(closestFav?[{label:"From favorite",value:gapFav===0?"+0":(gapFav>0?`+${gapFav}`:gapFav),sub:closestFav.name+" · "+closestFav.total+" pts"+(gapFav>0?" ↓":" ↑"),color:"#facc15",border:"#facc15",icon:"★"}]:[]),
+                          ].map((s,i)=>(
+                            <div key={i} style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${s.border}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
+                              <div style={{fontSize:14,marginBottom:2}}>{s.icon}</div>
+                              <div style={{fontSize:19,fontWeight:800,fontFamily:"monospace",lineHeight:1.1,marginBottom:2,color:s.color}}>
+                                {s.value}{s.valueSuffix&&<span style={{fontSize:12,fontWeight:400,color:C.muted}}>{s.valueSuffix}</span>}
+                              </div>
+                              <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em",lineHeight:1.3}}>{s.label}</div>
+                              <div style={{fontSize:9,color:C.muted,marginTop:2}}>{s.sub}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
             {canSim&&(
               // Option B layout: classic Actual / Simulate toggle. When the
               // user has 2+ forms AND Simulate is ON, indigo pill-chips slide
