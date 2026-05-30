@@ -92,6 +92,17 @@ html { -webkit-text-size-adjust: 100%; }
   pointer-events: none;
 }
 
+/* Champion picker "needs attention" pulse — shown on the My-predictions action
+   bar when Submit is disabled only because no champion is picked. Amber ring,
+   GPU-composited (transform+opacity) like .submit-ready. */
+.champion-pulse { position: relative; }
+.champion-pulse::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  border: 2px solid rgba(245,158,11,0.85);
+  animation: submitPulse 1.4s ease-out infinite;
+  pointer-events: none;
+}
+
 .dialog-shrinking {
   transition: transform .32s cubic-bezier(.55,0,.5,1), opacity .32s ease-out;
   transform-origin: top right;

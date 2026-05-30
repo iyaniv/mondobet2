@@ -514,12 +514,20 @@ function useIsMobile(bp = 520) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Searchable team picker with flags
-function TeamPicker({ value, onChange, teams, disabled, clearable=false, placeholder="Choose a team…", variant="default", label }) {
+function TeamPicker({ value, onChange, teams, disabled, clearable=false, placeholder="Choose a team…", variant="default", label, highlight=false, autoOpen=false }) {
   const [open,   setOpen]   = useState(false);
   const [search, setSearch] = useState("");
   const [hov,    setHov]    = useState(null);
   const wrapRef   = useRef(null);
   const searchRef = useRef(null);
+  const prevAutoOpen = useRef(false);
+
+  // Auto-open once when the parent signals the champion is the only thing left
+  // to do (e.g. all matches filled but no champion yet) — "jump to it".
+  useEffect(() => {
+    if (autoOpen && !prevAutoOpen.current && !disabled) setOpen(true);
+    prevAutoOpen.current = autoOpen;
+  }, [autoOpen, disabled]);
 
   useEffect(() => {
     if (!open) return;
@@ -549,17 +557,19 @@ function TeamPicker({ value, onChange, teams, disabled, clearable=false, placeho
       {/* Trigger — "box" variant matches the score-input boxes: dark + lime
           border/text when a champion is picked, muted dash when empty. */}
       {isTile ? (
-        <button type="button" onClick={() => !disabled && setOpen(o => !o)} title={value || "Pick your champion (+10 pts)"} style={{
+        <button type="button" onClick={() => !disabled && setOpen(o => !o)}
+          className={highlight && !value && !open ? "champion-pulse" : undefined}
+          title={value || "Pick your champion (+10 pts)"} style={{
           display:"inline-flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:1,
           minWidth:96, maxWidth:200, height:"100%", padding:"4px 12px", borderRadius:8, fontFamily:"inherit",
-          background:C.bg, border:`1px solid ${value ? C.accent : (open ? C.accent : C.border)}`,
+          background:C.bg, border:`1px solid ${value ? C.accent : (open ? C.accent : (highlight ? "#f59e0b" : C.border))}`,
           cursor:disabled?"not-allowed":"pointer", opacity:disabled?0.6:1, outline:"none",
           transition:"border-color .15s",
         }}>
-          <span style={{ fontSize:9, letterSpacing:".6px", textTransform:"uppercase", color:C.muted, fontWeight:700 }}>{label || "Champion"}</span>
+          <span style={{ fontSize:9, letterSpacing:".6px", textTransform:"uppercase", color:highlight&&!value?"#f59e0b":C.muted, fontWeight:700 }}>{label || "Champion"}</span>
           <span style={{ display:"inline-flex", alignItems:"center", gap:5, maxWidth:178, overflow:"hidden",
             fontSize:15, fontWeight:700, lineHeight:1.1, whiteSpace:"nowrap",
-            color: value ? C.accent : C.muted }}>
+            color: value ? C.accent : (highlight ? "#f59e0b" : C.muted) }}>
             <span style={{ fontSize:15, lineHeight:1, flexShrink:0 }}>{value ? flag(value) : "🏆"}</span>
             <span style={{ overflow:"hidden", textOverflow:"ellipsis" }}>{value || "Pick a team"}</span>
             <span style={{ fontSize:8, opacity:.7, transition:"transform .2s", transform:open?"rotate(180deg)":"none" }}>▾</span>
@@ -4119,6 +4129,10 @@ export default function App() {
           const blockers = [];
           if (filledCount < total) blockers.push(`🎯 ${total-filledCount} match${total-filledCount===1?"":"es"} to fill`);
           if (winnerNeededForSubmit) blockers.push("🏆 pick a champion");
+          // Submit is off and the champion is the missing piece → draw the eye to
+          // the picker; if it's the *only* thing left, pop it open automatically.
+          const championBlocking    = winnerNeededForSubmit && !canSubmit;
+          const championOnlyBlocker = championBlocking && complete;
           const showDelete = !activeEntry.submitted_at && entries.length>1 && editable;
           // Rank for the middle of the bar (points come from myLbEntry.total).
           const rank = myLbEntry ? leaderboard.indexOf(myLbEntry)+1 : null;
@@ -4157,7 +4171,7 @@ export default function App() {
                   </div>
                 ) : (
                   <span data-champion-box style={{display:"inline-flex"}}>
-                    <TeamPicker value={myWinner} onChange={saveWinner} teams={teams} disabled={false} variant="tile" label="Champion"/>
+                    <TeamPicker value={myWinner} onChange={saveWinner} teams={teams} disabled={false} variant="tile" label="Champion" highlight={championBlocking} autoOpen={championOnlyBlocker}/>
                   </span>
                 )}
               </div>
