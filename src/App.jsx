@@ -4086,9 +4086,8 @@ export default function App() {
           if (filledCount < total) blockers.push(`🎯 ${total-filledCount} match${total-filledCount===1?"":"es"} to fill`);
           if (winnerNeededForSubmit) blockers.push("🏆 pick a champion");
           const showDelete = !activeEntry.submitted_at && entries.length>1 && editable;
-          // Points + rank for the middle of the bar.
+          // Rank for the middle of the bar (points come from myLbEntry.total).
           const rank = myLbEntry ? leaderboard.indexOf(myLbEntry)+1 : null;
-          const medal = rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":(rank?`#${rank}`:null);
           return (
             <div style={{position:"sticky",top:0,zIndex:30,marginBottom:14}}>
             <div style={{
@@ -4125,14 +4124,12 @@ export default function App() {
 
               <span style={{flex:1,minWidth:0}}/>
 
-              {/* Middle: points + rank for the active form */}
-              <span title={myLbEntry?`Total for "${activeEntry.name}"`:"Submit to get on the leaderboard"} style={{
-                display:"inline-flex",alignItems:"baseline",gap:6,padding:"4px 11px",borderRadius:8,
-                background:C.panel,border:`1px solid ${C.border}`,fontSize:12,color:C.muted,whiteSpace:"nowrap",
-              }}>
-                {medal&&<span style={{fontSize:14,alignSelf:"center"}}>{medal}</span>}
-                <b style={{color:C.accent,fontSize:17,fontFamily:"monospace",fontWeight:700,lineHeight:1}}>{myLbEntry?myLbEntry.total:0}</b>
-                <span>pts{rank?` · rank ${rank}`:""}</span>
+              {/* Middle: rank + points — borderless, prominent, format "#3 142" */}
+              <span title={myLbEntry?`"${activeEntry.name}" — ${myLbEntry.total} pts${rank?`, rank ${rank}`:""}`:"Submit to get on the leaderboard"}
+                style={{display:"inline-flex",alignItems:"baseline",gap:8,whiteSpace:"nowrap"}}>
+                {rank&&<span style={{color:C.muted,fontSize:17,fontWeight:800,fontFamily:"monospace"}}>#{rank}</span>}
+                <b style={{color:C.accent,fontSize:25,fontFamily:"monospace",fontWeight:800,lineHeight:1}}>{myLbEntry?myLbEntry.total:0}</b>
+                <span style={{color:C.muted,fontSize:13}}>pts</span>
               </span>
 
               <span style={{flex:1,minWidth:0}}/>
