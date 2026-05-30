@@ -82,7 +82,6 @@ export const api = {
   // Admin
   updateConfig:         (d)      => request("/api/config/",                  { method: "PATCH", body: d }),
   setResult:            (n, d)   => request(`/api/results/${n}`,             { method: "PUT",   body: d }),
-  getResultAudit:       ()       => request("/api/results/audit"),
   resetAllResults:      ()       => request("/api/results/reset",            { method: "POST" }),
   resetUserData: ({ userId, entryId } = {}) => {
     const p = new URLSearchParams();

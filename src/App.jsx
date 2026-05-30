@@ -514,7 +514,7 @@ function useIsMobile(bp = 520) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Searchable team picker with flags
-function TeamPicker({ value, onChange, teams, disabled, clearable=false, placeholder="Choose a team…" }) {
+function TeamPicker({ value, onChange, teams, disabled, clearable=false, placeholder="Choose a team…", variant="default" }) {
   const [open,   setOpen]   = useState(false);
   const [search, setSearch] = useState("");
   const [hov,    setHov]    = useState(null);
@@ -541,25 +541,44 @@ function TeamPicker({ value, onChange, teams, disabled, clearable=false, placeho
     setOpen(false);
   }
 
+  const isBox = variant === "box";
+
   return (
-    <div ref={wrapRef} style={{ position:"relative", minWidth:240 }}>
-      {/* Trigger */}
-      <button type="button" onClick={() => !disabled && setOpen(o => !o)} style={{
-        width:"100%", display:"flex", alignItems:"center", gap:10,
-        padding:"10px 14px", borderRadius:8, cursor:disabled?"not-allowed":"pointer",
-        background:C.panel2, border:`1px solid ${open ? C.accent : C.border}`,
-        color:C.text, opacity:disabled?0.6:1, outline:"none",
-        transition:"border-color .15s", textAlign:"left",
-      }}>
-        <span style={{ fontSize:20, lineHeight:1, flexShrink:0 }}>{value ? flag(value) : "🏆"}</span>
-        <span style={{ flex:1, fontSize:14, color:value?C.text:C.muted }}>{value || placeholder}</span>
-        <span style={{ fontSize:10, color:C.muted, transition:"transform .2s", transform:open?"rotate(180deg)":"none" }}>▼</span>
-      </button>
+    <div ref={wrapRef} style={{ position:"relative", minWidth:isBox?0:240, display:isBox?"inline-block":"block" }}>
+      {/* Trigger — "box" variant matches the score-input boxes: dark + lime
+          border/text when a champion is picked, muted dash when empty. */}
+      {isBox ? (
+        <button type="button" onClick={() => !disabled && setOpen(o => !o)} title={value || "Pick your champion (+10 pts)"} style={{
+          display:"inline-flex", alignItems:"center", gap:6,
+          height:34, padding:"0 10px", borderRadius:6, fontFamily:"inherit",
+          background:C.bg, border:`1px solid ${value ? C.accent : (open ? C.accent : C.border)}`,
+          color:value ? C.accent : C.muted, fontWeight:value?700:500, fontSize:14,
+          cursor:disabled?"not-allowed":"pointer", opacity:disabled?0.6:1, outline:"none",
+          maxWidth:190, whiteSpace:"nowrap", transition:"border-color .15s,color .15s",
+        }}>
+          <span style={{ fontSize:16, lineHeight:1, flexShrink:0 }}>{value ? flag(value) : "🏆"}</span>
+          <span style={{ overflow:"hidden", textOverflow:"ellipsis" }}>{value || "—"}</span>
+          <span style={{ fontSize:9, opacity:.7, transition:"transform .2s", transform:open?"rotate(180deg)":"none" }}>▾</span>
+        </button>
+      ) : (
+        <button type="button" onClick={() => !disabled && setOpen(o => !o)} style={{
+          width:"100%", display:"flex", alignItems:"center", gap:10,
+          padding:"10px 14px", borderRadius:8, cursor:disabled?"not-allowed":"pointer",
+          background:C.panel2, border:`1px solid ${open ? C.accent : C.border}`,
+          color:C.text, opacity:disabled?0.6:1, outline:"none",
+          transition:"border-color .15s", textAlign:"left",
+        }}>
+          <span style={{ fontSize:20, lineHeight:1, flexShrink:0 }}>{value ? flag(value) : "🏆"}</span>
+          <span style={{ flex:1, fontSize:14, color:value?C.text:C.muted }}>{value || placeholder}</span>
+          <span style={{ fontSize:10, color:C.muted, transition:"transform .2s", transform:open?"rotate(180deg)":"none" }}>▼</span>
+        </button>
+      )}
 
       {/* Dropdown panel */}
       {open && (
         <div style={{
-          position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:200,
+          position:"absolute", top:"calc(100% + 4px)", left:0, right:isBox?"auto":0, zIndex:200,
+          minWidth:isBox?260:undefined,
           background:C.panel, border:`1px solid ${C.border}`, borderRadius:10,
           boxShadow:"0 8px 28px rgba(0,0,0,0.18)", overflow:"hidden",
         }}>
@@ -1111,17 +1130,6 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
   // Stage management
   const currentStage = config.current_stage || 1;
 
-  // Result-edit audit log — who changed which result, when. Fetched on mount
-  // and on demand; collapsed by default to keep the dashboard tidy.
-  const [audit, setAudit] = useState([]);
-  const [auditLoading, setAuditLoading] = useState(false);
-  const [auditOpen, setAuditOpen] = useState(false);
-  const loadAudit = useCallback(() => {
-    setAuditLoading(true);
-    api.getResultAudit().then(setAudit).catch(()=>{}).finally(()=>setAuditLoading(false));
-  }, []);
-  useEffect(() => { loadAudit(); }, [loadAudit]);
-
   // Per-form per-stage badge row — green ✓ for submitted, orange with filled/total
   // for the current open stage, muted for future stages, red for past stages
   // that somehow stayed unsubmitted.
@@ -1347,60 +1355,6 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap",marginBottom:20,position:"relative",zIndex:10}}>
         <TeamPicker value={config.tournament_winner||null} onChange={setWinner} teams={teams} clearable placeholder="— no winner set —"/>
         <span style={{color:C.muted,fontSize:12,alignSelf:"center"}}>Awards +10 pts to everyone who picked correctly.</span>
-      </div>
-
-      {/* ── Result history (audit log) ──────────────────────────────────── */}
-      <div style={{marginBottom:20}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8,gap:8,flexWrap:"wrap"}}>
-          <h2 style={{color:C.accent,fontSize:16,margin:0}}>🧾 Result history</h2>
-          <div style={{display:"flex",gap:8,alignItems:"center"}}>
-            <button onClick={loadAudit} title="Refresh the log"
-              style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,padding:"3px 10px",borderRadius:4,cursor:"pointer",fontSize:12}}>
-              ↻ Refresh
-            </button>
-            <button onClick={()=>setAuditOpen(v=>!v)}
-              style={{background:"transparent",border:`1px solid ${C.accent}`,color:C.accent,padding:"3px 12px",borderRadius:4,cursor:"pointer",fontSize:12,fontWeight:600}}>
-              {auditOpen ? "Hide" : `Show (${audit.length})`}
-            </button>
-          </div>
-        </div>
-        {auditOpen && (
-          <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden"}}>
-            {auditLoading && audit.length===0
-              ? <div style={{padding:16,color:C.muted,fontSize:13,textAlign:"center"}}>Loading…</div>
-              : audit.length===0
-                ? <div style={{padding:16,color:C.muted,fontSize:13,textAlign:"center"}}>No result edits recorded yet.</div>
-                : (
-                  <div style={{maxHeight:340,overflowY:"auto"}}>
-                    {audit.map(a => {
-                      const m = matches.find(x=>x.n===a.match_n);
-                      const matchLabel = a.match_n==null ? "All results"
-                        : (m ? `#${a.match_n} ${m.a}–${m.b}` : `#${a.match_n}`);
-                      const palette = a.action==="finalize" ? C.green
-                        : (a.action==="clear"||a.action==="reset_all") ? C.red : C.accent;
-                      return (
-                        <div key={a.id} style={{display:"flex",gap:10,alignItems:"baseline",padding:"8px 12px",
-                          borderBottom:`1px solid ${C.border}`,fontSize:12.5,flexWrap:"wrap"}}>
-                          <span style={{color:C.muted,fontFamily:"monospace",fontSize:11,whiteSpace:"nowrap"}}>
-                            {new Date(a.created_at).toLocaleString()}
-                          </span>
-                          <span style={{textTransform:"uppercase",fontWeight:700,fontSize:10,color:palette,
-                            border:`1px solid ${palette}`,borderRadius:4,padding:"1px 6px",whiteSpace:"nowrap"}}>
-                            {a.action}
-                          </span>
-                          <span style={{color:C.text,fontWeight:600,whiteSpace:"nowrap"}}>{matchLabel}</span>
-                          <span style={{color:C.muted}}>
-                            {a.old_value ? <><span style={{textDecoration:"line-through",opacity:0.65}}>{a.old_value}</span>{" → "}</> : null}
-                            <span style={{color:C.text}}>{a.new_value || "—"}</span>
-                          </span>
-                          <span style={{marginLeft:"auto",color:C.indigo,fontWeight:600,whiteSpace:"nowrap"}}>by {a.admin_name}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-          </div>
-        )}
       </div>
 
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
@@ -4161,9 +4115,9 @@ export default function App() {
                   <span style={{background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700}}>🔒</span>
                 </span>
               ) : (
-                <div style={{display:"flex",alignItems:"center",gap:6}}>
-                  <span style={{color:C.muted,fontSize:12,whiteSpace:"nowrap"}}>🏆 Winner (+10):</span>
-                  <TeamPicker value={myWinner} onChange={saveWinner} teams={teams} disabled={false} placeholder="Choose a team…"/>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{color:C.muted,fontSize:11,whiteSpace:"nowrap",textTransform:"uppercase",letterSpacing:".4px",fontWeight:700}}>🏆 Champion</span>
+                  <TeamPicker value={myWinner} onChange={saveWinner} teams={teams} disabled={false} variant="box"/>
                 </div>
               )}
               {config.tournament_winner&&<span style={{color:C.muted,fontSize:12,whiteSpace:"nowrap"}}>🏆 actual: <b style={{color:C.accent}}>{withFlag(config.tournament_winner)}</b></span>}
