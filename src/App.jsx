@@ -4052,60 +4052,38 @@ export default function App() {
         {config.round_state==="idle"&&<InfoBlock warn>⏸️ <b>No betting round is open yet.</b> The admin needs to open a round before you can enter predictions.</InfoBlock>}
         {activeEntry&&!activeFormActive&&<InfoBlock warn>🔒 <b>This form is inactive.</b> It didn't submit stage 1 before it closed, so it can't be edited or submitted in any later stage. You can still view its predictions and stage 1 points.</InfoBlock>}
 
-        {/* Unified action toolbar — merges Submit + blockers, the winner pick,
-            the Total pill, the scoring legend (now a hover) and Delete onto a
-            single row, instead of three stacked blocks. Wraps cleanly on
-            narrow screens. */}
+        {/* Sticky action bar — sits under the form tabs and pins to the top of
+            the table on scroll. Progress + champion on the left, Delete +
+            Submit on the right. Submit only enables once the form is complete
+            (all matches filled + a champion picked). */}
         {activeEntry&&activeFormActive&&(() => {
-          const missing = Math.max(0, submittableMatches.length - filledCount);
-          const blockers = [];
-          if (missing > 0) blockers.push(`🎯 ${missing} match${missing===1?"":"es"} still to fill`);
-          if (winnerNeededForSubmit) blockers.push("🏆 winner pick needed");
+          const total = submittableMatches.length;
+          const complete = total > 0 && filledCount === total;
           const winnerLocked = openStage > 1 || !editable;
           const shownWinner  = myWinner || lockedWinner;
+          const blockers = [];
+          if (filledCount < total) blockers.push(`${total-filledCount} match${total-filledCount===1?"":"es"} to fill`);
+          if (winnerNeededForSubmit) blockers.push("pick a champion");
+          const showDelete = !activeEntry.submitted_at && entries.length>1 && editable;
           return (
+            <div style={{position:"sticky",top:0,zIndex:30,marginBottom:14}}>
             <div style={{
-              background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,
-              padding:"8px 12px",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",
-              marginBottom:14,position:"relative",zIndex:10,
+              background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,
+              borderRadius:10,padding:"9px 12px",display:"flex",gap:12,alignItems:"center",
+              flexWrap:"wrap",boxShadow:"0 6px 18px rgba(0,0,0,0.35)",
             }}>
-              {/* Left: Submit / Submitted badge */}
-              {editable&&!currentStageSubmitted&&(
-                <>
-                  <Btn green onClick={submitEntry} disabled={!canSubmit||submitting}
-                    title={blockers.length ? `Can't submit yet: ${blockers.join(", ")}` : ""}>
-                    {submitting
-                      ? "…"
-                      : entries.length > 1
-                        ? `Submit "${activeEntry?.name||"this form"}"`
-                        : "Submit"}
-                  </Btn>
-                  {!canSubmit&&blockers.length>0&&(
-                    <span style={{
-                      display:"inline-flex",alignItems:"center",gap:6,
-                      background:"rgba(245,158,11,0.10)",color:"#f59e0b",
-                      border:"1px solid rgba(245,158,11,0.35)",
-                      padding:"4px 10px",borderRadius:999,fontSize:12,fontWeight:500,whiteSpace:"nowrap",
-                    }}>{blockers.join(" · ")}</span>
-                  )}
-                </>
-              )}
-              {editable&&currentStageSubmitted&&(
-                <span style={{
-                  background:"rgba(16,185,129,0.10)",color:C.green,
-                  border:"1px solid rgba(16,185,129,0.35)",
-                  padding:"5px 12px",borderRadius:999,fontSize:12,fontWeight:600,whiteSpace:"nowrap",
-                }}>✓ Stage {openStage} submitted</span>
-              )}
+              {/* Progress pill */}
+              <span style={{
+                display:"inline-flex",alignItems:"center",gap:6,padding:"4px 11px",borderRadius:999,
+                fontSize:12,fontWeight:600,whiteSpace:"nowrap",
+                background: complete ? "rgba(16,185,129,0.12)" : "rgba(245,158,11,0.12)",
+                color: complete ? C.green : "#f59e0b",
+                border: `1px solid ${complete ? "rgba(16,185,129,0.4)" : "rgba(245,158,11,0.4)"}`,
+              }}>
+                {complete ? "✓" : "🏁"} <b style={{fontFamily:"monospace"}}>{filledCount}/{total}</b> filled
+              </span>
 
-              {!activeEntry.submitted_at&&entries.length>1&&editable&&(
-                <Btn ghost red onClick={()=>deleteEntryById(activeEntry.id)}>Delete</Btn>
-              )}
-
-              {/* Push the winner chip + total pill to the right edge */}
-              <span style={{flex:1,minWidth:0}}/>
-
-              {/* Winner pick (compact chip when locked, full picker while editable) */}
+              {/* Champion (box picker, or locked chip on later stages) */}
               {winnerLocked ? (
                 <span title="Tournament winner pick (+10 pts)" style={{
                   display:"inline-flex",alignItems:"center",gap:6,fontSize:13,
@@ -4120,21 +4098,36 @@ export default function App() {
                   <TeamPicker value={myWinner} onChange={saveWinner} teams={teams} disabled={false} variant="box"/>
                 </div>
               )}
-              {config.tournament_winner&&<span style={{color:C.muted,fontSize:12,whiteSpace:"nowrap"}}>🏆 actual: <b style={{color:C.accent}}>{withFlag(config.tournament_winner)}</b></span>}
 
-              {/* Total points pill */}
-              {myLbEntry&&(
-                <div style={{
-                  display:"inline-flex",alignItems:"baseline",gap:7,
-                  background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,
-                  padding:"5px 11px",fontSize:12,color:C.muted,whiteSpace:"nowrap",
-                }} title={`Total for "${activeEntry.name}"`}>
-                  <span style={{color:C.muted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",fontSize:10}}>Total</span>
-                  <b style={{color:C.accent,fontSize:18,fontFamily:"monospace",fontWeight:700,lineHeight:1}}>{myLbEntry.total}</b>
-                  <span>pts · {myLbEntry.scored_matches}/{matches.length}</span>
-                  {myLbEntry.winner_bonus>0&&<span style={{color:C.green,fontWeight:600}}>· 🏆 +10</span>}
-                </div>
+              <span style={{flex:1,minWidth:0}}/>
+
+              {/* Right: Delete + Submit (or submitted badge) */}
+              {showDelete && (
+                <Btn ghost red onClick={()=>deleteEntryById(activeEntry.id)}>Delete</Btn>
               )}
+              {editable && currentStageSubmitted ? (
+                <span style={{
+                  background:"rgba(16,185,129,0.10)",color:C.green,
+                  border:"1px solid rgba(16,185,129,0.35)",
+                  padding:"6px 14px",borderRadius:8,fontSize:13,fontWeight:700,whiteSpace:"nowrap",
+                }}>✓ Stage {openStage} submitted</span>
+              ) : editable ? (
+                <button
+                  onClick={submitEntry}
+                  disabled={!canSubmit||submitting}
+                  className={canSubmit&&!submitting?"submit-ready":undefined}
+                  title={!canSubmit&&blockers.length?`To submit: ${blockers.join(" · ")}`:""}
+                  style={{
+                    border:0,borderRadius:8,padding:"9px 18px",fontSize:13,fontWeight:700,
+                    fontFamily:"inherit",whiteSpace:"nowrap",
+                    cursor:(!canSubmit||submitting)?"not-allowed":"pointer",
+                    background:(!canSubmit||submitting)?"#23304a":C.green,
+                    color:(!canSubmit||submitting)?"#5d7290":"#fff",
+                  }}>
+                  {submitting ? "…" : entries.length>1 ? `Submit "${activeEntry?.name||"this form"}"` : "Submit"}
+                </button>
+              ) : null}
+            </div>
             </div>
           );
         })()}

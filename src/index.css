@@ -75,6 +75,16 @@ html { -webkit-text-size-adjust: 100%; }
   80%      { transform: scale(1);    box-shadow: 0 0 0 0   rgba(163,230,53,0); }
 }
 .help-blink { animation: helpBlink 1.2s ease-out 1; }
+
+/* Submit button "ready to go" pulse — used on the My-predictions action bar
+   once the form is complete (all matches + champion). */
+@keyframes submitPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
+  70%  { box-shadow: 0 0 0 10px rgba(16,185,129,0); }
+  100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+}
+.submit-ready { animation: submitPulse 1.5s ease-in-out infinite; }
+
 .dialog-shrinking {
   transition: transform .32s cubic-bezier(.55,0,.5,1), opacity .32s ease-out;
   transform-origin: top right;
