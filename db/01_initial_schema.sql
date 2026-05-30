@@ -98,23 +98,6 @@ CREATE TABLE IF NOT EXISTS results (
     winner   CHAR(1)
 );
 
--- ── Result audit log ──────────────────────────────────────────────────────────
--- Append-only record of admin edits to match results (who / when / what).
--- Purely for accountability — never read by scoring. match_n is NULL for
--- global actions like "reset all results".
-CREATE TABLE IF NOT EXISTS result_audit (
-    id          SERIAL       PRIMARY KEY,
-    match_n     INT,
-    action      VARCHAR(20)  NOT NULL,   -- save | edit | clear | finalize | reset_all
-    old_value   VARCHAR(160),
-    new_value   VARCHAR(160),
-    admin_id    INT          REFERENCES users (id) ON DELETE SET NULL,
-    admin_name  VARCHAR(100) NOT NULL DEFAULT '',
-    created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS ix_result_audit_match_n    ON result_audit (match_n);
-CREATE INDEX IF NOT EXISTS ix_result_audit_created_at ON result_audit (created_at);
-
 -- ── Winner picks ──────────────────────────────────────────────────────────────
 -- One row per entry — the team that entry thinks will win the tournament.
 CREATE TABLE IF NOT EXISTS winner_picks (

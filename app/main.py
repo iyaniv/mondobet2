@@ -51,21 +51,6 @@ async def _bootstrap():
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS help_seen JSONB "
             "NOT NULL DEFAULT '{}'::jsonb"
         ))
-        # Migration 11: result_audit table (admin result-edit log). This is a
-        # whole new table, so Base.metadata.create_all above already creates it
-        # on cold start — no ALTER needed. Statement kept for parity with the
-        # numbered SQL migration and explicitness on older Postgres.
-        await conn.execute(text(
-            "CREATE TABLE IF NOT EXISTS result_audit ("
-            " id SERIAL PRIMARY KEY,"
-            " match_n INT,"
-            " action VARCHAR(20) NOT NULL,"
-            " old_value VARCHAR(160),"
-            " new_value VARCHAR(160),"
-            " admin_id INT REFERENCES users (id) ON DELETE SET NULL,"
-            " admin_name VARCHAR(100) NOT NULL DEFAULT '',"
-            " created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"
-        ))
         # Migration 12: per-stage leaderboard movement — snapshot of standings
         # at the start of the current stage, stored on game_config.
         await conn.execute(text(

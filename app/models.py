@@ -114,33 +114,6 @@ class Result(Base):
     winner: Mapped[Optional[str]] = mapped_column(String(1), nullable=True)
 
 
-class ResultAudit(Base):
-    """Append-only log of admin edits to match results — who / when / what.
-
-    Purely additive accountability: written whenever a result is saved, edited,
-    cleared, finalized, or all results are reset. Never read by scoring.
-    """
-    __tablename__ = "result_audit"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    # NULL for global actions (e.g. "reset all results"); otherwise the match.
-    match_n: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
-    # save | edit | clear | finalize | reset_all
-    action: Mapped[str] = mapped_column(String(20), nullable=False)
-    # Human-readable before/after, e.g. "1:1" → "2:1 · a.e.t. 2:1 · won a".
-    old_value: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
-    new_value: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
-    # Who did it. admin_id may go NULL if the account is later deleted; the
-    # name is snapshotted so the log stays readable regardless.
-    admin_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
-    admin_name: Mapped[str] = mapped_column(String(100), nullable=False, server_default="")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
-    )
-
-
 class WinnerPick(Base):
     __tablename__ = "winner_picks"
 

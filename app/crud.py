@@ -9,7 +9,7 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Entry, GameConfig, LiveMatch, Prediction, Result, ResultAudit, RoundStateEnum, User, WinnerPick
+from app.models import Entry, GameConfig, LiveMatch, Prediction, Result, RoundStateEnum, User, WinnerPick
 from app.auth import hash_password
 from app.scoring import user_totals
 from app.schemas import LeaderboardEntry
@@ -336,31 +336,6 @@ def derive_winner(
     return None
 
 
-def format_result(score_a, score_b, et_a=None, et_b=None, pen_a=None, pen_b=None, winner=None) -> Optional[str]:
-    """Human-readable result string for the audit log, e.g.
-    "2:1 · a.e.t. 2:1 · won a". Returns None when there's no score."""
-    if score_a is None or score_b is None:
-        return None
-    s = f"{score_a}:{score_b}"
-    if et_a is not None and et_b is not None:
-        s += f" · a.e.t. {et_a}:{et_b}"
-    if pen_a is not None and pen_b is not None:
-        s += f" · pen {pen_a}:{pen_b}"
-    if winner:
-        s += f" · won {winner}"
-    return s
-
-
-async def record_result_audit(db: AsyncSession, *, match_n, action, old_value, new_value, admin):
-    """Append one row to the result-edit audit log."""
-    db.add(ResultAudit(
-        match_n=match_n, action=action, old_value=old_value, new_value=new_value,
-        admin_id=getattr(admin, "id", None),
-        admin_name=getattr(admin, "name", None) or "system",
-    ))
-    await db.commit()
-
-
 _SLOT_RE = re.compile(r"^([WL]) M(\d+)$")
 
 
@@ -406,13 +381,6 @@ async def _maybe_crown_champion(db: AsyncSession, match_n: int, result):
         await db.commit()
 
 
-async def get_result_audit(db: AsyncSession, limit: int = 200) -> list:
-    r = await db.execute(
-        select(ResultAudit).order_by(ResultAudit.created_at.desc(), ResultAudit.id.desc()).limit(limit)
-    )
-    return list(r.scalars().all())
-
-
 async def get_all_results(db: AsyncSession) -> dict:
     r = await db.execute(select(Result))
     # Returns {match_n: [score_a, score_b, winner, et_a, et_b, pen_a, pen_b]}
@@ -433,19 +401,12 @@ async def upsert_result(
     et_b: Optional[int] = None,
     pen_a: Optional[int] = None,
     pen_b: Optional[int] = None,
-    admin=None,
 ) -> Optional[Result]:
     res = await db.get(Result, match_n)
-    # Snapshot the previous value for the audit log before we mutate it.
-    old_str = (format_result(res.score_a, res.score_b, res.et_a, res.et_b, res.pen_a, res.pen_b, res.winner)
-               if res else None)
     if score_a is None and score_b is None:
         if res:
             await db.delete(res)
             await db.commit()
-            if admin is not None:
-                await record_result_audit(db, match_n=match_n, action="clear",
-                                          old_value=old_str, new_value=None, admin=admin)
         return None
     winner = derive_winner(score_a, score_b, et_a, et_b, pen_a, pen_b)
     if res:
@@ -460,14 +421,6 @@ async def upsert_result(
     await db.commit()
     if res:
         await db.refresh(res)
-    if admin is not None:
-        await record_result_audit(
-            db, match_n=match_n,
-            action=("save" if old_str is None else "edit"),
-            old_value=old_str,
-            new_value=format_result(score_a, score_b, et_a, et_b, pen_a, pen_b, winner),
-            admin=admin,
-        )
     # If this was the FINAL and a winner is decided, crown the champion.
     await _maybe_crown_champion(db, match_n, res)
     return res
@@ -623,7 +576,7 @@ async def get_participants_with_entries(db: AsyncSession) -> list[dict]:
     return out
 
 
-async def delete_all_results_and_live(db: AsyncSession, admin=None) -> dict:
+async def delete_all_results_and_live(db: AsyncSession) -> dict:
     """Wipe every Result and every LiveMatch row. Returns counts deleted.
 
     Used by the admin "reset all results" testing helper. Predictions,
@@ -633,13 +586,7 @@ async def delete_all_results_and_live(db: AsyncSession, admin=None) -> dict:
     r1 = await db.execute(sql_delete(Result))
     r2 = await db.execute(sql_delete(LiveMatch))
     await db.commit()
-    counts = {"results": r1.rowcount or 0, "live": r2.rowcount or 0}
-    if admin is not None:
-        await record_result_audit(
-            db, match_n=None, action="reset_all", old_value=None,
-            new_value=f"cleared {counts['results']} result(s), {counts['live']} live", admin=admin,
-        )
-    return counts
+    return {"results": r1.rowcount or 0, "live": r2.rowcount or 0}
 
 
 async def reset_user_data(
@@ -793,25 +740,14 @@ async def remove_live_match(db: AsyncSession, match_n: int) -> bool:
     return True
 
 
-async def finalize_live_match(db: AsyncSession, match_n: int, admin=None) -> Optional[Result]:
+async def finalize_live_match(db: AsyncSession, match_n: int) -> Optional[Result]:
     lm = await db.get(LiveMatch, match_n)
     if not lm:
         return None
-    existing = await db.get(Result, match_n)
-    old_str = (format_result(existing.score_a, existing.score_b, existing.et_a, existing.et_b,
-                             existing.pen_a, existing.pen_b, existing.winner) if existing else None)
-    # upsert without admin so it doesn't also log a "save" — we log "finalize".
     result = await upsert_result(
         db, match_n, lm.score_a, lm.score_b,
         et_a=lm.et_a, et_b=lm.et_b, pen_a=lm.pen_a, pen_b=lm.pen_b,
     )
     await db.delete(lm)
     await db.commit()
-    if admin is not None and result is not None:
-        await record_result_audit(
-            db, match_n=match_n, action="finalize", old_value=old_str,
-            new_value=format_result(result.score_a, result.score_b, result.et_a, result.et_b,
-                                    result.pen_a, result.pen_b, result.winner),
-            admin=admin,
-        )
     return result
