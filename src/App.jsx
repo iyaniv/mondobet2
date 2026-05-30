@@ -550,14 +550,15 @@ function TeamPicker({ value, onChange, teams, disabled, clearable=false, placeho
       {isBox ? (
         <button type="button" onClick={() => !disabled && setOpen(o => !o)} title={value || "Pick your champion (+10 pts)"} style={{
           display:"inline-flex", alignItems:"center", gap:6,
-          height:34, padding:"0 10px", borderRadius:6, fontFamily:"inherit",
+          height:34, padding:"0 12px", borderRadius:6, fontFamily:"inherit",
+          justifyContent: value ? "flex-start" : "center",
           background:C.bg, border:`1px solid ${value ? C.accent : (open ? C.accent : C.border)}`,
-          color:value ? C.accent : C.muted, fontWeight:value?700:500, fontSize:14,
+          color:value ? C.accent : C.muted, fontWeight:value?700:600, fontSize:14,
           cursor:disabled?"not-allowed":"pointer", opacity:disabled?0.6:1, outline:"none",
-          maxWidth:190, whiteSpace:"nowrap", transition:"border-color .15s,color .15s",
+          minWidth: value ? 64 : 150, maxWidth:200, whiteSpace:"nowrap", transition:"border-color .15s,color .15s",
         }}>
           <span style={{ fontSize:16, lineHeight:1, flexShrink:0 }}>{value ? flag(value) : "🏆"}</span>
-          <span style={{ overflow:"hidden", textOverflow:"ellipsis" }}>{value || "—"}</span>
+          <span style={{ overflow:"hidden", textOverflow:"ellipsis" }}>{value || "Pick a team"}</span>
           <span style={{ fontSize:9, opacity:.7, transition:"transform .2s", transform:open?"rotate(180deg)":"none" }}>▾</span>
         </button>
       ) : (
@@ -912,10 +913,10 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
       <div style={{display:"flex",alignItems:"center",gap:3,justifyContent:"center"}}>
         <input type="number" inputMode="numeric" min={0} max={20} value={localA}
-          onFocus={handleFocus} onChange={e=>setLocalA(e.target.value)} onBlur={e=>savePred(0,e.target.value)} style={numInput}/>
+          onFocus={handleFocus} onChange={e=>setLocalA(e.target.value)} onBlur={e=>savePred(0,e.target.value)} style={{...numInput,...(localA!==""&&localA!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
         <span style={{color:C.muted,fontSize:13}}>:</span>
         <input type="number" inputMode="numeric" min={0} max={20} value={localB}
-          onFocus={handleFocus} onChange={e=>setLocalB(e.target.value)} onBlur={e=>savePred(1,e.target.value)} style={numInput}/>
+          onFocus={handleFocus} onChange={e=>setLocalB(e.target.value)} onBlur={e=>savePred(1,e.target.value)} style={{...numInput,...(localB!==""&&localB!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
       </div>
       {isKnockoutMatch && (
         <span style={{fontSize:9,color:C.muted,letterSpacing:".3px",textTransform:"uppercase",fontWeight:500,opacity:0.7}}>
@@ -1012,9 +1013,9 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
       }}>{flag(match.a)} {match.a}</span>
       {editable?(
         <>
-          <input type="number" inputMode="numeric" min={0} max={20} value={localA} onFocus={handleFocus} onChange={e=>setLocalA(e.target.value)} onBlur={e=>savePred(0,e.target.value)} style={numInput}/>
+          <input type="number" inputMode="numeric" min={0} max={20} value={localA} onFocus={handleFocus} onChange={e=>setLocalA(e.target.value)} onBlur={e=>savePred(0,e.target.value)} style={{...numInput,...(localA!==""&&localA!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
           <span style={{textAlign:"center",color:C.muted}}>:</span>
-          <input type="number" inputMode="numeric" min={0} max={20} value={localB} onFocus={handleFocus} onChange={e=>setLocalB(e.target.value)} onBlur={e=>savePred(1,e.target.value)} style={numInput}/>
+          <input type="number" inputMode="numeric" min={0} max={20} value={localB} onFocus={handleFocus} onChange={e=>setLocalB(e.target.value)} onBlur={e=>savePred(1,e.target.value)} style={{...numInput,...(localB!==""&&localB!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
         </>
       ):adminResult?(
         <>
@@ -3732,6 +3733,26 @@ export default function App() {
       }catch(e){setMyWinner(prev);showToast(e.message,"err");}
     }
 
+    // Jump the user to whatever's still blocking Submit: the first empty match
+    // (scroll + focus its score box) or, if scores are done, the champion box.
+    function jumpToFirstMissing(){
+      const m = submittableMatches.find(mm => !(myPreds[mm.n]?.[0]!=null && myPreds[mm.n]?.[1]!=null));
+      if(m){
+        const stageN = matchStageObj(m.n).n;
+        setCollapsedStages(prev=>{ if(!prev.has(stageN)) return prev; const n=new Set(prev); n.delete(stageN); return n; });
+        setTimeout(()=>{
+          const row=document.querySelector(`[data-match-n="${m.n}"]`);
+          if(row){ row.scrollIntoView({behavior:"smooth",block:"center"});
+            const inp=row.querySelector('input[type="number"]'); if(inp) setTimeout(()=>inp.focus(),320); }
+        },50);
+        return;
+      }
+      if(winnerNeededForSubmit){
+        const box=document.querySelector('[data-champion-box] button');
+        if(box){ box.scrollIntoView({behavior:"smooth",block:"center"}); box.click(); }
+      }
+    }
+
     async function createEntry(copyFromEntryId){
       setShowNewMenu(false);
       try{
@@ -4062,9 +4083,12 @@ export default function App() {
           const winnerLocked = openStage > 1 || !editable;
           const shownWinner  = myWinner || lockedWinner;
           const blockers = [];
-          if (filledCount < total) blockers.push(`${total-filledCount} match${total-filledCount===1?"":"es"} to fill`);
-          if (winnerNeededForSubmit) blockers.push("pick a champion");
+          if (filledCount < total) blockers.push(`🎯 ${total-filledCount} match${total-filledCount===1?"":"es"} to fill`);
+          if (winnerNeededForSubmit) blockers.push("🏆 pick a champion");
           const showDelete = !activeEntry.submitted_at && entries.length>1 && editable;
+          // Points + rank for the middle of the bar.
+          const rank = myLbEntry ? leaderboard.indexOf(myLbEntry)+1 : null;
+          const medal = rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":(rank?`#${rank}`:null);
           return (
             <div style={{position:"sticky",top:0,zIndex:30,marginBottom:14}}>
             <div style={{
@@ -4093,7 +4117,7 @@ export default function App() {
                   <span style={{background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700}}>🔒</span>
                 </span>
               ) : (
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div data-champion-box style={{display:"flex",alignItems:"center",gap:8}}>
                   <span style={{color:C.muted,fontSize:11,whiteSpace:"nowrap",textTransform:"uppercase",letterSpacing:".4px",fontWeight:700}}>🏆 Champion</span>
                   <TeamPicker value={myWinner} onChange={saveWinner} teams={teams} disabled={false} variant="box"/>
                 </div>
@@ -4101,7 +4125,28 @@ export default function App() {
 
               <span style={{flex:1,minWidth:0}}/>
 
-              {/* Right: Delete + Submit (or submitted badge) */}
+              {/* Middle: points + rank for the active form */}
+              <span title={myLbEntry?`Total for "${activeEntry.name}"`:"Submit to get on the leaderboard"} style={{
+                display:"inline-flex",alignItems:"baseline",gap:6,padding:"4px 11px",borderRadius:8,
+                background:C.panel,border:`1px solid ${C.border}`,fontSize:12,color:C.muted,whiteSpace:"nowrap",
+              }}>
+                {medal&&<span style={{fontSize:14,alignSelf:"center"}}>{medal}</span>}
+                <b style={{color:C.accent,fontSize:17,fontFamily:"monospace",fontWeight:700,lineHeight:1}}>{myLbEntry?myLbEntry.total:0}</b>
+                <span>pts{rank?` · rank ${rank}`:""}</span>
+              </span>
+
+              <span style={{flex:1,minWidth:0}}/>
+
+              {/* Right: blocker hint (why Submit is off) + Delete + Submit/badge */}
+              {editable && !currentStageSubmitted && !canSubmit && blockers.length>0 && (
+                <button onClick={jumpToFirstMissing}
+                  title="Go to the next thing to complete"
+                  style={{
+                    display:"inline-flex",alignItems:"center",gap:6,cursor:"pointer",fontFamily:"inherit",
+                    background:"rgba(245,158,11,0.10)",color:"#f59e0b",border:"1px solid rgba(245,158,11,0.4)",
+                    padding:"4px 11px",borderRadius:999,fontSize:12,fontWeight:600,whiteSpace:"nowrap",
+                  }}>{blockers.join(" · ")} ›</button>
+              )}
               {showDelete && (
                 <Btn ghost red onClick={()=>deleteEntryById(activeEntry.id)}>Delete</Btn>
               )}
