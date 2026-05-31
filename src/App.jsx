@@ -3509,12 +3509,24 @@ export default function App() {
   // Pre-load config + cached matches immediately (before auth check)
   useEffect(()=>{
     api.getConfig().then(cfg=>setConfig(cfg)).catch(()=>{});
-    // Restore static matches from sessionStorage for instant render
+    // Restore static matches + last-known results/live from sessionStorage so the
+    // page (incl. the Today's Games panel) paints WITH data on a refresh, instead
+    // of flashing empty until /api/init resolves a few seconds later.
     try {
       const cached = JSON.parse(sessionStorage.getItem("mb_matches")||"null");
       if (cached && cached.m?.length) { setMatches(cached.m); setTeams(cached.t); }
     } catch {}
+    try {
+      const lc = JSON.parse(sessionStorage.getItem("mb_livecache")||"null");
+      if (lc) { if (lc.results) setResults(lc.results); if (lc.live) setLiveMatches(lc.live); }
+    } catch {}
   },[]);
+
+  // Keep that cache fresh: persist results + live on every change (initial load,
+  // poll, admin edits) so the next refresh has the latest snapshot to paint from.
+  useEffect(()=>{
+    try { sessionStorage.setItem("mb_livecache", JSON.stringify({results, live:liveMatches})); } catch {}
+  },[results, liveMatches]);
 
   useEffect(()=>{
     if(!getToken()){setAuthLoading(false);return;}
