@@ -3169,6 +3169,12 @@ export default function App() {
   const [entries,setEntries]=useState([]);
   const [activeEntryId,setActiveEntryId]=useState(null);
   const [lockedWinner,setLockedWinner]=useState(null);
+  // The 10s poll's effect deps don't include activeEntryId/lockedWinner, so the
+  // long-lived interval closes over stale values. refreshLb() reads these refs
+  // instead, so it always syncs the winner pick against the CURRENT active form
+  // (otherwise a newly-created empty form gets the previous form's champion).
+  const activeEntryIdRef = useRef(activeEntryId); activeEntryIdRef.current = activeEntryId;
+  const lockedWinnerRef  = useRef(lockedWinner);  lockedWinnerRef.current  = lockedWinner;
   const [viewEntryId,setViewEntryId]=useState(null);
   const [viewUserPreds,setViewUserPreds]=useState({});
   const [viewUserWinner,setViewUserWinner]=useState(null);
@@ -3242,6 +3248,8 @@ export default function App() {
   const [simEntryId,setSimEntryId]=useState(null);
   const [simPredsByEntry,setSimPredsByEntry]=useState({}); // {entryId: {match_n:[a,b]}}
   const [statsOpen,setStatsOpen]=useState(false);
+  const [userStatsOpen,setUserStatsOpen]=useState(false);
+  const [groupStatsOpen,setGroupStatsOpen]=useState(false);
   // The active form is always available via myPreds — seed it into the cache
   // so picking the active form costs no fetch.
   useEffect(()=>{
@@ -3341,11 +3349,17 @@ export default function App() {
       if(!isAdmin&&userId){
         if(d.entries&&d.entries.length>0){
           setEntries(d.entries);
-          setActiveEntryId(id=>id||d.entries[0].id);
-          const first=d.entries[0];
-          const predMap={};for(const p of(first.predictions||[]))predMap[p.match_n]=[p.score_a,p.score_b];
+          // Sync preds/winner to the CURRENTLY-active form if one is set (the
+          // user may have created/switched forms before this load resolved);
+          // only fall back to the first entry when nothing is active yet. Using
+          // entries[0] unconditionally desyncs a non-first active form — its
+          // winner picker would jump to the first form's champion.
+          const activeId=activeEntryIdRef.current;
+          const active=(activeId&&d.entries.find(e=>e.id===activeId))||d.entries[0];
+          setActiveEntryId(id=>id||active.id);
+          const predMap={};for(const p of(active.predictions||[]))predMap[p.match_n]=[p.score_a,p.score_b];
           setMyPreds(predMap);
-          setMyWinner(first.winner_pick||(d.locked_winner??null));
+          setMyWinner(active.winner_pick||(d.locked_winner??null));
         }else if(d.my_predictions){
           const predMap={};for(const p of d.my_predictions)predMap[p.match_n]=[p.score_a,p.score_b];
           setMyPreds(predMap);
@@ -3498,10 +3512,11 @@ export default function App() {
     try {
       const lb=await api.getLeaderboard();setLeaderboard(lb);
       // Sync winner pick only for the currently-active entry so a newly-created
-      // empty form doesn't inherit another entry's pick via user_id lookup.
+      // empty form doesn't inherit another entry's pick. Read activeEntryId /
+      // lockedWinner from refs — the polled caller closes over stale state.
       if(user&&!user.is_admin){
-        const e=lb.find(e=>e.entry_id===activeEntryId);
-        if(e&&!lockedWinner)setMyWinner(e.winner_pick||null);
+        const e=lb.find(e=>e.entry_id===activeEntryIdRef.current);
+        if(e&&!lockedWinnerRef.current)setMyWinner(e.winner_pick||null);
       }
       if(user?.is_admin){
         const [u,p]=await Promise.all([api.getUsers(),api.getAdminParticipants()]);
@@ -4568,25 +4583,108 @@ export default function App() {
                           </span>
                           <span>{myRow.scored_matches} matches with results</span>
                         </div>
-                        <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:7}}>
+                        <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:7,marginBottom:10}}>
                           {[
-                            {label:"From leader",value:gapLeader===0?"+0":(gapLeader>0?`+${gapLeader}`:gapLeader),sub:leader.name+" · "+leader.total+" pts",color:gapLeader>=0?C.green:C.red,border:gapLeader>=0?C.green:C.red,icon:"📉"},
-                            {label:"Correct direction",value:`${myRow.scored_matches>0?Math.round(myRow.correct_dir/myRow.scored_matches*100):0}%`,sub:`${myRow.correct_dir} of ${myRow.scored_matches}`,color:C.green,border:C.green,icon:"↗️"},
-                            {label:"Exact scores",value:`${myRow.exact}`,sub:`${myRow.scored_matches>0?Math.round(myRow.exact/myRow.scored_matches*100):0}% of matches`,color:C.accent,border:C.accent,icon:"🎯",valueSuffix:`/${myRow.scored_matches}`},
+                            {label:"From leader",value:gapLeader===0?"+0":(gapLeader>0?`+${gapLeader}`:gapLeader),sub:leader.name+" · "+leader.total+" pts",border:gapLeader>=0?C.green:C.red,icon:"📉"},
+                            {label:"Correct direction",value:`${myRow.scored_matches>0?Math.round(myRow.correct_dir/myRow.scored_matches*100):0}%`,sub:`${myRow.correct_dir} of ${myRow.scored_matches}`,border:C.green,icon:"↗️"},
+                            {label:"Exact scores",value:`${myRow.exact}/${myRow.scored_matches}`,sub:`${myRow.scored_matches>0?Math.round(myRow.exact/myRow.scored_matches*100):0}% of matches`,border:C.accent,icon:"🎯"},
                             closestFav
-                              ? {label:"From favorite",value:gapFav===0?"+0":(gapFav>0?`+${gapFav}`:gapFav),sub:closestFav.name+" · "+closestFav.total+" pts"+(gapFav>0?" ↓":" ↑"),color:"#facc15",border:"#facc15",icon:"★"}
-                              : {label:"Your rank",value:`#${leaderboard.indexOf(myRow)+1}`,sub:`of ${leaderboard.length} participants`,color:C.indigo,border:C.indigo,icon:"🏅"},
+                              ? {label:"From favorite",value:gapFav===0?"+0":(gapFav>0?`+${gapFav}`:gapFav),sub:closestFav.name+" · "+closestFav.total+" pts"+(gapFav>0?" ↓":" ↑"),border:"#facc15",icon:"★"}
+                              : {label:"Your rank",value:`#${leaderboard.indexOf(myRow)+1}`,sub:`of ${leaderboard.length}`,border:C.indigo,icon:"🏅"},
                           ].map((s,i)=>(
                             <div key={i} style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${s.border}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
-                              <div style={{fontSize:14,marginBottom:2}}>{s.icon}</div>
-                              <div style={{fontSize:19,fontWeight:800,fontFamily:"monospace",lineHeight:1.1,marginBottom:2,color:C.text}}>
-                                {s.value}{s.valueSuffix&&<span style={{fontSize:12,fontWeight:400,color:C.muted}}>{s.valueSuffix}</span>}
-                              </div>
+                              <div style={{fontSize:13,marginBottom:2}}>{s.icon}</div>
+                              <div style={{fontSize:18,fontWeight:800,fontFamily:"monospace",lineHeight:1.1,marginBottom:2,color:C.text}}>{s.value}</div>
                               <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em",lineHeight:1.3}}>{s.label}</div>
                               <div style={{fontSize:9,color:C.muted,marginTop:2}}>{s.sub}</div>
                             </div>
                           ))}
                         </div>
+                        {/* top 3 most-predicted scores for this form */}
+                        {(()=>{
+                          const freq={};
+                          Object.values(myPreds).forEach(p=>{if(p&&p[0]!=null&&p[1]!=null){const k=`${p[0]}:${p[1]}`;freq[k]=(freq[k]||0)+1;}});
+                          const top3=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,3);
+                          if(!top3.length) return null;
+                          return (
+                            <div>
+                              <div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>My top predicted scores</div>
+                              <div style={{display:"flex",gap:6}}>
+                                {top3.map(([score,count],i)=>(
+                                  <div key={i} style={{flex:1,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 6px",textAlign:"center"}}>
+                                    <div style={{fontSize:15,fontWeight:800,fontFamily:"monospace",color:C.text}}>{score}</div>
+                                    <div style={{fontSize:10,color:C.muted,marginTop:2}}>{count}×</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+            {/* ── Group stats 👥 ── */}
+            {leaderboard.length>0&&(()=>{
+              const stageForStats=config.round_state==="open"?(config.current_stage||1)-1:(config.current_stage||1);
+              if(stageForStats<1) return null;
+              const pickCounts={};
+              leaderboard.forEach(e=>{if(e.winner_pick){pickCounts[e.winner_pick]=(pickCounts[e.winner_pick]||0)+1;}});
+              const top3picks=Object.entries(pickCounts).sort((a,b)=>b[1]-a[1]).slice(0,3);
+              const totalExact=leaderboard.reduce((s,e)=>s+(e.exact||0),0);
+              const totalDir=leaderboard.reduce((s,e)=>s+(e.correct_dir||0),0);
+              const totalScored=leaderboard.reduce((s,e)=>s+(e.scored_matches||0),0);
+              const avgExactPct=totalScored>0?Math.round(totalExact/totalScored*100):0;
+              const avgDirPct=totalScored>0?Math.round(totalDir/totalScored*100):0;
+              const stageLabel=config.round_state==="open"?`Stage ${stageForStats} (closed)`:`Stage ${stageForStats}`;
+              return (
+                <div style={{position:"relative"}}>
+                  <button onClick={()=>setGroupStatsOpen(o=>!o)} title="Group stats"
+                    style={{background:groupStatsOpen?"rgba(99,102,241,0.12)":"transparent",border:`1px solid ${groupStatsOpen?C.indigo:"transparent"}`,borderRadius:8,padding:"4px 6px",cursor:"pointer",color:groupStatsOpen?C.indigo:C.muted,display:"flex",alignItems:"center",fontSize:18,lineHeight:1,fontFamily:"inherit",transition:"all .15s"}}>
+                    👥
+                  </button>
+                  {groupStatsOpen&&(
+                    <>
+                      <div onClick={()=>setGroupStatsOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
+                      <div style={{position:"absolute",top:"calc(100% + 8px)",left:0,width:"min(320px, calc(100vw - 40px))",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}}>
+                        <div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>{stageLabel} · {leaderboard.length} participants</div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:10}}>
+                          <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
+                            <div style={{fontSize:13,marginBottom:2}}>🎯</div>
+                            <div style={{fontSize:18,fontWeight:800,fontFamily:"monospace",color:C.text}}>{avgExactPct}%</div>
+                            <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em"}}>Avg exact score</div>
+                            <div style={{fontSize:9,color:C.muted,marginTop:2}}>{totalExact} of {totalScored}</div>
+                          </div>
+                          <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.indigo}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
+                            <div style={{fontSize:13,marginBottom:2}}>↗️</div>
+                            <div style={{fontSize:18,fontWeight:800,fontFamily:"monospace",color:C.text}}>{avgDirPct}%</div>
+                            <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em"}}>Avg correct direction</div>
+                            <div style={{fontSize:9,color:C.muted,marginTop:2}}>across all forms</div>
+                          </div>
+                        </div>
+                        {top3picks.length>0&&(
+                          <div>
+                            <div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Top champion picks</div>
+                            <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                              {top3picks.map(([team,count],i)=>{
+                                const pct=Math.round(count/leaderboard.length*100);
+                                return (
+                                  <div key={i} style={{display:"flex",alignItems:"center",gap:8,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 10px"}}>
+                                    <span style={{fontSize:13,width:20,textAlign:"center"}}>{["🥇","🥈","🥉"][i]}</span>
+                                    <span style={{flex:1,fontSize:13,fontWeight:600}}>{withFlag(team)}</span>
+                                    <span style={{fontSize:12,color:C.muted}}>{count} picks</span>
+                                    <div style={{width:50,background:C.border,borderRadius:4,height:4}}>
+                                      <div style={{width:`${pct}%`,height:4,borderRadius:4,background:C.indigo}}/>
+                                    </div>
+                                    <span style={{fontSize:11,color:C.muted,width:28,textAlign:"right"}}>{pct}%</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </>
                   )}
@@ -4818,6 +4916,65 @@ export default function App() {
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center",fontSize:13}}>
             {user&&<span style={{color:C.text}}>Hi <b style={{color:C.accent}}>{user.name}</b>{user.is_admin?" 👑":""}</span>}
+            {/* ── User-level stats 👤 ── */}
+            {user&&leaderboard.length>0&&(()=>{
+              const myRows=leaderboard.filter(e=>e.user_id===user.id&&(e.scored_matches||0)>0);
+              if(!myRows.length) return null;
+              const totalExact=myRows.reduce((s,e)=>s+(e.exact||0),0);
+              const totalDir=myRows.reduce((s,e)=>s+(e.correct_dir||0),0);
+              const totalScored=myRows.reduce((s,e)=>s+(e.scored_matches||0),0);
+              const dirPct=totalScored>0?Math.round(totalDir/totalScored*100):0;
+              const allPreds={...myPreds};
+              Object.values(simPredsByEntry).forEach(ep=>Object.assign(allPreds,ep));
+              const freq={};
+              Object.values(allPreds).forEach(p=>{if(p&&p[0]!=null&&p[1]!=null){const k=`${p[0]}:${p[1]}`;freq[k]=(freq[k]||0)+1;}});
+              const top3=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,3);
+              return (
+                <div style={{position:"relative"}}>
+                  <button onClick={()=>setUserStatsOpen(o=>!o)} title="My stats across all forms"
+                    style={{background:userStatsOpen?"rgba(163,230,53,0.08)":"transparent",border:`1px solid ${userStatsOpen?C.accent:"transparent"}`,borderRadius:8,padding:"4px 6px",cursor:"pointer",color:userStatsOpen?C.accent:C.muted,display:"flex",alignItems:"center",fontSize:16,lineHeight:1,fontFamily:"inherit",transition:"all .15s"}}>
+                    👤
+                  </button>
+                  {userStatsOpen&&(
+                    <>
+                      <div onClick={()=>setUserStatsOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
+                      <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,width:"min(300px, calc(100vw - 40px))",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}}>
+                        <div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>
+                          {user.name} · {myRows.length} form{myRows.length!==1?"s":""} · {totalScored} matches
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:top3.length?10:0}}>
+                          <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.green}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
+                            <div style={{fontSize:13,marginBottom:2}}>↗️</div>
+                            <div style={{fontSize:18,fontWeight:800,fontFamily:"monospace",color:C.text}}>{dirPct}%</div>
+                            <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em"}}>Correct direction</div>
+                            <div style={{fontSize:9,color:C.muted,marginTop:2}}>{totalDir} of {totalScored}</div>
+                          </div>
+                          <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
+                            <div style={{fontSize:13,marginBottom:2}}>🎯</div>
+                            <div style={{fontSize:18,fontWeight:800,fontFamily:"monospace",color:C.text}}>{totalExact}<span style={{fontSize:12,fontWeight:400,color:C.muted}}>/{totalScored}</span></div>
+                            <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em"}}>Exact scores</div>
+                            <div style={{fontSize:9,color:C.muted,marginTop:2}}>{totalScored>0?Math.round(totalExact/totalScored*100):0}% of matches</div>
+                          </div>
+                        </div>
+                        {top3.length>0&&(
+                          <div>
+                            <div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>My top predicted scores</div>
+                            <div style={{display:"flex",gap:6}}>
+                              {top3.map(([score,count],i)=>(
+                                <div key={i} style={{flex:1,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 6px",textAlign:"center"}}>
+                                  <div style={{fontSize:15,fontWeight:800,fontFamily:"monospace",color:C.text}}>{score}</div>
+                                  <div style={{fontSize:10,color:C.muted,marginTop:2}}>{count}×</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
             {user&&!user.is_admin&&(
               <button
                 ref={helpBtnRef}
