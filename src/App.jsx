@@ -1664,6 +1664,7 @@ function kickoffParts(t, tz){
   const f=(o)=>new Intl.DateTimeFormat(undefined,{...o,timeZone:z}).format(d);
   return {
     time:  f({hour:"2-digit",minute:"2-digit",hour12:false}),
+    md:    f({month:"short",day:"numeric"}),
     short: f({weekday:"short",month:"short",day:"numeric"}),
     long:  f({weekday:"long", month:"long", day:"numeric"}),
     dayKey:new Intl.DateTimeFormat("en-CA",{year:"numeric",month:"2-digit",day:"2-digit",timeZone:z}).format(d),
@@ -1752,9 +1753,13 @@ function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
               border:`1px solid ${isLive?"rgba(239,68,68,0.45)":C.border}`,
               ...(isLive?{background:"rgba(239,68,68,0.05)"}:{}),
               borderRadius:10,padding:"10px 12px",display:"flex",flexDirection:"column",gap:8}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",fontSize:11}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",fontSize:11,gap:6}}>
                 {badge}
-                <span style={{color:C.muted,fontWeight:600,fontVariantNumeric:"tabular-nums"}}>{k?k.time:""}</span>
+                {/* A live game whose scheduled day isn't today keeps its original
+                    date + time so it's clear when it was actually played. */}
+                <span style={{color:C.muted,fontWeight:600,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>
+                  {k ? (k.dayKey!==tKey ? `${k.md} · ${k.time}` : k.time) : ""}
+                </span>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:6}}>
                 {teamRow(rm.a, winA===true?true:(winA===false?false:(score?null:"lead")), score?score[0]:null)}
