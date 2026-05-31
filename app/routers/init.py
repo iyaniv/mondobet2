@@ -51,7 +51,8 @@ async def bootstrap(
         ],
         "live": [
             {"match_n": n, "score_a": v["score_a"], "score_b": v["score_b"],
-             "minute": v["minute"], "winner": v.get("winner"),
+             "minute": v["minute"], "is_live": bool(v.get("is_live")),
+             "winner": v.get("winner"),
              "et_a": v.get("et_a"), "et_b": v.get("et_b"),
              "pen_a": v.get("pen_a"), "pen_b": v.get("pen_b")}
             for n, v in live_map.items()
