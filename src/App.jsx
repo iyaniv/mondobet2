@@ -201,6 +201,26 @@ const FLAGS = {
 const flag     = (t) => FLAGS[t] || "🏳️";
 const withFlag = (t) => `${flag(t)} ${t}`;
 
+// Kickoff time formatting — honors the user's Settings timezone (mb_timezone;
+// "auto" = browser). Returns {date,time,full} or null when there's no time.
+// Read from localStorage each call so switching tabs picks up a tz change.
+function kickoff(t) {
+  if (!t) return null;
+  const d = new Date(t);
+  if (isNaN(d.getTime())) return null;
+  const raw = (typeof localStorage !== "undefined" && localStorage.getItem("mb_timezone")) || "auto";
+  const timeZone = raw === "auto" ? undefined : raw;
+  try {
+    const date = new Intl.DateTimeFormat(undefined, { weekday:"short", month:"short", day:"numeric", timeZone }).format(d);
+    const time = new Intl.DateTimeFormat(undefined, { hour:"2-digit", minute:"2-digit", hour12:false, timeZone }).format(d);
+    return { date, time, full: `${date} · ${time}` };
+  } catch {
+    const date = d.toLocaleDateString(undefined, { weekday:"short", month:"short", day:"numeric" });
+    const time = d.toLocaleTimeString(undefined, { hour:"2-digit", minute:"2-digit", hour12:false });
+    return { date, time, full: `${date} · ${time}` };
+  }
+}
+
 // ── Custom confirm modal ─────────────────────────────────────────────────────
 // Replaces native confirm() prompts with a themed in-app modal. Call sites use:
 //   if (await confirmDialog({ title, message, confirmLabel, danger })) { ... }
@@ -1025,6 +1045,11 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
             {ptsEl}
           </div>
         )}
+        {kickoff(match.t) && (
+          <div style={{fontSize:9,color:C.muted,marginTop:3,textAlign:"center",fontVariantNumeric:"tabular-nums"}}>
+            🗓 {kickoff(match.t).full}
+          </div>
+        )}
       </div>
     );
   }
@@ -1033,7 +1058,8 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
   // Middle (spans 3 cols): user's prediction — coloured by accuracy when a result exists.
   // Right panel: actual result chip + points.
   return (
-    <div data-match-n={match.n} style={{display:"grid",gridTemplateColumns:"28px 1fr 44px 12px 44px 1fr auto",alignItems:"center",gap:5,padding:"5px 8px",borderRadius:6,background:rowBg,border:`1px solid ${rowBorderColor}`,marginBottom:3,fontSize:13,position:"relative"}}>
+    <div data-match-n={match.n} style={{borderRadius:6,background:rowBg,border:`1px solid ${rowBorderColor}`,marginBottom:3,position:"relative"}}>
+     <div style={{display:"grid",gridTemplateColumns:"28px 1fr 44px 12px 44px 1fr auto",alignItems:"center",gap:5,padding:"5px 8px",fontSize:13}}>
       <span style={{color:C.muted,fontSize:11}}>#{match.n}</span>
       <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12,
         color:winnerSide===0?C.accent:winnerSide===1?C.muted:C.text,
@@ -1080,6 +1106,12 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
         }
         {ptsEl}
       </div>
+     </div>
+     {kickoff(match.t) && (
+       <div style={{fontSize:9,color:C.muted,padding:"0 8px 4px 36px",fontVariantNumeric:"tabular-nums"}}>
+         🗓 {kickoff(match.t).full}
+       </div>
+     )}
     </div>
   );
 }
@@ -1623,11 +1655,8 @@ function GroupCard({ group, allMatches, results, simPreds, liveMatches={} }) {
           const isSim = !res&&!!sim;
           const winA = eff ? (eff[0]>eff[1]?true:eff[1]>eff[0]?false:null) : null;
           return (
-            <div key={m.n} style={{
-              display:"grid",gridTemplateColumns:"1fr 58px 1fr",
-              alignItems:"center",gap:4,padding:"4px 10px",
-              borderBottom:`1px solid ${C.border}`,opacity:isSim?0.75:1,
-            }}>
+            <div key={m.n} style={{padding:"4px 10px",borderBottom:`1px solid ${C.border}`,opacity:isSim?0.75:1}}>
+             <div style={{display:"grid",gridTemplateColumns:"1fr 58px 1fr",alignItems:"center",gap:4}}>
               <span style={{fontSize:11,textAlign:"right",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
                 color:winA===true?C.accent:winA===false?C.muted:C.text,fontWeight:winA===true?700:400}}>
                 {m.a} {flag(m.a)}
@@ -1644,6 +1673,12 @@ function GroupCard({ group, allMatches, results, simPreds, liveMatches={} }) {
                 color:winA===false?C.accent:winA===true?C.muted:C.text,fontWeight:winA===false?700:400}}>
                 {flag(m.b)} {m.b}
               </span>
+             </div>
+             {kickoff(m.t) && (
+               <div style={{textAlign:"center",fontSize:9,color:C.muted,marginTop:2,fontVariantNumeric:"tabular-nums"}}>
+                 🗓 {kickoff(m.t).full}
+               </div>
+             )}
             </div>
           );
         })}
@@ -1814,6 +1849,11 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
                     {resolvedB} {flag(resolvedB)}
                   </span>
                 </div>
+                {kickoff(m.t) && (
+                  <div style={{textAlign:"center",fontSize:9,color:C.muted,marginTop:-1,marginBottom:6,fontVariantNumeric:"tabular-nums"}}>
+                    🗓 {kickoff(m.t).full}
+                  </div>
+                )}
                 </Fragment>
               );
             })}
@@ -2433,7 +2473,7 @@ const HELP_CONTENT = {
     badge: "⚙️",
     title: "Settings",
     body: [
-      "Set your timezone for kickoff times in the Tournament tab.",
+      "Set your timezone — kickoff times across the app show in it.",
       "Toggle dark / light from the moon/sun button in the nav.",
       "Use **Reset onboarding** below to see these tips again.",
     ],
@@ -2703,7 +2743,7 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
           ))}
         </select>
         <p style={{fontSize:12,color:C.muted,marginTop:8}}>
-          Affects kickoff times in the Tournament tab.
+          Affects kickoff times shown across the app.
         </p>
       </div>
 
@@ -3242,6 +3282,8 @@ export default function App() {
   const [simEntryId,setSimEntryId]=useState(null);
   const [simPredsByEntry,setSimPredsByEntry]=useState({}); // {entryId: {match_n:[a,b]}}
   const [statsOpen,setStatsOpen]=useState(false);
+  const [userStatsOpen,setUserStatsOpen]=useState(false);
+  const [groupStatsOpen,setGroupStatsOpen]=useState(false);
   // The active form is always available via myPreds — seed it into the cache
   // so picking the active form costs no fetch.
   useEffect(()=>{
@@ -4568,25 +4610,137 @@ export default function App() {
                           </span>
                           <span>{myRow.scored_matches} matches with results</span>
                         </div>
-                        <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:7}}>
+                        {/* top 4 stat cards */}
+                        <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:7,marginBottom:10}}>
                           {[
-                            {label:"From leader",value:gapLeader===0?"+0":(gapLeader>0?`+${gapLeader}`:gapLeader),sub:leader.name+" · "+leader.total+" pts",color:gapLeader>=0?C.green:C.red,border:gapLeader>=0?C.green:C.red,icon:"📉"},
-                            {label:"Correct direction",value:`${myRow.scored_matches>0?Math.round(myRow.correct_dir/myRow.scored_matches*100):0}%`,sub:`${myRow.correct_dir} of ${myRow.scored_matches}`,color:C.green,border:C.green,icon:"↗️"},
-                            {label:"Exact scores",value:`${myRow.exact}`,sub:`${myRow.scored_matches>0?Math.round(myRow.exact/myRow.scored_matches*100):0}% of matches`,color:C.accent,border:C.accent,icon:"🎯",valueSuffix:`/${myRow.scored_matches}`},
+                            {label:"From leader",value:gapLeader===0?"+0":(gapLeader>0?`+${gapLeader}`:gapLeader),sub:leader.name+" · "+leader.total+" pts",border:gapLeader>=0?C.green:C.red,icon:"📉"},
+                            {label:"Correct direction",value:`${myRow.scored_matches>0?Math.round(myRow.correct_dir/myRow.scored_matches*100):0}%`,sub:`${myRow.correct_dir} of ${myRow.scored_matches}`,border:C.green,icon:"↗️"},
+                            {label:"Exact scores",value:`${myRow.exact}/${myRow.scored_matches}`,sub:`${myRow.scored_matches>0?Math.round(myRow.exact/myRow.scored_matches*100):0}% of matches`,border:C.accent,icon:"🎯"},
                             closestFav
-                              ? {label:"From favorite",value:gapFav===0?"+0":(gapFav>0?`+${gapFav}`:gapFav),sub:closestFav.name+" · "+closestFav.total+" pts"+(gapFav>0?" ↓":" ↑"),color:"#facc15",border:"#facc15",icon:"★"}
-                              : {label:"Your rank",value:`#${leaderboard.indexOf(myRow)+1}`,sub:`of ${leaderboard.length} participants`,color:C.indigo,border:C.indigo,icon:"🏅"},
+                              ? {label:"From favorite",value:gapFav===0?"+0":(gapFav>0?`+${gapFav}`:gapFav),sub:closestFav.name+" · "+closestFav.total+" pts"+(gapFav>0?" ↓":" ↑"),border:"#facc15",icon:"★"}
+                              : {label:"Your rank",value:`#${leaderboard.indexOf(myRow)+1}`,sub:`of ${leaderboard.length}`,border:C.indigo,icon:"🏅"},
                           ].map((s,i)=>(
                             <div key={i} style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${s.border}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
-                              <div style={{fontSize:14,marginBottom:2}}>{s.icon}</div>
-                              <div style={{fontSize:19,fontWeight:800,fontFamily:"monospace",lineHeight:1.1,marginBottom:2,color:C.text}}>
-                                {s.value}{s.valueSuffix&&<span style={{fontSize:12,fontWeight:400,color:C.muted}}>{s.valueSuffix}</span>}
-                              </div>
+                              <div style={{fontSize:13,marginBottom:2}}>{s.icon}</div>
+                              <div style={{fontSize:18,fontWeight:800,fontFamily:"monospace",lineHeight:1.1,marginBottom:2,color:C.text}}>{s.value}</div>
                               <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em",lineHeight:1.3}}>{s.label}</div>
                               <div style={{fontSize:9,color:C.muted,marginTop:2}}>{s.sub}</div>
                             </div>
                           ))}
                         </div>
+                        {/* top 3 most-predicted scores for this form */}
+                        {(() => {
+                          const freq = {};
+                          Object.values(myPreds).forEach(p => {
+                            if (p && p[0]!=null && p[1]!=null) {
+                              const k = `${p[0]}:${p[1]}`; freq[k]=(freq[k]||0)+1;
+                            }
+                          });
+                          const top3 = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,3);
+                          if (!top3.length) return null;
+                          return (
+                            <div>
+                              <div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>My top predicted scores</div>
+                              <div style={{display:"flex",gap:6}}>
+                                {top3.map(([score,count],i)=>(
+                                  <div key={i} style={{flex:1,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 6px",textAlign:"center"}}>
+                                    <div style={{fontSize:16,fontWeight:800,fontFamily:"monospace",color:C.text}}>{score}</div>
+                                    <div style={{fontSize:10,color:C.muted,marginTop:2}}>{count}×</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+            {/* ── Group stats 👥 button ── */}
+            {leaderboard.length > 0 && (() => {
+              // Show stats from previous stage when current is open, current stage when closed
+              const stageForStats = config.round_state === "open"
+                ? (config.current_stage||1) - 1
+                : (config.current_stage||1);
+              if (stageForStats < 1) return null;
+              // champion pick distribution
+              const pickCounts = {};
+              leaderboard.forEach(e => { if(e.winner_pick){ pickCounts[e.winner_pick]=(pickCounts[e.winner_pick]||0)+1; }});
+              const top3picks = Object.entries(pickCounts).sort((a,b)=>b[1]-a[1]).slice(0,3);
+              // avg exact hit rate across all entries
+              const totalExact = leaderboard.reduce((s,e)=>s+(e.exact||0),0);
+              const totalScored = leaderboard.reduce((s,e)=>s+(e.scored_matches||0),0);
+              const avgExactPct = totalScored > 0 ? Math.round(totalExact/totalScored*100) : 0;
+              const stageLabel = config.round_state==="open" ? `Stage ${stageForStats} (closed)` : `Stage ${stageForStats}`;
+              return (
+                <div style={{position:"relative"}}>
+                  <button
+                    onClick={()=>setGroupStatsOpen(o=>!o)}
+                    title="Group stats"
+                    style={{
+                      background:groupStatsOpen?"rgba(99,102,241,0.12)":"transparent",
+                      border:`1px solid ${groupStatsOpen?C.indigo:"transparent"}`,
+                      borderRadius:8,padding:"4px 6px",cursor:"pointer",
+                      color:groupStatsOpen?C.indigo:C.muted,
+                      display:"flex",alignItems:"center",
+                      fontSize:18,lineHeight:1,fontFamily:"inherit",
+                      transition:"all .15s",
+                    }}>
+                    👥
+                  </button>
+                  {groupStatsOpen && (
+                    <>
+                      <div onClick={()=>setGroupStatsOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
+                      <div style={{
+                        position:"absolute",top:"calc(100% + 8px)",left:0,
+                        width:"min(320px, calc(100vw - 40px))",
+                        background:C.panel,border:`1px solid ${C.border}`,
+                        borderRadius:12,padding:14,
+                        boxShadow:"0 8px 32px rgba(0,0,0,0.5)",
+                        zIndex:99,
+                      }}>
+                        <div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>{stageLabel} · {leaderboard.length} participants</div>
+                        {/* avg exact hit rate */}
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:10}}>
+                          <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
+                            <div style={{fontSize:13,marginBottom:2}}>🎯</div>
+                            <div style={{fontSize:18,fontWeight:800,fontFamily:"monospace",color:C.text}}>{avgExactPct}%</div>
+                            <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em"}}>Avg exact score</div>
+                            <div style={{fontSize:9,color:C.muted,marginTop:2}}>{totalExact} exact of {totalScored}</div>
+                          </div>
+                          <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.indigo}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
+                            <div style={{fontSize:13,marginBottom:2}}>↗️</div>
+                            <div style={{fontSize:18,fontWeight:800,fontFamily:"monospace",color:C.text}}>
+                              {totalScored>0?Math.round(leaderboard.reduce((s,e)=>s+(e.correct_dir||0),0)/totalScored*100):0}%
+                            </div>
+                            <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em"}}>Avg correct direction</div>
+                            <div style={{fontSize:9,color:C.muted,marginTop:2}}>across all forms</div>
+                          </div>
+                        </div>
+                        {/* top 3 champion picks */}
+                        {top3picks.length > 0 && (
+                          <div>
+                            <div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Top champion picks</div>
+                            <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                              {top3picks.map(([team,count],i)=>{
+                                const pct = Math.round(count/leaderboard.length*100);
+                                return (
+                                  <div key={i} style={{display:"flex",alignItems:"center",gap:8,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 10px"}}>
+                                    <span style={{fontSize:13,width:20,textAlign:"center",color:C.muted,fontWeight:700}}>{["🥇","🥈","🥉"][i]}</span>
+                                    <span style={{flex:1,fontSize:13,fontWeight:600}}>{withFlag(team)}</span>
+                                    <span style={{fontSize:12,color:C.muted}}>{count} picks</span>
+                                    <div style={{width:50,background:C.border,borderRadius:4,height:4}}>
+                                      <div style={{width:`${pct}%`,height:4,borderRadius:4,background:C.indigo}}/>
+                                    </div>
+                                    <span style={{fontSize:11,color:C.muted,width:28,textAlign:"right"}}>{pct}%</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </>
                   )}
@@ -4818,6 +4972,85 @@ export default function App() {
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center",fontSize:13}}>
             {user&&<span style={{color:C.text}}>Hi <b style={{color:C.accent}}>{user.name}</b>{user.is_admin?" 👑":""}</span>}
+            {/* ── User-level stats 👤 ── */}
+            {user && leaderboard.length > 0 && (() => {
+              const myRows = leaderboard.filter(e => e.user_id === user.id && (e.scored_matches||0) > 0);
+              if (myRows.length === 0) return null;
+              const totalExact = myRows.reduce((s,e)=>s+(e.exact||0),0);
+              const totalDir   = myRows.reduce((s,e)=>s+(e.correct_dir||0),0);
+              const totalScored= myRows.reduce((s,e)=>s+(e.scored_matches||0),0);
+              const dirPct = totalScored>0?Math.round(totalDir/totalScored*100):0;
+              // top 3 scores across all forms (from myPreds — active form; other forms approx from simPredsByEntry)
+              const allPreds = {...myPreds};
+              Object.values(simPredsByEntry).forEach(ep => Object.assign(allPreds, ep));
+              const freq = {};
+              Object.values(allPreds).forEach(p => {
+                if (p&&p[0]!=null&&p[1]!=null){ const k=`${p[0]}:${p[1]}`; freq[k]=(freq[k]||0)+1; }
+              });
+              const top3 = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,3);
+              return (
+                <div style={{position:"relative"}}>
+                  <button
+                    onClick={()=>setUserStatsOpen(o=>!o)}
+                    title="My profile stats"
+                    style={{
+                      background:userStatsOpen?"rgba(163,230,53,0.08)":"transparent",
+                      border:`1px solid ${userStatsOpen?C.accent:"transparent"}`,
+                      borderRadius:8,padding:"4px 6px",cursor:"pointer",
+                      color:userStatsOpen?C.accent:C.muted,
+                      display:"flex",alignItems:"center",
+                      fontSize:16,lineHeight:1,fontFamily:"inherit",
+                      transition:"all .15s",
+                    }}>
+                    👤
+                  </button>
+                  {userStatsOpen && (
+                    <>
+                      <div onClick={()=>setUserStatsOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
+                      <div style={{
+                        position:"absolute",top:"calc(100% + 8px)",right:0,
+                        width:"min(300px, calc(100vw - 40px))",
+                        background:C.panel,border:`1px solid ${C.border}`,
+                        borderRadius:12,padding:14,
+                        boxShadow:"0 8px 32px rgba(0,0,0,0.5)",
+                        zIndex:99,
+                      }}>
+                        <div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>
+                          {user.name} · {myRows.length} form{myRows.length!==1?"s":""} · {totalScored} matches
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:10}}>
+                          <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.green}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
+                            <div style={{fontSize:13,marginBottom:2}}>↗️</div>
+                            <div style={{fontSize:18,fontWeight:800,fontFamily:"monospace",color:C.text}}>{dirPct}%</div>
+                            <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em"}}>Correct direction</div>
+                            <div style={{fontSize:9,color:C.muted,marginTop:2}}>{totalDir} of {totalScored}</div>
+                          </div>
+                          <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
+                            <div style={{fontSize:13,marginBottom:2}}>🎯</div>
+                            <div style={{fontSize:18,fontWeight:800,fontFamily:"monospace",color:C.text}}>{totalExact}<span style={{fontSize:12,fontWeight:400,color:C.muted}}>/{totalScored}</span></div>
+                            <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em"}}>Exact scores</div>
+                            <div style={{fontSize:9,color:C.muted,marginTop:2}}>{totalScored>0?Math.round(totalExact/totalScored*100):0}% of matches</div>
+                          </div>
+                        </div>
+                        {top3.length > 0 && (
+                          <div>
+                            <div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>My top predicted scores</div>
+                            <div style={{display:"flex",gap:6}}>
+                              {top3.map(([score,count],i)=>(
+                                <div key={i} style={{flex:1,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 6px",textAlign:"center"}}>
+                                  <div style={{fontSize:15,fontWeight:800,fontFamily:"monospace",color:C.text}}>{score}</div>
+                                  <div style={{fontSize:10,color:C.muted,marginTop:2}}>{count}×</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
             {user&&!user.is_admin&&(
               <button
                 ref={helpBtnRef}
