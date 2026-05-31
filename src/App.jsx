@@ -928,13 +928,11 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
   // Live rows get a red tint + red border so users spot in-play matches in
   // their predictions table. "In-progress" (score saved but not LIVE) rows
   // get a subtle lime tint — same color language as the LIVE-NOW section.
+  // Live/preliminary row highlighting removed — the Today's Games panel is now
+  // the single place that surfaces what's live, so rows render uniformly.
   const baseRowBg     = (!editable&&!adminResult) ? C.panel : C.panel2;
-  const rowBg         = isLiveBadge ? "rgba(239,68,68,0.07)"
-                      : isPreliminary ? "rgba(163,230,53,0.04)"
-                      : baseRowBg;
-  const rowBorderColor= isLiveBadge ? "rgba(239,68,68,0.4)"
-                      : isPreliminary ? "rgba(163,230,53,0.25)"
-                      : C.border;
+  const rowBg         = baseRowBg;
+  const rowBorderColor= C.border;
 
   // Shared score / input block used in both layouts
   const scoreBlock = editable ? (
@@ -4480,63 +4478,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Jump-to-live banner — appears when any of the user's submittable
-            matches has been marked live by the admin. One click and the
-            first live match scrolls into view. */}
-        {(() => {
-          const liveNums = Object.entries(liveMatches)
-            .filter(([,ld]) => ld?.is_live)
-            .map(([n]) => Number(n))
-            .sort((a,b) => a - b);
-          if (liveNums.length === 0) return null;
-          const jumpTo = (n) => {
-            // Make sure the stage containing this match is expanded so the
-            // scroll target actually exists in the DOM.
-            const stageN = matchStageObj(n).n;
-            setCollapsedStages(prev => {
-              if (!prev.has(stageN)) return prev;
-              const next = new Set(prev); next.delete(stageN); return next;
-            });
-            // requestAnimationFrame so the DOM has updated after the toggle.
-            requestAnimationFrame(() => {
-              const el = document.querySelector(`[data-match-n="${n}"]`);
-              if (el) {
-                el.scrollIntoView({block:"center",behavior:"smooth"});
-                el.animate(
-                  [{boxShadow:"0 0 0 2px "+C.red},{boxShadow:"0 0 0 0 transparent"}],
-                  {duration:1400,easing:"ease-out"}
-                );
-              }
-            });
-          };
-          return (
-            <div style={{
-              display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",
-              background:"rgba(239,68,68,0.08)",border:`1px solid rgba(239,68,68,0.35)`,
-              borderRadius:8,padding:"7px 12px",marginBottom:10,
-            }}>
-              <span style={{display:"inline-flex",alignItems:"center",gap:6,color:C.red,fontWeight:600,fontSize:13}}>
-                <span className="live-dot"/>
-                {liveNums.length} match{liveNums.length===1?"":"es"} live now
-              </span>
-              <span style={{flex:1,minWidth:0}}/>
-              {liveNums.slice(0,4).map(n => (
-                <button key={n} onClick={()=>jumpTo(n)} style={{
-                  background:"transparent",border:`1px solid ${C.red}`,color:C.red,
-                  padding:"3px 9px",borderRadius:999,fontSize:11,fontWeight:600,cursor:"pointer",
-                  fontFamily:"monospace",
-                }}>#{n}</button>
-              ))}
-              <button onClick={()=>jumpTo(liveNums[0])} style={{
-                background:C.red,color:"#fff",border:0,padding:"5px 12px",borderRadius:999,
-                fontSize:12,fontWeight:700,cursor:"pointer",
-              }}>
-                Jump to live →
-              </button>
-            </div>
-          );
-        })()}
-
         {STAGES.map(s => {
           const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last);
           if (stageMatches.length === 0) return null;
@@ -5159,7 +5100,7 @@ export default function App() {
           <div style={{fontFamily:'var(--c-font-display)',fontWeight:400,color:C.accent,fontSize:24,letterSpacing:1}}>MondoBet</div>
           <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
             {tabs.map(t=>(
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{background:tab===t.id?(t.admin?C.red:C.accent):"transparent",color:tab===t.id?"white":(t.admin?C.red:C.text),border:`1px solid ${tab===t.id?(t.admin?C.red:C.accent):C.border}`,padding:"6px 12px",borderRadius:6,cursor:"pointer",fontSize:13,fontWeight:tab===t.id?700:400}}>
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{background:tab===t.id?(t.admin?C.red:C.accent):"transparent",color:tab===t.id?(t.admin?"#fff":"#0b1020"):(t.admin?C.red:C.text),border:`1px solid ${tab===t.id?(t.admin?C.red:C.accent):C.border}`,padding:"6px 12px",borderRadius:6,cursor:"pointer",fontSize:13,fontWeight:tab===t.id?700:400}}>
                 {t.label}
               </button>
             ))}
