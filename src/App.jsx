@@ -1736,22 +1736,22 @@ function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
               : <span style={{color:C.accent,fontWeight:800,letterSpacing:".5px"}}>◷ UPCOMING</span>;
           const teamRow=(name,won,sc)=>(
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
-              <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:12.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
+              <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
                 color:won===true?C.accent:won===false?C.muted:C.text}}>
-                <span style={{fontSize:14,flexShrink:0}}>{flag(name)}</span>
+                <span style={{fontSize:11,flexShrink:0}}>{flag(name)}</span>
                 <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{name}</span>
               </span>
               {score
-                ? <span style={{fontFamily:"var(--c-font-display)",fontSize:17,letterSpacing:.5,minWidth:14,textAlign:"right",color:won===true?C.accent:won===false?C.muted:(isLive?C.red:C.text)}}>{sc}</span>
-                : <span style={{color:C.muted,fontSize:10}}>{won==="lead"?"vs":""}</span>}
+                ? <span style={{fontFamily:"var(--c-font-display)",fontSize:12,letterSpacing:.5,minWidth:10,textAlign:"right",color:won===true?C.accent:won===false?C.muted:(isLive?C.red:C.text)}}>{sc}</span>
+                : <span style={{color:C.muted,fontSize:8}}>{won==="lead"?"vs":""}</span>}
             </div>
           );
           return (
-            <div key={m.n} style={{flex:"0 0 178px",background:C.bg,
+            <div key={m.n} style={{flex:"0 0 116px",background:C.bg,
               border:`1px solid ${isLive?"rgba(239,68,68,0.45)":C.border}`,
               ...(isLive?{background:"rgba(239,68,68,0.05)"}:{}),
-              borderRadius:9,padding:"8px 10px",display:"flex",flexDirection:"column",gap:6}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",fontSize:10,gap:6}}>
+              borderRadius:7,padding:"5px 7px",display:"flex",flexDirection:"column",gap:4}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",fontSize:8,gap:4}}>
                 {badge}
                 {/* A live game whose scheduled day isn't today keeps its original
                     date + time so it's clear when it was actually played. */}
@@ -1759,7 +1759,7 @@ function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
                   {k ? (k.dayKey!==tKey ? `${k.md} · ${k.time}` : k.time) : ""}
                 </span>
               </div>
-              <div style={{display:"flex",flexDirection:"column",gap:5}}>
+              <div style={{display:"flex",flexDirection:"column",gap:3}}>
                 {teamRow(rm.a, winA===true?true:(winA===false?false:(score?null:"lead")), score?score[0]:null)}
                 {teamRow(rm.b, winA===false?true:(winA===true?false:null), score?score[1]:null)}
               </div>
