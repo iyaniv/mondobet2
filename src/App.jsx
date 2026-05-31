@@ -3276,12 +3276,22 @@ export default function App() {
   const [isDark,setIsDark]=useState(()=>{const s=localStorage.getItem("wc2026_theme");return s===null?true:s==="dark";});
   function toggleTheme(){setIsDark(d=>{const n=!d;localStorage.setItem("wc2026_theme",n?"dark":"light");return n;});}
 
-  const [user,setUser]=useState(null);
-  const [authLoading,setAuthLoading]=useState(true);
+  // Hydrate the signed-in user from a cached copy so a refresh renders the app
+  // (and the Today's Games panel) IMMEDIATELY instead of showing a full-screen
+  // "Loading…" for the entire api.me() round-trip — which on a serverless cold
+  // start can be ~10s. We still validate/refresh the session in the background.
+  const _cachedUser = (()=>{ try{ return getToken() ? JSON.parse(localStorage.getItem("mb_user")||"null") : null; }catch{ return null; } })();
+  const [user,setUser]=useState(_cachedUser);
+  const [authLoading,setAuthLoading]=useState(()=> getToken() ? !_cachedUser : false);
   const [tab,setTab]=useState("auth");
   const [matches,setMatches]=useState([]);
   const [teams,setTeams]=useState([]);
-  const [config,setConfig]=useState({round_state:"idle",tournament_winner:null,data_source:"manual",current_stage:1});
+  // Hydrate config from cache too, so the default-tab pick (and round state) is
+  // right on first paint instead of defaulting to "idle" until /api/config loads.
+  const [config,setConfig]=useState(()=>{
+    try{ const c=JSON.parse(localStorage.getItem("mb_config")||"null"); if(c&&c.round_state) return c; }catch{}
+    return {round_state:"idle",tournament_winner:null,data_source:"manual",current_stage:1};
+  });
   const [myPreds,setMyPreds]=useState({});
   const [myWinner,setMyWinner]=useState(null);
   const [results,setResults]=useState({});
@@ -3531,9 +3541,26 @@ export default function App() {
     try { sessionStorage.setItem("mb_livecache", JSON.stringify({results, live:liveMatches})); } catch {}
   },[results, liveMatches]);
 
+  // Persist the user so the next refresh can render optimistically (see above).
+  useEffect(()=>{
+    try{ if(user) localStorage.setItem("mb_user",JSON.stringify(user)); else localStorage.removeItem("mb_user"); }catch{}
+  },[user]);
+  // Persist config so the default tab + round state are correct on first paint.
+  useEffect(()=>{
+    try{ localStorage.setItem("mb_config",JSON.stringify(config)); }catch{}
+  },[config]);
+
   useEffect(()=>{
     if(!getToken()){setAuthLoading(false);return;}
-    api.me().then(u=>{setUser(u);setAuthLoading(false);loadGameData(u.is_admin,u.id);}).catch(()=>{setToken(null);setAuthLoading(false);});
+    // Already rendering from the cached user? Kick off the data load now so the
+    // cached panel/leaderboard refresh ASAP, without waiting on api.me().
+    if(_cachedUser) loadGameData(_cachedUser.is_admin,_cachedUser.id);
+    // Validate / refresh the session in the background.
+    api.me().then(u=>{
+      setUser(u); setAuthLoading(false);
+      if(!_cachedUser) loadGameData(u.is_admin,u.id);
+    }).catch(()=>{ setToken(null); setUser(null); setAuthLoading(false); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[loadGameData]);
 
   async function doLogin(userData,token){
