@@ -1652,6 +1652,119 @@ function GroupCard({ group, allMatches, results, simPreds, liveMatches={} }) {
   );
 }
 
+// ── Kickoff-time helpers — honor the user's Settings timezone ("auto"=browser).
+function _tz(){ const r=(typeof localStorage!=="undefined"&&localStorage.getItem("mb_timezone"))||"auto"; return r==="auto"?undefined:r; }
+function kickoffParts(t){
+  if(!t) return null;
+  const d=new Date(t); if(isNaN(d.getTime())) return null;
+  const tz=_tz();
+  const f=(o)=>new Intl.DateTimeFormat(undefined,{...o,timeZone:tz}).format(d);
+  return {
+    time:  f({hour:"2-digit",minute:"2-digit",hour12:false}),
+    short: f({weekday:"short",month:"short",day:"numeric"}),
+    long:  f({weekday:"long", month:"long", day:"numeric"}),
+    dayKey:new Intl.DateTimeFormat("en-CA",{year:"numeric",month:"2-digit",day:"2-digit",timeZone:tz}).format(d),
+    at:    d.getTime(),
+  };
+}
+function todayKey(){ return new Intl.DateTimeFormat("en-CA",{year:"numeric",month:"2-digit",day:"2-digit",timeZone:_tz()}).format(new Date()); }
+function todayLabel(){ return new Intl.DateTimeFormat(undefined,{weekday:"long",month:"long",day:"numeric",timeZone:_tz()}).format(new Date()); }
+
+// ── "Today's Games" panel — pinned at the top of the Tournament & Leaderboard
+// tabs. Shows games kicking off today (plus any currently-live match), flagged
+// LIVE / FULL TIME / UPCOMING, with kickoff time in the user's timezone.
+function TodaysGames({ matches=[], results={}, liveMatches={} }){
+  const tKey = todayKey();
+  const all = matches.map(m=>({m,k:kickoffParts(m.t)}));
+  const list = all
+    .filter(({m,k}) => (k && k.dayKey===tKey) || !!(liveMatches[m.n]&&liveMatches[m.n].is_live))
+    .sort((a,b)=>(a.k?.at||0)-(b.k?.at||0));
+  const liveCount = list.filter(({m})=>liveMatches[m.n]&&liveMatches[m.n].is_live).length;
+
+  const panel = {
+    background:C.panel, border:`1px solid ${C.border}`, borderTop:`2px solid ${C.accent}`,
+    borderRadius:12, padding:"14px 16px 16px", marginBottom:16, boxShadow:"0 6px 18px rgba(0,0,0,0.35)",
+  };
+  const head = (
+    <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:12,marginBottom:list.length?12:0,flexWrap:"wrap"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontFamily:"var(--c-font-display)",fontSize:23,letterSpacing:1,color:C.text}}>⚽ Today's Games</span>
+        <span style={{color:C.muted,fontSize:13,fontWeight:600}}>{todayLabel()}</span>
+      </div>
+      {liveCount>0 && (
+        <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".5px",
+          background:"rgba(239,68,68,0.12)",color:C.red,border:"1px solid rgba(239,68,68,0.4)",padding:"3px 10px",borderRadius:999}}>
+          <span className="live-dot"/> {liveCount} live now
+        </span>
+      )}
+    </div>
+  );
+
+  if(!list.length){
+    const next = all.filter(({k})=>k && k.dayKey>tKey).sort((a,b)=>a.k.at-b.k.at)[0];
+    return (
+      <div style={panel}>
+        {head}
+        <div style={{color:C.muted,fontSize:13,padding:"4px 2px"}}>
+          {next ? (()=>{ const rm=resolvedMatch(next.m,results,matches); return (
+            <>No matches scheduled today. Next up: <b style={{color:C.text}}>{flag(rm.a)} {rm.a} vs {rm.b} {flag(rm.b)}</b> — {next.k.long} · {next.k.time}</>
+          ); })() : "No matches scheduled today."}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={panel}>
+      {head}
+      <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:4}}>
+        {list.map(({m})=>{
+          const rm=resolvedMatch(m,results,matches);
+          const live=liveMatches[m.n];
+          const res=results[m.n];
+          const isLive=!!(live&&live.is_live);
+          const score=res?[res[0],res[1]]:(live?[live.score_a,live.score_b]:null);
+          const finished=!isLive&&!!score;
+          const k=kickoffParts(m.t);
+          const winA=score?(score[0]>score[1]?true:score[1]>score[0]?false:(res&&res[2]==='a'?true:res&&res[2]==='b'?false:null)):null;
+          const badge = isLive
+            ? <span style={{display:"inline-flex",alignItems:"center",gap:5,color:C.red,fontWeight:800,letterSpacing:".5px"}}><span className="live-dot"/> LIVE {live.minute!=null?`${live.minute}'`:""}</span>
+            : finished
+              ? <span style={{color:C.green,fontWeight:800,letterSpacing:".5px"}}>✓ FULL TIME</span>
+              : <span style={{color:C.accent,fontWeight:800,letterSpacing:".5px"}}>◷ UPCOMING</span>;
+          const teamRow=(name,won,sc)=>(
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+              <span style={{display:"inline-flex",alignItems:"center",gap:7,fontSize:14,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
+                color:won===true?C.accent:won===false?C.muted:C.text}}>
+                <span style={{fontSize:16,flexShrink:0}}>{flag(name)}</span>
+                <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{name}</span>
+              </span>
+              {score
+                ? <span style={{fontFamily:"var(--c-font-display)",fontSize:20,letterSpacing:1,minWidth:18,textAlign:"right",color:won===true?C.accent:won===false?C.muted:(isLive?C.red:C.text)}}>{sc}</span>
+                : <span style={{color:C.muted,fontSize:11}}>{won==="lead"?"vs":""}</span>}
+            </div>
+          );
+          return (
+            <div key={m.n} style={{flex:"0 0 218px",background:C.bg,
+              border:`1px solid ${isLive?"rgba(239,68,68,0.45)":C.border}`,
+              ...(isLive?{background:"rgba(239,68,68,0.05)"}:{}),
+              borderRadius:10,padding:"10px 12px",display:"flex",flexDirection:"column",gap:8}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",fontSize:11}}>
+                {badge}
+                <span style={{color:C.muted,fontWeight:600,fontVariantNumeric:"tabular-nums"}}>{k?k.time:""}</span>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {teamRow(rm.a, winA===true?true:(winA===false?false:(score?null:"lead")), score?score[0]:null)}
+                {teamRow(rm.b, winA===false?true:(winA===true?false:null), score?score[1]:null)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Tournament({ matches, results, liveMatches={}, myPreds, config, user }) {
   const openStage = config.current_stage || 1;
   const visibleStages = user?.is_admin ? STAGES : STAGES.filter(s => s.n <= openStage);
@@ -1670,6 +1783,7 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
 
   return (
     <div>
+      <TodaysGames matches={matches} results={results} liveMatches={liveMatches}/>
       {/* ── Stage tabs ── */}
       <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
         {visibleStages.map(s => {
@@ -4585,7 +4699,8 @@ export default function App() {
 
     return (
       <div>
-        <LiveNowSection liveMatches={liveMatches} matches={matches}/>
+        {/* Today's Games subsumes the old standalone LIVE NOW banner. */}
+        <TodaysGames matches={matches} results={results} liveMatches={liveMatches}/>
         <div style={{marginBottom:14}}><RoundPill/></div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
           marginBottom:12,flexWrap:"wrap",gap:8}}>
