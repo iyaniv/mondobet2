@@ -4536,7 +4536,7 @@ export default function App() {
             {/* ── My stats icon button + floating dropdown ── */}
             {user && (() => {
               const myRow = leaderboard.find(e => e.entry_id === activeEntryId);
-              if (!myRow || !myRow.scored_matches) return null;
+              if (!myRow) return null;
               const leader = leaderboard[0];
               const favRows = leaderboard.filter(e =>
                 (e.entry_id||e.user_id) !== (myRow.entry_id||myRow.user_id) &&
@@ -4918,7 +4918,7 @@ export default function App() {
             {user&&<span style={{color:C.text}}>Hi <b style={{color:C.accent}}>{user.name}</b>{user.is_admin?" 👑":""}</span>}
             {/* ── User-level stats 👤 ── */}
             {user&&leaderboard.length>0&&(()=>{
-              const myRows=leaderboard.filter(e=>e.user_id===user.id&&(e.scored_matches||0)>0);
+              const myRows=leaderboard.filter(e=>e.user_id===user.id);
               if(!myRows.length) return null;
               const totalExact=myRows.reduce((s,e)=>s+(e.exact||0),0);
               const totalDir=myRows.reduce((s,e)=>s+(e.correct_dir||0),0);
