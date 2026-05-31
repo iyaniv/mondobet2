@@ -2495,7 +2495,7 @@ const HELP_CONTENT = {
       "**How it works** — for every match, predict the 90-minute score. You can run multiple **forms** in parallel to try different strategies.",
       "**Scoring** — **5 pts** if you call the direction right, **+3 bonus** for the exact score, **+1** if you got one side's score right, and **+10** for picking the tournament winner.",
       { text: "**Five tabs at the top:**", subs: [
-        "**Tournament** — full bracket and schedule, with live scores and your picks alongside the real results.",
+        "**Tournament** — a **Today's Games** panel up top, plus the full bracket and schedule with live scores and your picks alongside the real results.",
         "**Leaderboard** — live rankings across every form, plus a Simulate mode that shows where you'd land if your remaining picks come true.",
         "**By participant** — peek at any other player's submitted forms once the stage is closed.",
         "**My predictions** — where you fill in scores, pick a tournament winner, and submit each stage.",
@@ -2520,6 +2520,7 @@ const HELP_CONTENT = {
     badge: "🏟",
     title: "Tournament",
     body: [
+      "**Today's Games** (top) — every match kicking off today: 🔴 **live** ones show the minute, finished show the score, upcoming show the kickoff time. It refreshes on its own as games start, update, and end.",
       "Browse the full schedule grouped by stage.",
       "See actual results, **live** scores, and your own picks side by side.",
       "Kickoff times follow the timezone in your Settings.",
@@ -2529,6 +2530,7 @@ const HELP_CONTENT = {
     badge: "🏆",
     title: "Leaderboard",
     body: [
+      "**Today's Games** (top) — today's matches with 🔴 **live** scores, finished results, and upcoming kickoff times. It updates live as games start, change, and finish.",
       "Rankings across every submitted form, updated as results come in.",
       "Click a row to see that participant's full picks (or your own).",
       "Tap the **★** next to any name to favorite that form — your own forms are always favorited. Tap the **★** in the column header to show only your favorites.",
@@ -2547,7 +2549,7 @@ const HELP_CONTENT = {
     badge: "⚙️",
     title: "Settings",
     body: [
-      "Set your timezone for kickoff times in the Tournament tab.",
+      "Set your timezone — kickoff times in **Today's Games** and across the schedule use it.",
       "Toggle dark / light from the moon/sun button in the nav.",
       "Use **Reset onboarding** below to see these tips again.",
     ],
