@@ -1653,29 +1653,32 @@ function GroupCard({ group, allMatches, results, simPreds, liveMatches={} }) {
 }
 
 // ── Kickoff-time helpers — honor the user's Settings timezone ("auto"=browser).
-function _tz(){ const r=(typeof localStorage!=="undefined"&&localStorage.getItem("mb_timezone"))||"auto"; return r==="auto"?undefined:r; }
-function kickoffParts(t){
+// Resolve a timezone arg to an Intl `timeZone` value. Accepts an explicit tz
+// (preferred — passed from App state so changes re-render instantly), falling
+// back to the persisted setting. "auto" → undefined (use the browser's tz).
+function _resolveTz(tz){ const r=tz||(typeof localStorage!=="undefined"&&localStorage.getItem("mb_timezone"))||"auto"; return r==="auto"?undefined:r; }
+function kickoffParts(t, tz){
   if(!t) return null;
   const d=new Date(t); if(isNaN(d.getTime())) return null;
-  const tz=_tz();
-  const f=(o)=>new Intl.DateTimeFormat(undefined,{...o,timeZone:tz}).format(d);
+  const z=_resolveTz(tz);
+  const f=(o)=>new Intl.DateTimeFormat(undefined,{...o,timeZone:z}).format(d);
   return {
     time:  f({hour:"2-digit",minute:"2-digit",hour12:false}),
     short: f({weekday:"short",month:"short",day:"numeric"}),
     long:  f({weekday:"long", month:"long", day:"numeric"}),
-    dayKey:new Intl.DateTimeFormat("en-CA",{year:"numeric",month:"2-digit",day:"2-digit",timeZone:tz}).format(d),
+    dayKey:new Intl.DateTimeFormat("en-CA",{year:"numeric",month:"2-digit",day:"2-digit",timeZone:z}).format(d),
     at:    d.getTime(),
   };
 }
-function todayKey(){ return new Intl.DateTimeFormat("en-CA",{year:"numeric",month:"2-digit",day:"2-digit",timeZone:_tz()}).format(new Date()); }
-function todayLabel(){ return new Intl.DateTimeFormat(undefined,{weekday:"long",month:"long",day:"numeric",timeZone:_tz()}).format(new Date()); }
+function todayKey(tz){ return new Intl.DateTimeFormat("en-CA",{year:"numeric",month:"2-digit",day:"2-digit",timeZone:_resolveTz(tz)}).format(new Date()); }
+function todayLabel(tz){ return new Intl.DateTimeFormat(undefined,{weekday:"long",month:"long",day:"numeric",timeZone:_resolveTz(tz)}).format(new Date()); }
 
 // ── "Today's Games" panel — pinned at the top of the Tournament & Leaderboard
 // tabs. Shows games kicking off today (plus any currently-live match), flagged
 // LIVE / FULL TIME / UPCOMING, with kickoff time in the user's timezone.
-function TodaysGames({ matches=[], results={}, liveMatches={} }){
-  const tKey = todayKey();
-  const all = matches.map(m=>({m,k:kickoffParts(m.t)}));
+function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
+  const tKey = todayKey(tz);
+  const all = matches.map(m=>({m,k:kickoffParts(m.t,tz)}));
   const list = all
     .filter(({m,k}) => (k && k.dayKey===tKey) || !!(liveMatches[m.n]&&liveMatches[m.n].is_live))
     .sort((a,b)=>(a.k?.at||0)-(b.k?.at||0));
@@ -1689,7 +1692,7 @@ function TodaysGames({ matches=[], results={}, liveMatches={} }){
     <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:12,marginBottom:list.length?12:0,flexWrap:"wrap"}}>
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         <span style={{fontFamily:"var(--c-font-display)",fontSize:23,letterSpacing:1,color:C.text}}>⚽ Today's Games</span>
-        <span style={{color:C.muted,fontSize:13,fontWeight:600}}>{todayLabel()}</span>
+        <span style={{color:C.muted,fontSize:13,fontWeight:600}}>{todayLabel(tz)}</span>
       </div>
       {liveCount>0 && (
         <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".5px",
@@ -1725,7 +1728,7 @@ function TodaysGames({ matches=[], results={}, liveMatches={} }){
           const isLive=!!(live&&live.is_live);
           const score=res?[res[0],res[1]]:(live?[live.score_a,live.score_b]:null);
           const finished=!isLive&&!!score;
-          const k=kickoffParts(m.t);
+          const k=kickoffParts(m.t,tz);
           const winA=score?(score[0]>score[1]?true:score[1]>score[0]?false:(res&&res[2]==='a'?true:res&&res[2]==='b'?false:null)):null;
           const badge = isLive
             ? <span style={{display:"inline-flex",alignItems:"center",gap:5,color:C.red,fontWeight:800,letterSpacing:".5px"}}><span className="live-dot"/> LIVE {live.minute!=null?`${live.minute}'`:""}</span>
@@ -1765,7 +1768,7 @@ function TodaysGames({ matches=[], results={}, liveMatches={} }){
   );
 }
 
-function Tournament({ matches, results, liveMatches={}, myPreds, config, user }) {
+function Tournament({ matches, results, liveMatches={}, myPreds, config, user, tz }) {
   const openStage = config.current_stage || 1;
   const visibleStages = user?.is_admin ? STAGES : STAGES.filter(s => s.n <= openStage);
   const [activeStage, setActiveStage] = useState(openStage);
@@ -1783,7 +1786,7 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
 
   return (
     <div>
-      <TodaysGames matches={matches} results={results} liveMatches={liveMatches}/>
+      <TodaysGames matches={matches} results={results} liveMatches={liveMatches} tz={tz}/>
       {/* ── Stage tabs ── */}
       <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
         {visibleStages.map(s => {
@@ -2769,13 +2772,11 @@ function HelpDialog({ entry, onClose, helpBtnRef }){
   );
 }
 
-function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, config, setConfig, matches=[], results={}, setResults, liveMatches={}, refreshLive, refreshLb, onResetOnboarding }) {
-  // Timezone (localStorage)
-  const [tz, setTz] = useState(() => localStorage.getItem("mb_timezone") || "auto");
-
+function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, config, setConfig, matches=[], results={}, setResults, liveMatches={}, refreshLive, refreshLb, onResetOnboarding, tz="auto", onTzChange }) {
+  // Timezone is owned by App (lifted) so a change re-renders every time display
+  // immediately. We just call back up and confirm with a toast.
   function saveTz(val) {
-    setTz(val);
-    localStorage.setItem("mb_timezone", val);
+    onTzChange?.(val);
     showToast("Timezone saved");
   }
 
@@ -3312,6 +3313,11 @@ export default function App() {
   const [renameVal,setRenameVal]=useState("");
   const [showNewMenu,setShowNewMenu]=useState(false);
   const [collapsedStages,setCollapsedStages]=useState(()=>new Set());
+  // Timezone for all kickoff displays. Lifted to App state (was local to
+  // Settings) so changing it instantly re-renders the Today's Games panel and
+  // any other time display, instead of lagging until the next poll/tab switch.
+  const [tz,setTz]=useState(()=>localStorage.getItem("mb_timezone")||"auto");
+  function saveTz(v){ setTz(v); try{ localStorage.setItem("mb_timezone",v); }catch{} }
   // Collapse stages below the current open stage by default (re-applied when
   // the admin advances the stage). Manual toggles persist until then.
   useEffect(()=>{
@@ -4702,7 +4708,7 @@ export default function App() {
     return (
       <div>
         {/* Today's Games subsumes the old standalone LIVE NOW banner. */}
-        <TodaysGames matches={matches} results={results} liveMatches={liveMatches}/>
+        <TodaysGames matches={matches} results={results} liveMatches={liveMatches} tz={tz}/>
         <div style={{marginBottom:14}}><RoundPill/></div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
           marginBottom:12,flexWrap:"wrap",gap:8}}>
@@ -5250,8 +5256,8 @@ export default function App() {
           config={config} matches={matches} results={results} liveMatches={liveMatches}
           setResults={setResults} setLiveMatches={setLiveMatches} refreshLb={refreshLb} refreshLive={refreshLive} showToast={showToast}
         />}
-        {user&&tab==="tournament"&&<Tournament matches={matches} results={effResults} liveMatches={liveMatches} myPreds={myPreds} config={config} user={user}/>}
-        {user&&tab==="settings"&&<SettingsView user={user} leaderboard={leaderboard} onLogout={doLogout} onNameUpdate={u=>{setUser(u);showToast("Name updated ✓");}} showToast={showToast} config={config} setConfig={setConfig} matches={matches} results={results} setResults={setResults} liveMatches={liveMatches} refreshLive={refreshLive} refreshLb={refreshLb} onResetOnboarding={resetOnboarding}/>}
+        {user&&tab==="tournament"&&<Tournament matches={matches} results={effResults} liveMatches={liveMatches} myPreds={myPreds} config={config} user={user} tz={tz}/>}
+        {user&&tab==="settings"&&<SettingsView user={user} leaderboard={leaderboard} onLogout={doLogout} onNameUpdate={u=>{setUser(u);showToast("Name updated ✓");}} showToast={showToast} config={config} setConfig={setConfig} matches={matches} results={results} setResults={setResults} liveMatches={liveMatches} refreshLive={refreshLive} refreshLb={refreshLb} onResetOnboarding={resetOnboarding} tz={tz} onTzChange={saveTz}/>}
       </div>
       {toast&&(
         <div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",background:toast.kind==="err"?C.red:toast.kind==="warn"?C.accent:C.green,color:toast.kind==="warn"?"#1a1a1a":"white",padding:"8px 16px",borderRadius:6,fontSize:14,zIndex:100,boxShadow:"0 4px 12px rgba(0,0,0,0.2)",whiteSpace:"nowrap"}}>
