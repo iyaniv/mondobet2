@@ -4577,7 +4577,7 @@ export default function App() {
                         boxShadow:"0 8px 32px rgba(0,0,0,0.5)",
                         zIndex:99,
                       }}>
-                        <div style={{fontSize:11,color:C.muted,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
+                        <div style={{fontSize:11,color:C.text,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
                           <span style={{background:"rgba(163,230,53,0.1)",color:C.accent,border:`1px solid rgba(163,230,53,0.25)`,borderRadius:999,padding:"2px 9px",fontSize:11,fontWeight:700}}>
                             {myRow.name}
                           </span>
@@ -4594,9 +4594,9 @@ export default function App() {
                           ].map((s,i)=>(
                             <div key={i} style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${s.border}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
                               <div style={{fontSize:13,marginBottom:2}}>{s.icon}</div>
-                              <div style={{fontSize:18,fontWeight:800,fontFamily:"monospace",lineHeight:1.1,marginBottom:2,color:C.text}}>{s.value}</div>
-                              <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em",lineHeight:1.3}}>{s.label}</div>
-                              <div style={{fontSize:9,color:C.muted,marginTop:2}}>{s.sub}</div>
+                              <div style={{fontSize:18,fontWeight:700,lineHeight:1.1,marginBottom:2,color:C.text}}>{s.value}</div>
+                              <div style={{fontSize:11,color:C.text,marginBottom:1}}>{s.label}</div>
+                              <div style={{fontSize:10,color:C.text,opacity:0.6}}>{s.sub}</div>
                             </div>
                           ))}
                         </div>
@@ -4608,12 +4608,12 @@ export default function App() {
                           if(!top3.length) return null;
                           return (
                             <div>
-                              <div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>My top predicted scores</div>
+                              <div style={{fontSize:11,color:C.text,marginBottom:6}}>My top predicted scores</div>
                               <div style={{display:"flex",gap:6}}>
                                 {top3.map(([score,count],i)=>(
                                   <div key={i} style={{flex:1,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 6px",textAlign:"center"}}>
-                                    <div style={{fontSize:15,fontWeight:800,fontFamily:"monospace",color:C.text}}>{score}</div>
-                                    <div style={{fontSize:10,color:C.muted,marginTop:2}}>{count}×</div>
+                                    <div style={{fontSize:15,fontWeight:700,color:C.text}}>{score}</div>
+                                    <div style={{fontSize:10,color:C.text,opacity:0.6,marginTop:2}}>{count}×</div>
                                   </div>
                                 ))}
                               </div>
@@ -4649,36 +4649,36 @@ export default function App() {
                     <>
                       <div onClick={()=>setGroupStatsOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
                       <div style={{position:"absolute",top:"calc(100% + 8px)",left:0,width:"min(320px, calc(100vw - 40px))",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}}>
-                        <div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>{stageLabel} · {leaderboard.length} participants</div>
+                        <div style={{fontSize:11,color:C.text,marginBottom:10}}>{stageLabel} · {leaderboard.length} participants</div>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:10}}>
                           <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
                             <div style={{fontSize:13,marginBottom:2}}>🎯</div>
-                            <div style={{fontSize:18,fontWeight:800,fontFamily:"monospace",color:C.text}}>{avgExactPct}%</div>
-                            <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em"}}>Avg exact score</div>
-                            <div style={{fontSize:9,color:C.muted,marginTop:2}}>{totalExact} of {totalScored}</div>
+                            <div style={{fontSize:18,fontWeight:700,lineHeight:1.1,marginBottom:2,color:C.text}}>{avgExactPct}%</div>
+                            <div style={{fontSize:11,color:C.text,marginBottom:1}}>Avg exact score</div>
+                            <div style={{fontSize:10,color:C.text,opacity:0.6}}>{totalExact} of {totalScored}</div>
                           </div>
                           <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.indigo}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
                             <div style={{fontSize:13,marginBottom:2}}>↗️</div>
-                            <div style={{fontSize:18,fontWeight:800,fontFamily:"monospace",color:C.text}}>{avgDirPct}%</div>
-                            <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em"}}>Avg correct direction</div>
-                            <div style={{fontSize:9,color:C.muted,marginTop:2}}>across all forms</div>
+                            <div style={{fontSize:18,fontWeight:700,lineHeight:1.1,marginBottom:2,color:C.text}}>{avgDirPct}%</div>
+                            <div style={{fontSize:11,color:C.text,marginBottom:1}}>Avg correct direction</div>
+                            <div style={{fontSize:10,color:C.text,opacity:0.6}}>across all forms</div>
                           </div>
                         </div>
                         {top3picks.length>0&&(
                           <div>
-                            <div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Top champion picks</div>
+                            <div style={{fontSize:11,color:C.text,marginBottom:6}}>Top champion picks</div>
                             <div style={{display:"flex",flexDirection:"column",gap:5}}>
                               {top3picks.map(([team,count],i)=>{
                                 const pct=Math.round(count/leaderboard.length*100);
                                 return (
                                   <div key={i} style={{display:"flex",alignItems:"center",gap:8,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 10px"}}>
                                     <span style={{fontSize:13,width:20,textAlign:"center"}}>{["🥇","🥈","🥉"][i]}</span>
-                                    <span style={{flex:1,fontSize:13,fontWeight:600}}>{withFlag(team)}</span>
-                                    <span style={{fontSize:12,color:C.muted}}>{count} picks</span>
+                                    <span style={{flex:1,fontSize:13,fontWeight:600,color:C.text}}>{withFlag(team)}</span>
+                                    <span style={{fontSize:12,color:C.text,opacity:0.7}}>{count} picks</span>
                                     <div style={{width:50,background:C.border,borderRadius:4,height:4}}>
                                       <div style={{width:`${pct}%`,height:4,borderRadius:4,background:C.indigo}}/>
                                     </div>
-                                    <span style={{fontSize:11,color:C.muted,width:28,textAlign:"right"}}>{pct}%</span>
+                                    <span style={{fontSize:11,color:C.text,opacity:0.7,width:28,textAlign:"right"}}>{pct}%</span>
                                   </div>
                                 );
                               })}
@@ -4939,31 +4939,31 @@ export default function App() {
                     <>
                       <div onClick={()=>setUserStatsOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
                       <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,width:"min(300px, calc(100vw - 40px))",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}}>
-                        <div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>
+                        <div style={{fontSize:11,color:C.text,marginBottom:10}}>
                           {user.name} · {myRows.length} form{myRows.length!==1?"s":""} · {totalScored} matches
                         </div>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:top3.length?10:0}}>
                           <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.green}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
                             <div style={{fontSize:13,marginBottom:2}}>↗️</div>
-                            <div style={{fontSize:18,fontWeight:800,fontFamily:"monospace",color:C.text}}>{dirPct}%</div>
-                            <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em"}}>Correct direction</div>
-                            <div style={{fontSize:9,color:C.muted,marginTop:2}}>{totalDir} of {totalScored}</div>
+                            <div style={{fontSize:18,fontWeight:700,lineHeight:1.1,marginBottom:2,color:C.text}}>{dirPct}%</div>
+                            <div style={{fontSize:11,color:C.text,marginBottom:1}}>Correct direction</div>
+                            <div style={{fontSize:10,color:C.text,opacity:0.6}}>{totalDir} of {totalScored}</div>
                           </div>
                           <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
                             <div style={{fontSize:13,marginBottom:2}}>🎯</div>
-                            <div style={{fontSize:18,fontWeight:800,fontFamily:"monospace",color:C.text}}>{totalExact}<span style={{fontSize:12,fontWeight:400,color:C.muted}}>/{totalScored}</span></div>
-                            <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em"}}>Exact scores</div>
-                            <div style={{fontSize:9,color:C.muted,marginTop:2}}>{totalScored>0?Math.round(totalExact/totalScored*100):0}% of matches</div>
+                            <div style={{fontSize:18,fontWeight:700,lineHeight:1.1,marginBottom:2,color:C.text}}>{totalExact}<span style={{fontSize:12,fontWeight:400,color:C.text,opacity:0.6}}>/{totalScored}</span></div>
+                            <div style={{fontSize:11,color:C.text,marginBottom:1}}>Exact scores</div>
+                            <div style={{fontSize:10,color:C.text,opacity:0.6}}>{totalScored>0?Math.round(totalExact/totalScored*100):0}% of matches</div>
                           </div>
                         </div>
                         {top3.length>0&&(
                           <div>
-                            <div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>My top predicted scores</div>
+                            <div style={{fontSize:11,color:C.text,marginBottom:6}}>My top predicted scores</div>
                             <div style={{display:"flex",gap:6}}>
                               {top3.map(([score,count],i)=>(
                                 <div key={i} style={{flex:1,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 6px",textAlign:"center"}}>
-                                  <div style={{fontSize:15,fontWeight:800,fontFamily:"monospace",color:C.text}}>{score}</div>
-                                  <div style={{fontSize:10,color:C.muted,marginTop:2}}>{count}×</div>
+                                  <div style={{fontSize:15,fontWeight:700,color:C.text}}>{score}</div>
+                                  <div style={{fontSize:10,color:C.text,opacity:0.6,marginTop:2}}>{count}×</div>
                                 </div>
                               ))}
                             </div>
