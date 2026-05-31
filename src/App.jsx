@@ -1558,7 +1558,9 @@ function GroupCard({ group, allMatches, results, simPreds, liveMatches={} }) {
   // Stage-1 only — see computeGroupStandings for the rationale.
   const gm = allMatches.filter(m => m.s === 1 && m.g === group);
   const standings = computeGroupStandings(group, allMatches, results, simPreds, liveMatches);
-  const played = gm.filter(m => results[m.n]).length;
+  // A live score counts as "played" too — the standings already fold it in
+  // (results ?? live ?? sim), so the counter + match list must match.
+  const played = gm.filter(m => results[m.n] || liveMatches[m.n]).length;
 
   return (
     <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
@@ -1611,9 +1613,12 @@ function GroupCard({ group, allMatches, results, simPreds, liveMatches={} }) {
       {/* Match list */}
       <div style={{borderTop:`1px solid ${C.border}`}}>
         {gm.map(m=>{
-          const res = results[m.n];
+          const ld = liveMatches[m.n];
+          // Fall back to the live score (results ?? live), mirroring the
+          // standings — a score saved as "live" still shows here and counts.
+          const res = results[m.n] ?? (ld ? [ld.score_a, ld.score_b] : null);
           const sim = !res && simPreds[m.n]?.[0]!=null ? simPreds[m.n] : null;
-          const isMatchLive = !!(liveMatches[m.n] && liveMatches[m.n].is_live);
+          const isMatchLive = !!(ld && ld.is_live);
           const eff = res||sim;
           const isSim = !res&&!!sim;
           const winA = eff ? (eff[0]>eff[1]?true:eff[1]>eff[0]?false:null) : null;
@@ -1660,8 +1665,8 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user })
   const stageMatchList = matches.filter(m => m.n >= stageObj.first && m.n <= stageObj.last);
 
   const groupMatches = matches.filter(m => m.s === 1);
-  const groupPlayed  = groupMatches.filter(m => results[m.n]).length;
-  const knockoutDone = stageMatchList.filter(m => results[m.n]).length;
+  const groupPlayed  = groupMatches.filter(m => results[m.n] || liveMatches[m.n]).length;
+  const knockoutDone = stageMatchList.filter(m => results[m.n] || liveMatches[m.n]).length;
 
   return (
     <div>
@@ -4574,7 +4579,7 @@ export default function App() {
                           ].map((s,i)=>(
                             <div key={i} style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${s.border}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
                               <div style={{fontSize:14,marginBottom:2}}>{s.icon}</div>
-                              <div style={{fontSize:19,fontWeight:800,fontFamily:"monospace",lineHeight:1.1,marginBottom:2,color:s.color}}>
+                              <div style={{fontSize:19,fontWeight:800,fontFamily:"monospace",lineHeight:1.1,marginBottom:2,color:C.text}}>
                                 {s.value}{s.valueSuffix&&<span style={{fontSize:12,fontWeight:400,color:C.muted}}>{s.valueSuffix}</span>}
                               </div>
                               <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em",lineHeight:1.3}}>{s.label}</div>
