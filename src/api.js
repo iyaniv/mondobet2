@@ -79,6 +79,10 @@ export const api = {
   getUserPredictions: (uid, entryId) =>
     request(`/api/predictions/user/${uid}${entryId ? `?entry_id=${entryId}` : ""}`),
 
+  // Group prediction stats (stage closed only)
+  getGroupStats: (stage) =>
+    request(`/api/stats/group${stage != null ? `?stage=${stage}` : ""}`),
+
   // Admin
   updateConfig:         (d)      => request("/api/config/",                  { method: "PATCH", body: d }),
   setResult:            (n, d)   => request(`/api/results/${n}`,             { method: "PUT",   body: d }),

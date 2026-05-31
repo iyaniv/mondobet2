@@ -3250,6 +3250,7 @@ export default function App() {
   const [statsOpen,setStatsOpen]=useState(false);
   const [userStatsOpen,setUserStatsOpen]=useState(false);
   const [groupStatsOpen,setGroupStatsOpen]=useState(false);
+  const [groupStatsData,setGroupStatsData]=useState(null); // {top3_scores:[{score,count}]}
   // The active form is always available via myPreds — seed it into the cache
   // so picking the active form costs no fetch.
   useEffect(()=>{
@@ -4212,10 +4213,67 @@ export default function App() {
                 </div>
               </div>
 
-              {/* RIGHT — Delete + Submit/badge. (The "why submit is off" hint is
-                  conveyed by the amber progress pill + empty Champion tile + the
-                  disabled Submit's tooltip, so no extra line that could wrap.) */}
+              {/* RIGHT — Stats 📊 + Delete + Submit/badge. */}
               <div style={{display:"flex",alignItems:"center",gap:10,justifyContent:"flex-end",flexWrap:"nowrap",minWidth:0}}>
+                {/* ── Form-level stats 📊 ── */}
+                {myLbEntry&&(()=>{
+                  const leader=leaderboard[0];
+                  const gapLeader=myLbEntry.total-(leader?.total||0);
+                  const favRows=leaderboard.filter(e=>(e.entry_id||e.user_id)!==(myLbEntry.entry_id||myLbEntry.user_id)&&favorites.includes(e.entry_id||e.user_id));
+                  const closestFav=favRows.length?favRows.reduce((a,b)=>Math.abs(b.total-myLbEntry.total)<Math.abs(a.total-myLbEntry.total)?b:a):null;
+                  const gapFav=closestFav?myLbEntry.total-closestFav.total:null;
+                  const freq={};
+                  Object.values(myPreds).forEach(p=>{if(p&&p[0]!=null&&p[1]!=null){const k=`${p[0]}:${p[1]}`;freq[k]=(freq[k]||0)+1;}});
+                  const top3scores=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,3);
+                  const cards=[
+                    {label:"From leader",value:gapLeader===0?"+0":(gapLeader>0?`+${gapLeader}`:gapLeader),sub:(leader?.name||"")+" · "+(leader?.total||0)+" pts",border:gapLeader>=0?C.green:C.red,icon:"📉"},
+                    closestFav?{label:"From favorite",value:gapFav===0?"+0":(gapFav>0?`+${gapFav}`:gapFav),sub:closestFav.name+" · "+closestFav.total+" pts"+(gapFav>0?" ↓":" ↑"),border:"#facc15",icon:"★"}:{label:"Your rank",value:`#${leaderboard.indexOf(myLbEntry)+1}`,sub:`of ${leaderboard.length}`,border:C.indigo,icon:"🏅"},
+                    {label:"Correct direction",value:`${myLbEntry.scored_matches>0?Math.round(myLbEntry.correct_dir/myLbEntry.scored_matches*100):0}%`,sub:`${myLbEntry.correct_dir} of ${myLbEntry.scored_matches}`,border:C.green,icon:"↗️"},
+                    {label:"Exact scores",value:`${myLbEntry.exact}/${myLbEntry.scored_matches}`,sub:`${myLbEntry.scored_matches>0?Math.round(myLbEntry.exact/myLbEntry.scored_matches*100):0}% of matches`,border:C.accent,icon:"🎯"},
+                  ];
+                  return (
+                    <div style={{position:"relative"}}>
+                      <button onClick={()=>setStatsOpen(o=>!o)} title="Form stats"
+                        style={{background:statsOpen?"rgba(163,230,53,0.08)":"transparent",border:`1px solid ${statsOpen?C.accent:"transparent"}`,borderRadius:8,padding:"4px 8px",cursor:"pointer",color:statsOpen?C.accent:C.muted,display:"flex",alignItems:"center",fontSize:18,lineHeight:1,fontFamily:"inherit",transition:"all .15s"}}>
+                        📊
+                      </button>
+                      {statsOpen&&(
+                        <>
+                          <div onClick={()=>setStatsOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
+                          <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,width:"min(340px, calc(100vw - 40px))",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}}>
+                            <div style={{fontSize:11,color:C.text,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
+                              <span style={{background:"rgba(163,230,53,0.1)",color:C.accent,border:`1px solid rgba(163,230,53,0.25)`,borderRadius:999,padding:"2px 9px",fontSize:11,fontWeight:700}}>{myLbEntry.name}</span>
+                              <span>{myLbEntry.scored_matches} matches with results</span>
+                            </div>
+                            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:7,marginBottom:top3scores.length?10:0}}>
+                              {cards.map((s,i)=>(
+                                <div key={i} style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${s.border}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
+                                  <div style={{fontSize:13,marginBottom:2}}>{s.icon}</div>
+                                  <div style={{fontSize:18,fontWeight:700,lineHeight:1.1,marginBottom:2,color:C.text}}>{s.value}</div>
+                                  <div style={{fontSize:11,color:C.text,marginBottom:1}}>{s.label}</div>
+                                  <div style={{fontSize:10,color:C.text,opacity:0.6}}>{s.sub}</div>
+                                </div>
+                              ))}
+                            </div>
+                            {top3scores.length>0&&(
+                              <div>
+                                <div style={{fontSize:11,color:C.text,marginBottom:6}}>My top predicted scores</div>
+                                <div style={{display:"flex",gap:6}}>
+                                  {top3scores.map(([score,count],i)=>(
+                                    <div key={i} style={{flex:1,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 6px",textAlign:"center"}}>
+                                      <div style={{fontSize:15,fontWeight:700,color:C.text}}>{score}</div>
+                                      <div style={{fontSize:10,color:C.text,opacity:0.6,marginTop:2}}>{count}×</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
                 {showDelete && (
                   <Btn ghost red onClick={()=>deleteEntryById(activeEntry.id)}>Delete</Btn>
                 )}
@@ -4533,8 +4591,8 @@ export default function App() {
           marginBottom:12,flexWrap:"wrap",gap:8}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <h1 style={{color:C.accent,fontSize:20,margin:0}}>🏆 Leaderboard</h1>
-            {/* ── My stats icon button + floating dropdown ── */}
-            {user && (() => {
+            {/* ── Group stats 📊 (moved here, 👥 block below removed) ── */}
+            {false && (() => {
               const myRow = leaderboard.find(e => e.entry_id === activeEntryId);
               if (!myRow) return null;
               const leader = leaderboard[0];
@@ -4626,7 +4684,7 @@ export default function App() {
                 </div>
               );
             })()}
-            {/* ── Group stats 👥 ── */}
+            {/* ── Group stats 📊 ── */}
             {leaderboard.length>0&&(()=>{
               const stageForStats=config.round_state==="open"?(config.current_stage||1)-1:(config.current_stage||1);
               if(stageForStats<1) return null;
@@ -4639,11 +4697,19 @@ export default function App() {
               const avgExactPct=totalScored>0?Math.round(totalExact/totalScored*100):0;
               const avgDirPct=totalScored>0?Math.round(totalDir/totalScored*100):0;
               const stageLabel=config.round_state==="open"?`Stage ${stageForStats} (closed)`:`Stage ${stageForStats}`;
+              const handleOpen=()=>{
+                setGroupStatsOpen(o=>{
+                  if(!o && !groupStatsData){
+                    api.getGroupStats(stageForStats).then(d=>setGroupStatsData(d)).catch(()=>{});
+                  }
+                  return !o;
+                });
+              };
               return (
                 <div style={{position:"relative"}}>
-                  <button onClick={()=>setGroupStatsOpen(o=>!o)} title="Group stats"
-                    style={{background:groupStatsOpen?"rgba(99,102,241,0.12)":"transparent",border:`1px solid ${groupStatsOpen?C.indigo:"transparent"}`,borderRadius:8,padding:"4px 6px",cursor:"pointer",color:groupStatsOpen?C.indigo:C.muted,display:"flex",alignItems:"center",fontSize:18,lineHeight:1,fontFamily:"inherit",transition:"all .15s"}}>
-                    👥
+                  <button onClick={handleOpen} title="Group stats"
+                    style={{background:groupStatsOpen?"rgba(163,230,53,0.08)":"transparent",border:`1px solid ${groupStatsOpen?C.accent:"transparent"}`,borderRadius:8,padding:"4px 6px",cursor:"pointer",color:groupStatsOpen?C.accent:C.muted,display:"flex",alignItems:"center",fontSize:18,lineHeight:1,fontFamily:"inherit",transition:"all .15s"}}>
+                    📊
                   </button>
                   {groupStatsOpen&&(
                     <>
@@ -4682,6 +4748,20 @@ export default function App() {
                                   </div>
                                 );
                               })}
+                            </div>
+                          </div>
+                        )}
+                        {/* top 3 most-predicted scores across all users */}
+                        {groupStatsData?.top3_scores?.length>0&&(
+                          <div style={{marginTop:10}}>
+                            <div style={{fontSize:11,color:C.text,marginBottom:6}}>Most predicted scores</div>
+                            <div style={{display:"flex",gap:6}}>
+                              {groupStatsData.top3_scores.map(({score,count},i)=>(
+                                <div key={i} style={{flex:1,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 6px",textAlign:"center"}}>
+                                  <div style={{fontSize:15,fontWeight:700,color:C.text}}>{score}</div>
+                                  <div style={{fontSize:10,color:C.text,opacity:0.6,marginTop:2}}>{count}×</div>
+                                </div>
+                              ))}
                             </div>
                           </div>
                         )}
@@ -4933,7 +5013,7 @@ export default function App() {
                 <div style={{position:"relative"}}>
                   <button onClick={()=>setUserStatsOpen(o=>!o)} title="My stats across all forms"
                     style={{background:userStatsOpen?"rgba(163,230,53,0.08)":"transparent",border:`1px solid ${userStatsOpen?C.accent:"transparent"}`,borderRadius:8,padding:"4px 6px",cursor:"pointer",color:userStatsOpen?C.accent:C.muted,display:"flex",alignItems:"center",fontSize:16,lineHeight:1,fontFamily:"inherit",transition:"all .15s"}}>
-                    👤
+                    📊
                   </button>
                   {userStatsOpen&&(
                     <>
