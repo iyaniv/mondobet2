@@ -3524,7 +3524,10 @@ export default function App() {
 
   // Keep that cache fresh: persist results + live on every change (initial load,
   // poll, admin edits) so the next refresh has the latest snapshot to paint from.
+  // Guard: never overwrite a good cache with the empty initial state on mount —
+  // that's what would otherwise wipe the snapshot before hydration applies.
   useEffect(()=>{
+    if(!Object.keys(results).length && !Object.keys(liveMatches).length) return;
     try { sessionStorage.setItem("mb_livecache", JSON.stringify({results, live:liveMatches})); } catch {}
   },[results, liveMatches]);
 
