@@ -939,10 +939,10 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
       <div style={{display:"flex",alignItems:"center",gap:3,justifyContent:"center"}}>
         <input type="number" inputMode="numeric" min={0} max={20} value={localA}
-          onFocus={handleFocus} onChange={e=>setLocalA(e.target.value)} onBlur={e=>savePred(0,e.target.value)} style={{...numInput,...(localA!==""&&localA!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
+          onFocus={handleFocus} onChange={e=>setLocalA(e.target.value.replace(/[^\d]/g,""))} onBlur={e=>savePred(0,e.target.value)} style={{...numInput,...(localA!==""&&localA!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
         <span style={{color:C.muted,fontSize:13}}>:</span>
         <input type="number" inputMode="numeric" min={0} max={20} value={localB}
-          onFocus={handleFocus} onChange={e=>setLocalB(e.target.value)} onBlur={e=>savePred(1,e.target.value)} style={{...numInput,...(localB!==""&&localB!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
+          onFocus={handleFocus} onChange={e=>setLocalB(e.target.value.replace(/[^\d]/g,""))} onBlur={e=>savePred(1,e.target.value)} style={{...numInput,...(localB!==""&&localB!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
       </div>
       {isKnockoutMatch && (
         <span style={{fontSize:9,color:C.muted,letterSpacing:".3px",textTransform:"uppercase",fontWeight:500,opacity:0.7}}>
@@ -953,10 +953,10 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
   ) : adminResult ? (
     <div style={{display:"flex",alignItems:"center",gap:3,justifyContent:"center"}}>
       <input type="number" inputMode="numeric" min={0} max={20} value={resA}
-        onFocus={handleFocus} onChange={e=>setResA(e.target.value)} onBlur={e=>saveResult(0,e.target.value)} style={numInput}/>
+        onFocus={handleFocus} onChange={e=>setResA(e.target.value.replace(/[^\d]/g,""))} onBlur={e=>saveResult(0,e.target.value)} style={numInput}/>
       <span style={{color:C.muted,fontSize:13}}>:</span>
       <input type="number" inputMode="numeric" min={0} max={20} value={resB}
-        onFocus={handleFocus} onChange={e=>setResB(e.target.value)} onBlur={e=>saveResult(1,e.target.value)} style={numInput}/>
+        onFocus={handleFocus} onChange={e=>setResB(e.target.value.replace(/[^\d]/g,""))} onBlur={e=>saveResult(1,e.target.value)} style={numInput}/>
     </div>
   ) : (
     <span style={{fontFamily:"monospace",fontWeight:700,fontSize:14,
@@ -1039,15 +1039,15 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
       }}>{flag(match.a)} {match.a}</span>
       {editable?(
         <>
-          <input type="number" inputMode="numeric" min={0} max={20} value={localA} onFocus={handleFocus} onChange={e=>setLocalA(e.target.value)} onBlur={e=>savePred(0,e.target.value)} style={{...numInput,...(localA!==""&&localA!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
+          <input type="number" inputMode="numeric" min={0} max={20} value={localA} onFocus={handleFocus} onChange={e=>setLocalA(e.target.value.replace(/[^\d]/g,""))} onBlur={e=>savePred(0,e.target.value)} style={{...numInput,...(localA!==""&&localA!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
           <span style={{textAlign:"center",color:C.muted}}>:</span>
-          <input type="number" inputMode="numeric" min={0} max={20} value={localB} onFocus={handleFocus} onChange={e=>setLocalB(e.target.value)} onBlur={e=>savePred(1,e.target.value)} style={{...numInput,...(localB!==""&&localB!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
+          <input type="number" inputMode="numeric" min={0} max={20} value={localB} onFocus={handleFocus} onChange={e=>setLocalB(e.target.value.replace(/[^\d]/g,""))} onBlur={e=>savePred(1,e.target.value)} style={{...numInput,...(localB!==""&&localB!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
         </>
       ):adminResult?(
         <>
-          <input type="number" inputMode="numeric" min={0} max={20} value={resA} onFocus={handleFocus} onChange={e=>setResA(e.target.value)} onBlur={e=>saveResult(0,e.target.value)} style={numInput}/>
+          <input type="number" inputMode="numeric" min={0} max={20} value={resA} onFocus={handleFocus} onChange={e=>setResA(e.target.value.replace(/[^\d]/g,""))} onBlur={e=>saveResult(0,e.target.value)} style={numInput}/>
           <span style={{textAlign:"center",color:C.muted}}>:</span>
-          <input type="number" inputMode="numeric" min={0} max={20} value={resB} onFocus={handleFocus} onChange={e=>setResB(e.target.value)} onBlur={e=>saveResult(1,e.target.value)} style={numInput}/>
+          <input type="number" inputMode="numeric" min={0} max={20} value={resB} onFocus={handleFocus} onChange={e=>setResB(e.target.value.replace(/[^\d]/g,""))} onBlur={e=>saveResult(1,e.target.value)} style={numInput}/>
         </>
       ):(
         // Prediction always in the centre, coloured by accuracy when result known
@@ -2520,6 +2520,7 @@ const HELP_CONTENT = {
       "Pick a **tournament winner** (+10 pts) — locked once stage 1 closes.",
       "Hit **Submit** when a stage is complete. You can keep editing the current stage and re-submit until it closes.",
       "Stuck on multiple strategies? Click **+ Add form** to maintain another set of picks.",
+      "**Rename a form** — click the ✏️ on a form's tab to give it a name (e.g. \"Risky\", \"Safe\").",
       "**Import CSV** — fill a whole stage from a spreadsheet (one line per match: `match number,home,away`). Tap the **?** beside the button for the full how-to.",
     ],
   },
@@ -3785,8 +3786,11 @@ export default function App() {
       && !liveMatches[m.n]
     );
     const filledCount = submittableMatches.filter(m => myPreds[m.n]?.[0] != null && myPreds[m.n]?.[1] != null).length;
-    // Winner pick is required only on stage 1 submission.
-    const winnerNeededForSubmit = openStage === 1 && !(myWinner || lockedWinner);
+    // Winner pick is required on stage 1 submission — and it's PER FORM: each
+    // form needs its own champion (matches the backend's per-entry winner; a
+    // user-level lockedWinner must NOT let a fresh form submit with an empty
+    // picker).
+    const winnerNeededForSubmit = openStage === 1 && !myWinner;
     const canSubmit = filledCount === submittableMatches.length
                    && submittableMatches.length > 0
                    && !winnerNeededForSubmit
@@ -4045,7 +4049,6 @@ export default function App() {
           submitted_at: e.submitted_at || now,
           stages_submitted: {...(e.stages_submitted||{}), [openStage]: now},
         }));
-        if(openStage===1 && !lockedWinner) setLockedWinner(myWinner);
         refreshLb();
         // If the user has OTHER active forms that haven't submitted this stage
         // yet, NAG them with a popup so it's impossible to miss. Locked /
