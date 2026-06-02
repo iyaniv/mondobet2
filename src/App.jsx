@@ -2514,6 +2514,7 @@ const HELP_CONTENT = {
     badge: "📝",
     title: "My predictions",
     body: [
+      "**How it works** — MondoBet is a World Cup prediction game. For every match you predict the final **90-minute** score (extra time / penalties don't count).",
       "Fill in scores for every match. They save automatically as you type.",
       "**Scoring** — **5 pts** if you call the direction right, **+3 bonus** for the exact score, **+1** if you got one side's score right, and **+10** for picking the tournament winner.",
       "Pick a **tournament winner** (+10 pts) — locked once stage 1 closes.",
