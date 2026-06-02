@@ -702,14 +702,18 @@ function ParticipantPicker({ entries, value, onChange }) {
   const [search, setSearch] = useState("");
   const filtered = entries.filter(e => e.name.toLowerCase().includes(search.toLowerCase()));
   const listRef = useRef(null);
+  const prevValueRef = useRef(value);
 
   // Scroll the selected row into view whenever `value` changes (e.g. after
-  // jumping in from the leaderboard). If the row is filtered out by search,
-  // clear the search so it becomes visible.
+  // jumping in from the leaderboard). If a JUMP lands on a row hidden by an
+  // active search, clear the search so it shows — but ONLY on a jump, never
+  // while the user is typing (clearing on every keystroke wiped the search).
   useEffect(() => {
     if (!value || !listRef.current) return;
+    const valueJumped = prevValueRef.current !== value;
+    prevValueRef.current = value;
     const isVisible = filtered.some(e => (e.entry_id || e.user_id) === value);
-    if (!isVisible && search) {
+    if (valueJumped && !isVisible && search) {
       setSearch("");
       return; // next effect run (after filter recomputes) will scroll
     }
