@@ -7,11 +7,13 @@ Local dev:
 Docs: http://localhost:8000/docs
 """
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.auth import hash_password, verify_password
 from app.config import settings
 from app.database import Base, engine, AsyncSessionLocal
 from app.routers import auth, config, entries, init, leaderboard, live, matches, predictions, results, users
@@ -68,6 +70,16 @@ async def _bootstrap():
                 password=settings.admin_password,
                 is_admin=True,
             )
+        else:
+            # Allow rotating the admin password via the ADMIN_PASSWORD env var.
+            # Boot only *creates* the admin, so without this the password could
+            # never be changed (there's no in-app change-password). We act ONLY
+            # when ADMIN_PASSWORD is explicitly set (not the default) and differs,
+            # so this is a no-op for deployments that don't set it.
+            env_pw = os.environ.get("ADMIN_PASSWORD")
+            if env_pw and not verify_password(env_pw, admin.password_hash):
+                admin.password_hash = hash_password(env_pw)
+                await db.commit()
 
 
 @asynccontextmanager
