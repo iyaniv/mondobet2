@@ -129,6 +129,40 @@ async def submit_entry(
     return await crud.submit_entry(db, entry_id, user, stage=stage)
 
 
+@router.post("/{entry_id}/reset-draft")
+async def reset_draft_entry(
+    entry_id: str,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Discard un-submitted edits and restore the last submitted snapshot.
+
+    Returns the updated entry plus the restored predictions + winner so the
+    client can refresh without extra round-trips.
+    """
+    entry = await crud.get_entry(db, entry_id)
+    if not entry or entry.user_id != user.id:
+        raise HTTPException(404, "Entry not found.")
+    if not entry.submitted_snapshot:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Nothing to reset — this form has no submission to restore."
+        )
+    cfg = await crud.get_config(db)
+    if cfg.round_state != RoundStateEnum.open:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Betting round is not open.")
+    updated = await crud.reset_draft(db, entry_id, stage=cfg.current_stage or 1)
+    preds = await crud.get_entry_predictions(db, entry_id)
+    wp = await db.get(WinnerPick, entry_id)
+    return {
+        "entry": EntryOut.model_validate(updated).model_dump(mode="json"),
+        "predictions": [
+            {"match_n": n, "score_a": p[0], "score_b": p[1]} for n, p in preds.items()
+        ],
+        "winner": wp.team if wp else None,
+    }
+
+
 @router.get("/{entry_id}/predictions", response_model=list[PredictionOut])
 async def entry_predictions(
     entry_id: str,

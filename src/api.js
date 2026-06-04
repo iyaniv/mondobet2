@@ -61,6 +61,7 @@ export const api = {
   renameEntry:   (id, d)    => request(`/api/entries/${id}`, { method: "PATCH",  body: d }),
   deleteEntry:   (id)       => request(`/api/entries/${id}`, { method: "DELETE" }),
   submitEntry:   (id)       => request(`/api/entries/${id}/submit`, { method: "POST" }),
+  resetDraft:    (id)       => request(`/api/entries/${id}/reset-draft`, { method: "POST" }),
   getEntryPreds: (id)       => request(`/api/entries/${id}/predictions`),
 
   // Predictions — pass entryId to target a specific entry

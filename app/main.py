@@ -58,6 +58,35 @@ async def _bootstrap():
         await conn.execute(text(
             "ALTER TABLE game_config ADD COLUMN IF NOT EXISTS stage_baseline JSONB"
         ))
+        # Migration 13: per-entry snapshot of the last submitted state, for the
+        # "Reset draft" feature.
+        await conn.execute(text(
+            "ALTER TABLE entries ADD COLUMN IF NOT EXISTS submitted_snapshot JSONB"
+        ))
+        # One-time backfill: forms cleanly submitted for the CURRENT stage get a
+        # snapshot from their current predictions (== their last submission).
+        # Forms mid-edit (submitted then edited → stage flag cleared) are skipped,
+        # so their draft flow only begins at the next submit. Idempotent: only
+        # fills NULL snapshots.
+        await conn.execute(text("""
+            WITH cfg AS (SELECT COALESCE(current_stage, 1) AS stage FROM game_config WHERE id = 1),
+            clean AS (
+                SELECT e.id FROM entries e, cfg
+                WHERE e.submitted_snapshot IS NULL
+                  AND e.submitted_at IS NOT NULL
+                  AND jsonb_exists(e.stages_submitted, cfg.stage::text)
+            )
+            UPDATE entries e
+            SET submitted_snapshot = jsonb_build_object(
+                'at', to_jsonb(e.submitted_at),
+                'winner', (SELECT to_jsonb(wp.team) FROM winner_picks wp WHERE wp.entry_id = e.id),
+                'preds', COALESCE((
+                    SELECT jsonb_object_agg(p.match_n::text, jsonb_build_array(p.score_a, p.score_b))
+                    FROM predictions p
+                    WHERE p.entry_id = e.id AND p.score_a IS NOT NULL AND p.score_b IS NOT NULL
+                ), '{}'::jsonb))
+            FROM clean WHERE e.id = clean.id
+        """))
 
     async with AsyncSessionLocal() as db:
         await crud.get_config(db)

@@ -70,6 +70,15 @@ class Entry(Base):
     stages_submitted: Mapped[dict] = mapped_column(
         JSONB, nullable=False, server_default="{}"
     )
+    # Snapshot of the last SUBMITTED state, for the "Reset draft" feature:
+    # {"at": iso, "winner": "France"|None, "preds": {"1": [2, 1], ...}}.
+    submitted_snapshot: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+
+    @property
+    def submitted_snapshot_at(self) -> Optional[str]:
+        """ISO timestamp of the last submission snapshot (or None) — exposed to
+        the client so it can show/hide the Reset-draft control."""
+        return (self.submitted_snapshot or {}).get("at")
 
     user: Mapped["User"] = relationship("User", back_populates="entries")
     predictions: Mapped[list["Prediction"]] = relationship(

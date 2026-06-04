@@ -87,6 +87,7 @@ async def bootstrap(
                 "created_at": entry.created_at.isoformat(),
                 "submitted_at": entry.submitted_at.isoformat() if entry.submitted_at else None,
                 "stages_submitted": entry.stages_submitted or {},
+                "submitted_snapshot_at": (entry.submitted_snapshot or {}).get("at"),
                 "predictions": [
                     {"match_n": n, "score_a": v[0], "score_b": v[1]}
                     for n, v in preds.items()

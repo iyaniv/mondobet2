@@ -73,7 +73,10 @@ CREATE TABLE entries (
     submitted_at       TIMESTAMPTZ,
     -- Per-stage submission state — keys are stage numbers (1..6), values are
     -- ISO timestamps. Example: {"1": "2026-06-01T10:00:00Z"}.
-    stages_submitted   JSONB        NOT NULL DEFAULT '{}'::jsonb
+    stages_submitted   JSONB        NOT NULL DEFAULT '{}'::jsonb,
+    -- Snapshot of the last SUBMITTED state, for "Reset draft":
+    -- {"at": iso, "winner": "France"|null, "preds": {"1":[2,1], ...}}.
+    submitted_snapshot JSONB
 );
 CREATE INDEX ix_entries_user_id ON entries (user_id);
 

@@ -222,6 +222,55 @@ async def submit_entry(db: AsyncSession, entry_id: str, user: User, stage: int =
     entry.stages_submitted = stages
     if entry.submitted_at is None:
         entry.submitted_at = now
+    # Snapshot the just-submitted state, for "Reset draft" (overwrites each
+    # submit → always the latest submission).
+    preds_rows = (await db.execute(
+        select(Prediction).where(Prediction.entry_id == entry_id)
+    )).scalars().all()
+    wp_row = await db.get(WinnerPick, entry_id)
+    entry.submitted_snapshot = {
+        "at": now.isoformat(),
+        "winner": wp_row.team if wp_row else None,
+        "preds": {str(p.match_n): [p.score_a, p.score_b]
+                  for p in preds_rows
+                  if p.score_a is not None and p.score_b is not None},
+    }
+    await db.commit()
+    await db.refresh(entry)
+    return entry
+
+
+async def reset_draft(db: AsyncSession, entry_id: str, stage: int = 1) -> Optional[Entry]:
+    """Discard un-submitted edits: restore the entry's predictions + winner from
+    `submitted_snapshot` and re-mark the given stage submitted (back to the
+    locked, submitted state). Returns None if there's no snapshot to restore.
+    """
+    from sqlalchemy import delete as sql_delete
+    entry = await db.get(Entry, entry_id)
+    if not entry or not entry.submitted_snapshot:
+        return None
+    snap = entry.submitted_snapshot
+    preds = snap.get("preds") or {}
+    # Replace predictions with exactly the snapshot's set.
+    await db.execute(sql_delete(Prediction).where(Prediction.entry_id == entry_id))
+    for mn, sc in preds.items():
+        if sc and sc[0] is not None and sc[1] is not None:
+            db.add(Prediction(entry_id=entry_id, match_n=int(mn),
+                              score_a=sc[0], score_b=sc[1]))
+    # Restore the winner pick.
+    target = snap.get("winner")
+    wp = await db.get(WinnerPick, entry_id)
+    if target:
+        if wp:
+            wp.team = target
+        else:
+            db.add(WinnerPick(entry_id=entry_id, team=target))
+    elif wp:
+        await db.delete(wp)
+    # Back to submitted: re-mark this stage with the snapshot's timestamp.
+    stages = dict(entry.stages_submitted or {})
+    stages[str(stage)] = snap.get("at") or datetime.now(timezone.utc).isoformat()
+    entry.stages_submitted = stages
     await db.commit()
     await db.refresh(entry)
     return entry

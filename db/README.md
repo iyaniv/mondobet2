@@ -19,6 +19,7 @@ PostgreSQL schema for the WC2026 Predictions app. Designed for Neon but works on
 | **`09_add_et_pen_scores.sql`** | Adds `et_a/et_b/pen_a/pen_b` SMALLINTs to `results` and `live_matches`. |
 | **`10_add_help_seen.sql`** | Adds `users.help_seen` (JSONB) — per-user onboarding-popup flags. |
 | **`12_add_stage_baseline.sql`** | Adds `game_config.stage_baseline` (JSONB) — standings snapshot at the start of the current stage, for per-stage leaderboard rank movement. |
+| **`13_add_submitted_snapshot.sql`** | Adds `entries.submitted_snapshot` (JSONB) — snapshot of the last submitted state, for "Reset draft". Includes a one-time backfill for cleanly-submitted forms. |
 
 ## Schema overview
 

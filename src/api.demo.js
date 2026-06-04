@@ -421,6 +421,35 @@ function save(s) {
 
 let S = loadState();
 
+// One-time backfill (mirrors app/main.py): forms cleanly submitted for the
+// CURRENT stage get a submitted_snapshot from their current predictions+winner.
+// Forms mid-edit (submitted then edited → stage flag cleared) are skipped, so
+// their draft flow only starts at the next submit. Idempotent — only fills
+// entries that have no snapshot yet.
+function backfillSnapshots(state) {
+  if (!state || !state.entries) return;
+  const stage = String((state.config && state.config.current_stage) || 1);
+  let changed = false;
+  for (const e of Object.values(state.entries)) {
+    if (e.submitted_snapshot) continue;
+    if (!e.submitted_at) continue;
+    if (!(e.stages_submitted && e.stages_submitted[stage])) continue; // skip drafts
+    const preds = state.predictions[e.id] || {};
+    e.submitted_snapshot = {
+      at: e.submitted_at,
+      winner: state.winner_picks[e.id] || null,
+      preds: Object.fromEntries(
+        Object.entries(preds)
+          .filter(([,p]) => p[0] != null && p[1] != null)
+          .map(([n,p]) => [String(n), [p[0], p[1]]])
+      ),
+    };
+    changed = true;
+  }
+  if (changed) save(state);
+}
+backfillSnapshots(S);
+
 window._resetDemo = () => {
   ["mb_demo_v1","mb_demo_v2","mb_demo_v3","mb_demo_v4","mb_demo_v5","mb_demo_v5_fresh","mb_demo_v6","mb_demo_v6_fresh","wc2026_token","mb_demo_variant"].forEach(k=>localStorage.removeItem(k));
   location.reload();
@@ -485,7 +514,7 @@ function userOut(u) {
   return {id:u.id,name:u.name,email:u.email,phone:u.phone||"",is_admin:u.is_admin,has_paid:u.has_paid,locked_winner:u.locked_winner||null,help_seen:u.help_seen||{}};
 }
 function entryOut(e) {
-  return {id:e.id,name:e.name,created_at:e.created_at,submitted_at:e.submitted_at||null,stages_submitted:e.stages_submitted||{}};
+  return {id:e.id,name:e.name,created_at:e.created_at,submitted_at:e.submitted_at||null,stages_submitted:e.stages_submitted||{},submitted_snapshot_at:(e.submitted_snapshot||{}).at||null};
 }
 
 function resolveEntryId(user, entryId) {
@@ -711,8 +740,46 @@ export const api = {
     const now = new Date().toISOString();
     entry.stages_submitted[stage] = now;
     if (!entry.submitted_at) entry.submitted_at = now;
+    // Snapshot the just-submitted state, for "Reset draft" (overwrites each submit).
+    entry.submitted_snapshot = {
+      at: now,
+      winner: S.winner_picks[id] || null,
+      preds: Object.fromEntries(
+        Object.entries(preds)
+          .filter(([,p]) => p[0] != null && p[1] != null)
+          .map(([n,p]) => [String(n), [p[0], p[1]]])
+      ),
+    };
     save(S);
     return entryOut(entry);
+  },
+
+  resetDraft: async (id) => {
+    await delay();
+    const user = requireUser();
+    const entry = S.entries[id];
+    if (!entry || entry.user_id !== user.id) throw new Error("Entry not found");
+    if (!entry.submitted_snapshot) throw new Error("Nothing to reset — no submission to restore.");
+    if (S.config.round_state !== "open") throw new Error("Betting round is not open.");
+    const snap = entry.submitted_snapshot;
+    // Restore predictions to exactly the snapshot.
+    const np = {};
+    for (const [n,sc] of Object.entries(snap.preds || {})) {
+      if (sc && sc[0] != null && sc[1] != null) np[Number(n)] = [sc[0], sc[1]];
+    }
+    S.predictions[id] = np;
+    // Restore winner.
+    if (snap.winner) S.winner_picks[id] = snap.winner; else delete S.winner_picks[id];
+    // Back to submitted: re-mark the current stage with the snapshot's timestamp.
+    const stage = S.config.current_stage || 1;
+    entry.stages_submitted = entry.stages_submitted || {};
+    entry.stages_submitted[stage] = snap.at || new Date().toISOString();
+    save(S);
+    return {
+      entry: entryOut(entry),
+      predictions: Object.entries(np).map(([n,p])=>({match_n:Number(n),score_a:p[0],score_b:p[1]})),
+      winner: snap.winner || null,
+    };
   },
 
   getEntryPreds: async (id) => {
@@ -1099,6 +1166,7 @@ export const initApi = {
         .map(e=>({
           id:e.id, name:e.name, created_at:e.created_at, submitted_at:e.submitted_at||null,
           stages_submitted: e.stages_submitted || {},
+          submitted_snapshot_at:(e.submitted_snapshot||{}).at||null,
           predictions:Object.entries(S.predictions[e.id]||{}).map(([n,p])=>({match_n:Number(n),score_a:p[0],score_b:p[1]})),
           winner_pick:S.winner_picks[e.id]||null,
         }));

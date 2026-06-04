@@ -4051,6 +4051,7 @@ export default function App() {
           ...e,
           submitted_at: e.submitted_at || now,
           stages_submitted: {...(e.stages_submitted||{}), [openStage]: now},
+          submitted_snapshot_at: now,   // a snapshot now exists → Reset draft armed
         }));
         refreshLb();
         // If the user has OTHER active forms that haven't submitted this stage
@@ -4087,6 +4088,35 @@ export default function App() {
         }
       }catch(e){showToast(e.message,"err");}
       finally{setSubmitting(false);}
+    }
+
+    // Reset draft — discard edits since the last submit and restore that
+    // submitted version (scores + champion). Server-side snapshot; one level.
+    async function resetDraft(){
+      const at = activeEntry?.submitted_snapshot_at;
+      const when = at ? `your last submission${(()=>{const k=kickoffParts(at,tz);return k?` (${k.short} · ${k.time})`:"";})()}` : "your last submission";
+      const ok = await confirmDialog({
+        title: "Reset draft?",
+        message: `This discards the changes you've made since ${when} and restores that version — scores and champion.\n\nThis can't be undone.`,
+        confirmLabel: "Reset to last submission",
+        cancelLabel: "Cancel",
+        danger: true,
+      });
+      if(!ok) return;
+      try{
+        const res = await api.resetDraft(activeEntryId);
+        const m={}; for(const p of (res.predictions||[])) m[p.match_n]=[p.score_a,p.score_b];
+        setMyPreds(m);
+        setMyWinner(res.winner||null);
+        setEntries(es=>es.map(e=>e.id!==activeEntryId?e:{
+          ...e,
+          ...(res.entry||{}),
+          predictions: (res.predictions||[]),
+          winner_pick: res.winner||null,
+        }));
+        showToast("Reverted to your last submission ↩");
+        refreshLb();
+      }catch(e){showToast(e.message,"err");}
     }
 
     async function deleteEntryById(entryId){
@@ -4330,6 +4360,11 @@ export default function App() {
           const championBlocking    = winnerNeededForSubmit && !canSubmit;
           const championOnlyBlocker = championBlocking && complete;
           const showDelete = !activeEntry.submitted_at && entries.length>1 && editable;
+          // Draft = a submission snapshot exists AND the current stage isn't
+          // submitted (i.e. the user edited after submitting) → offer Reset draft.
+          const snapAt = activeEntry.submitted_snapshot_at;
+          const inDraft = editable && !currentStageSubmitted && !!snapAt;
+          const snapWhen = snapAt ? (()=>{ const k=kickoffParts(snapAt,tz); return k?`${k.short} · ${k.time}`:""; })() : "";
           // Rank for the middle of the bar (points come from myLbEntry.total).
           const rank = myLbEntry ? leaderboard.indexOf(myLbEntry)+1 : null;
           // Shared tile look for the centered Champion / Rank / Points group.
@@ -4475,6 +4510,26 @@ export default function App() {
                 ) : null}
               </div>
             </div>
+            {/* Reset draft strip — appears when the form has un-submitted edits
+                (a submission snapshot exists + current stage not submitted). */}
+            {inDraft && (
+              <div style={{
+                display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",
+                marginTop:8,background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.35)",
+                borderRadius:8,padding:"7px 12px",
+              }}>
+                <span style={{color:"#f59e0b",fontSize:12.5,fontWeight:600}}>
+                  ✎ You have unsaved changes since your last submission
+                  {snapWhen && <span style={{color:C.muted,fontWeight:400}}> · {snapWhen}</span>}
+                </span>
+                <button onClick={resetDraft} style={{
+                  display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer",fontFamily:"inherit",
+                  color:"#f59e0b",fontWeight:700,fontSize:12,whiteSpace:"nowrap",
+                  background:"rgba(245,158,11,0.10)",border:"1px solid rgba(245,158,11,0.45)",
+                  padding:"5px 11px",borderRadius:999,
+                }}>↩ Reset draft</button>
+              </div>
+            )}
             </div>
           );
         })()}

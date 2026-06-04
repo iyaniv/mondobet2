@@ -73,6 +73,7 @@ class EntryOut(BaseModel):
     created_at: datetime
     submitted_at: Optional[datetime] = None
     stages_submitted: dict = {}
+    submitted_snapshot_at: Optional[str] = None  # ISO ts of last submission, for Reset draft
 
 
 class EntryCreate(BaseModel):
