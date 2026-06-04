@@ -1325,11 +1325,17 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
         const openStage   = config?.current_stage || 1;
         const openMatches = matches.filter(m => m.s <= openStage);
         const resultsIn   = openMatches.filter(m => results[m.n]).length;
+        // Form submission totals (only available from the admin participant
+        // feed, which carries submitted_count / draft_count per user).
+        const formsSubmitted = (tableData||[]).reduce((a,u)=>a+(u.submitted_count||0),0);
+        const formsPending   = (tableData||[]).reduce((a,u)=>a+(u.draft_count||0),0);
         return (
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginBottom:20}}>
         {[
-          {label:"Participants",    value:statData.length,                                                       color:C.accent},
-          {label:"Paid",            value:`${statData.filter(u=>u.has_paid).length} / ${statData.length}`,       color:C.green},
+          {label:"Users",               value:statData.length,                                                   color:C.accent},
+          {label:"Forms submitted",     value:formsSubmitted,                                                    color:C.green},
+          {label:"Forms not submitted", value:formsPending,                                                      color:"#f59e0b"},
+          {label:"Paid",                value:`${statData.filter(u=>u.has_paid).length} / ${statData.length}`,   color:C.green},
           {label:`Results · stage ${openStage}`, value:`${resultsIn} / ${openMatches.length}`,                   color:C.accent},
         ].map(s=>(
           <div key={s.label} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14}}>
@@ -1481,7 +1487,10 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
                             ? <span style={{color:C.muted}}>no forms</span>
                             : multi
                               ? <span style={{fontSize:12,color:C.muted}}>
-                                  <b style={{color:C.text}}>{uEntries.length}</b> form{uEntries.length===1?"":"s"} — click to expand
+                                  <b style={{color:C.text}}>{uEntries.length}</b> forms ·{" "}
+                                  <span style={{color:C.green,fontWeight:600}}>{u.submitted_count??0} submitted</span> ·{" "}
+                                  <span style={{color:"#f59e0b",fontWeight:600}}>{u.draft_count??0} not</span>
+                                  <span> — click to expand</span>
                                 </span>
                               : renderStageBadges(uEntries[0])
                           }
