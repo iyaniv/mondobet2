@@ -800,6 +800,8 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
   // background event wipes the value the user just typed.
   const editingRef    = useRef(false);
   const pendingSaveRef = useRef(false);
+  const autoSaveTimer = useRef(null);   // debounce for save-while-typing
+  const AUTOSAVE_MS   = 250;
   const handleFocus   = () => { editingRef.current = true; };
 
   useEffect(()=>{
@@ -813,11 +815,11 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
     setResB(result?.[1]!=null?String(result[1]):"");
   },[result?.[0],result?.[1]]);
 
-  async function savePred(side,val) {
-    editingRef.current = false;
-    const a=side===0?val:localA, b=side===1?val:localB;
+  // ── Persist helpers (no editingRef flip — used by both the debounced
+  // save-while-typing and the immediate save-on-blur). ──────────────────────
+  async function persistPred(a, b) {
     const wasFilled  = pred?.[0]!=null && pred?.[1]!=null;
-    const willBeFilled = (a!=="" && b!=="");
+    const willBeFilled = (a!=="" && a!=null && b!=="" && b!=null);
     // empty → still empty: nothing to do (avoid pointless API calls)
     if (!wasFilled && !willBeFilled) return;
     // If the user cleared either side, the prediction is no longer complete:
@@ -830,14 +832,38 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
     catch(e){console.error(e);}
     finally { pendingSaveRef.current = false; }
   }
-  async function saveResult(side,val) {
-    editingRef.current = false;
-    const a=side===0?val:resA, b=side===1?val:resB;
+  async function persistResult(a, b) {
     pendingSaveRef.current = true;
     try { await onResultSave(match.n,{score_a:a===""?null:Number(a),score_b:b===""?null:Number(b)}); }
     catch(e){console.error(e);}
     finally { pendingSaveRef.current = false; }
   }
+  // Immediate save on blur — flush any pending debounce first.
+  function savePred(side,val) {
+    clearTimeout(autoSaveTimer.current);
+    editingRef.current = false;
+    return persistPred(side===0?val:localA, side===1?val:localB);
+  }
+  function saveResult(side,val) {
+    clearTimeout(autoSaveTimer.current);
+    editingRef.current = false;
+    return persistResult(side===0?val:resA, side===1?val:resB);
+  }
+  // Debounced auto-save WHILE typing — saves ~0.5s after the last keystroke so
+  // rapid multi-digit edits collapse into one write. Gated on editingRef so it
+  // only fires for real user edits, never for prop-driven (poll) value syncs.
+  useEffect(() => {
+    if (!editingRef.current) return;
+    autoSaveTimer.current = setTimeout(() => persistPred(localA, localB), AUTOSAVE_MS);
+    return () => clearTimeout(autoSaveTimer.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localA, localB]);
+  useEffect(() => {
+    if (!editingRef.current) return;
+    autoSaveTimer.current = setTimeout(() => persistResult(resA, resB), AUTOSAVE_MS);
+    return () => clearTimeout(autoSaveTimer.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resA, resB]);
 
   // Two independent chips with their own colour rules:
   //   Points (+N) — based on total points earned
