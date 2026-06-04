@@ -3419,6 +3419,19 @@ export default function App() {
   // enforced at render time (isMe ⇒ favorited, locked star), so it doesn't need
   // to live in the persisted `favorites` list. Only other people's forms are
   // toggled into/out of localStorage.
+  // One-time "you can favorite & filter" hint, shown above the leaderboard while
+  // the user hasn't starred anyone yet. Dismissal persists per user.
+  const favHintKey = user?.id ? `mb_favhint_dismissed_${user.id}` : null;
+  const [favHintDismissed,setFavHintDismissed]=useState(true);
+  useEffect(()=>{
+    if(!favHintKey){ setFavHintDismissed(true); return; }
+    try { setFavHintDismissed(localStorage.getItem(favHintKey)==="1"); }
+    catch { setFavHintDismissed(false); }
+  },[favHintKey]);
+  const dismissFavHint=useCallback(()=>{
+    setFavHintDismissed(true);
+    if(favHintKey){ try{ localStorage.setItem(favHintKey,"1"); }catch{} }
+  },[favHintKey]);
   const [hoveredRow,setHoveredRow]=useState(null);
   // Lifted so LeaderboardView (called inline, not mounted) can branch its
   // layout responsively without itself calling a hook conditionally.
@@ -4818,6 +4831,13 @@ export default function App() {
     // favorite, so the filter is a straight "is this row favorited" check.
     const filteredLb = favOnly ? displayLb.filter(isFavRow) : displayLb;
     const hasFavs = displayLb.some(isFavRow);
+    // Discoverability hint: show while the user hasn't starred anyone else yet
+    // (their own form doesn't count), the filter is off, and there's at least
+    // one other form to star. Gold ★/☆ + a dismissible banner teach the filter.
+    const showFavHint = !favHintDismissed && !favOnly
+      && favorites.length===0
+      && displayLb.some(r=>r.user_id!==user?.id);
+    const HINT_GOLD = "#facc15";
 
     // Per-stage rank movement: standings snapshot taken when the current stage
     // opened (server-side, in config.stage_baseline). A row's movement = its
@@ -5126,6 +5146,17 @@ export default function App() {
           ?<div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>No participants yet.</div>
           :(
             <>
+            {showFavHint&&(
+              <div style={{display:"flex",alignItems:"flex-start",gap:10,
+                background:"rgba(250,204,21,0.08)",border:"1px solid rgba(250,204,21,0.35)",
+                borderRadius:8,padding:"11px 13px",marginBottom:12,fontSize:13,color:C.text,lineHeight:1.5}}>
+                <span style={{fontSize:17,lineHeight:1.2}}>⭐</span>
+                <span>Tap the <b>☆</b> next to any name to <b>favorite</b> that form — then tap the{" "}
+                  <b style={{color:HINT_GOLD}}>★</b> in the column header to <b>show only your favorites</b>.</span>
+                <button onClick={dismissFavHint} title="Dismiss" style={{marginLeft:"auto",background:"none",
+                  border:0,color:C.muted,cursor:"pointer",fontSize:16,lineHeight:1,padding:"0 2px",fontFamily:"inherit"}}>✕</button>
+              </div>
+            )}
             {favOnly&&!hasFavs&&(
               <div style={{textAlign:"center",padding:"14px 20px",color:C.muted,fontSize:13,marginBottom:10,background:C.panel,border:`1px solid ${C.border}`,borderRadius:8}}>
                 No favorites yet — turn the ★ filter off and tap <span style={{color:C.muted}}>☆</span> on any row to add one.
@@ -5141,8 +5172,9 @@ export default function App() {
                       onClick={()=>setFavOnly(v=>!v)}
                       title={favOnly?"Showing favorites only — click to show all":"Show favorites only"}
                       style={{cursor:"pointer",fontSize:17,lineHeight:1,userSelect:"none",
-                        color:favOnly?C.accent:C.muted,opacity:favOnly?1:0.7,transition:"all .15s"}}>
-                      {favOnly?"★":"☆"}
+                        color:favOnly?C.accent:showFavHint?HINT_GOLD:C.muted,
+                        opacity:(favOnly||showFavHint)?1:0.7,transition:"all .15s"}}>
+                      {(favOnly||showFavHint)?"★":"☆"}
                     </span>
                   </th>
                   {["Name","Points","Winner pick"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Points"?"center":"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}
@@ -5211,7 +5243,8 @@ export default function App() {
                               onClick={(e)=>{e.stopPropagation();toggleFavorite(rowKey);}}
                               title={isFav?"Remove from favorites":"Add to favorites"}
                               style={{cursor:"pointer",fontSize:16,lineHeight:1,userSelect:"none",
-                                color:isFav?C.accent:C.muted,opacity:isFav?1:0.5,transition:"all .15s"}}>
+                                color:isFav?C.accent:showFavHint?HINT_GOLD:C.muted,
+                                opacity:isFav?1:showFavHint?0.95:0.5,transition:"all .15s"}}>
                               {isFav?"★":"☆"}
                             </span>
                           )}
