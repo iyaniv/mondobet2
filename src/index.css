@@ -107,7 +107,3 @@ html { -webkit-text-size-adjust: 100%; }
   transition: transform .32s cubic-bezier(.55,0,.5,1), opacity .32s ease-out;
   transform-origin: top right;
 }
-
-/* Tiny spinner for the prediction auto-save "Saving…" chip. */
-@keyframes autosaveSpin { to { transform: rotate(360deg); } }
-.autosave-spin { animation: autosaveSpin .7s linear infinite; }
