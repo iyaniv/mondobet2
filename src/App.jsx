@@ -3365,6 +3365,10 @@ export default function App() {
   // REMOUNTED the whole subtree — which reset child state and slammed the
   // TeamPicker dropdown shut. Keeping the state here makes the subtree stable.
   const [submitting,setSubmitting]=useState(false);
+  // Auto-save status for the prediction boxes: "" | "saving" | "saved".
+  // Driven by the batched bulk write (savePred buffers → flushPredSaves writes).
+  const [autoSaveStatus,setAutoSaveStatus]=useState("");
+  const autoSavedTimer=useRef(null);
   const [renamingEntryId,setRenamingEntryId]=useState(null);
   const [renameVal,setRenameVal]=useState("");
   const [showNewMenu,setShowNewMenu]=useState(false);
@@ -3873,7 +3877,11 @@ export default function App() {
         const b=base[n]; const ba=b?(b[0]??null):null, bb=b?(b[1]??null):null;
         return !(ba===buf[n].score_a && bb===buf[n].score_b);
       });
-      if(!entryId||!changed.length) return Promise.resolve();
+      if(!entryId||!changed.length){
+        // Nothing real to persist — clear any lingering "Saving…" indicator.
+        setAutoSaveStatus(s=>s==="saving"?"":s);
+        return Promise.resolve();
+      }
       const items=changed.map(n=>({match_n:Number(n),score_a:buf[n].score_a,score_b:buf[n].score_b}));
       // A genuine change invalidates the affected stages' submissions → draft.
       const stages=new Set(changed.map(n=>matchStageObj(Number(n)).n));
@@ -3885,9 +3893,15 @@ export default function App() {
       }));
       // Advance the baseline so a later change-back to these values is a no-op.
       changed.forEach(n=>{ predBaseline.current[n]=[buf[n].score_a,buf[n].score_b]; });
+      setAutoSaveStatus("saving");
       return api.setPredictionsBulk(items, entryId)
-        .then(()=>{ refreshLb(); })
-        .catch(()=>showToast("Couldn't save your changes — please try again","err"));
+        .then(()=>{
+          refreshLb();
+          setAutoSaveStatus("saved");
+          clearTimeout(autoSavedTimer.current);
+          autoSavedTimer.current=setTimeout(()=>setAutoSaveStatus(s=>s==="saved"?"":s),2200);
+        })
+        .catch(()=>{ setAutoSaveStatus(""); showToast("Couldn't save your changes — please try again","err"); });
     }
 
     // onSave from MatchRow — update the UI immediately, then batch the network
@@ -3907,6 +3921,11 @@ export default function App() {
       if(predSaveEntry.current && predSaveEntry.current!==activeEntryId) flushPredSaves();
       predSaveEntry.current = activeEntryId;
       predSaveBuf.current[matchN] = data;
+      // Show "Saving…" right away for a genuine change (so the indicator tracks
+      // the edit, not the 500ms flush). No-ops are reconciled away in the flush.
+      const bl=predBaseline.current[matchN];
+      const isRealChange = !bl || (bl[0]??null)!==data.score_a || (bl[1]??null)!==data.score_b;
+      if(isRealChange){ clearTimeout(autoSavedTimer.current); setAutoSaveStatus("saving"); }
       clearTimeout(predSaveTimer.current);
       predSaveTimer.current = setTimeout(flushPredSaves, 500);
     }
@@ -3956,9 +3975,15 @@ export default function App() {
       showToast(`Random-filled ${filled.length} match${filled.length===1?"":"es"} · stage ${stageN} 🎲`);
 
       // 2) Persist in the BACKGROUND as ONE bulk write (not N concurrent PUTs).
+      clearTimeout(autoSavedTimer.current); setAutoSaveStatus("saving");
       api.setPredictionsBulk(filled.map(f => ({match_n:f.n, score_a:f.a, score_b:f.b})), targetId)
-        .then(() => { refreshLb(); })
-        .catch(() => {});
+        .then(() => {
+          refreshLb();
+          setAutoSaveStatus("saved");
+          clearTimeout(autoSavedTimer.current);
+          autoSavedTimer.current=setTimeout(()=>setAutoSaveStatus(s=>s==="saved"?"":s),2200);
+        })
+        .catch(() => { setAutoSaveStatus(""); });
     }
 
     // Import predictions from a CSV. Format: "match,home,away" per line
@@ -4023,9 +4048,15 @@ export default function App() {
             + (remaining>0?` · ${remaining} still empty — fill & Submit` : "") + " 📄",
             remaining>0?"warn":"ok"
           );
+          clearTimeout(autoSavedTimer.current); setAutoSaveStatus("saving");
           api.setPredictionsBulk(apply.map(f=>({match_n:f.n,score_a:f.a,score_b:f.b})), targetId)
-            .then(()=>refreshLb())
-            .catch(()=>showToast("Couldn't save the import — please try again","err"));
+            .then(()=>{
+              refreshLb();
+              setAutoSaveStatus("saved");
+              clearTimeout(autoSavedTimer.current);
+              autoSavedTimer.current=setTimeout(()=>setAutoSaveStatus(s=>s==="saved"?"":s),2200);
+            })
+            .catch(()=>{ setAutoSaveStatus(""); showToast("Couldn't save the import — please try again","err"); });
         } catch { showToast("Couldn't parse that CSV","err"); }
       };
       reader.readAsText(file);
@@ -4476,6 +4507,20 @@ export default function App() {
                 }}>
                   {complete ? "✓" : "🏁"} <b style={{fontFamily:"monospace"}}>{filledCount}/{total}</b> filled
                 </span>
+                {editable && autoSaveStatus && (
+                  <span style={{
+                    display:"inline-flex",alignItems:"center",gap:5,alignSelf:"center",
+                    padding:"5px 10px",borderRadius:999,fontSize:11.5,fontWeight:600,whiteSpace:"nowrap",
+                    transition:"opacity .2s",
+                    color: autoSaveStatus==="saved" ? C.green : C.muted,
+                    background: autoSaveStatus==="saved" ? "rgba(16,185,129,0.10)" : "rgba(148,163,184,0.10)",
+                    border: `1px solid ${autoSaveStatus==="saved" ? "rgba(16,185,129,0.35)" : C.border}`,
+                  }}>
+                    {autoSaveStatus==="saved"
+                      ? <>✓ Saved</>
+                      : <><span className="autosave-spin" style={{width:9,height:9,borderRadius:"50%",border:`2px solid ${C.border}`,borderTopColor:C.accent,display:"inline-block"}}/> Saving…</>}
+                  </span>
+                )}
                 {winnerLocked ? (
                   <div title="Tournament winner pick (+10 pts)" style={tileBase}>
                     <span style={tileLabel}>Champion</span>
