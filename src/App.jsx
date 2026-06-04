@@ -822,6 +822,9 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
     const willBeFilled = (a!=="" && a!=null && b!=="" && b!=null);
     // empty → still empty: nothing to do (avoid pointless API calls)
     if (!wasFilled && !willBeFilled) return;
+    // No-op edits (focus-only, blur-unchanged, change-then-back) are filtered
+    // by the parent's flushPredSaves against its persisted baseline — reporting
+    // here is cheap (buffer only) and keeps the baseline check authoritative.
     // If the user cleared either side, the prediction is no longer complete:
     // persist nulls so myPreds / filledCount / the Submit button reflect it.
     const data = willBeFilled
@@ -833,8 +836,12 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
     finally { pendingSaveRef.current = false; }
   }
   async function persistResult(a, b) {
+    const sa = a===""||a==null ? null : Number(a);
+    const sb = b===""||b==null ? null : Number(b);
+    // No change vs the saved result → skip (focus-only / edited back).
+    if (sa===(result?.[0]??null) && sb===(result?.[1]??null)) return;
     pendingSaveRef.current = true;
-    try { await onResultSave(match.n,{score_a:a===""?null:Number(a),score_b:b===""?null:Number(b)}); }
+    try { await onResultSave(match.n,{score_a:sa,score_b:sb}); }
     catch(e){console.error(e);}
     finally { pendingSaveRef.current = false; }
   }
@@ -849,15 +856,10 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
     editingRef.current = false;
     return persistResult(side===0?val:resA, side===1?val:resB);
   }
-  // Debounced auto-save WHILE typing — saves ~0.5s after the last keystroke so
-  // rapid multi-digit edits collapse into one write. Gated on editingRef so it
-  // only fires for real user edits, never for prop-driven (poll) value syncs.
-  useEffect(() => {
-    if (!editingRef.current) return;
-    autoSaveTimer.current = setTimeout(() => persistPred(localA, localB), AUTOSAVE_MS);
-    return () => clearTimeout(autoSaveTimer.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localA, localB]);
+  // Prediction edits report to the parent immediately (onChange → persistPred →
+  // onSave); the PARENT batches them into one debounced bulk write, so jumping
+  // box-to-box doesn't save per box. (No per-row debounce here for predictions.)
+  // Admin RESULT edits have no bulk endpoint, so they keep a per-row debounce.
   useEffect(() => {
     if (!editingRef.current) return;
     autoSaveTimer.current = setTimeout(() => persistResult(resA, resB), AUTOSAVE_MS);
@@ -969,10 +971,10 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
       <div style={{display:"flex",alignItems:"center",gap:3,justifyContent:"center"}}>
         <input type="number" inputMode="numeric" min={0} max={20} value={localA}
-          onFocus={handleFocus} onChange={e=>setLocalA(e.target.value.replace(/[^\d]/g,""))} onBlur={e=>savePred(0,e.target.value)} style={{...numInput,...(localA!==""&&localA!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
+          onFocus={handleFocus} onChange={e=>{const v=e.target.value.replace(/[^\d]/g,"");setLocalA(v);persistPred(v,localB);}} onBlur={e=>savePred(0,e.target.value)} style={{...numInput,...(localA!==""&&localA!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
         <span style={{color:C.muted,fontSize:13}}>:</span>
         <input type="number" inputMode="numeric" min={0} max={20} value={localB}
-          onFocus={handleFocus} onChange={e=>setLocalB(e.target.value.replace(/[^\d]/g,""))} onBlur={e=>savePred(1,e.target.value)} style={{...numInput,...(localB!==""&&localB!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
+          onFocus={handleFocus} onChange={e=>{const v=e.target.value.replace(/[^\d]/g,"");setLocalB(v);persistPred(localA,v);}} onBlur={e=>savePred(1,e.target.value)} style={{...numInput,...(localB!==""&&localB!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
       </div>
       {isKnockoutMatch && (
         <span style={{fontSize:9,color:C.muted,letterSpacing:".3px",textTransform:"uppercase",fontWeight:500,opacity:0.7}}>
@@ -1069,9 +1071,9 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
       }}>{flag(match.a)} {match.a}</span>
       {editable?(
         <>
-          <input type="number" inputMode="numeric" min={0} max={20} value={localA} onFocus={handleFocus} onChange={e=>setLocalA(e.target.value.replace(/[^\d]/g,""))} onBlur={e=>savePred(0,e.target.value)} style={{...numInput,...(localA!==""&&localA!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
+          <input type="number" inputMode="numeric" min={0} max={20} value={localA} onFocus={handleFocus} onChange={e=>{const v=e.target.value.replace(/[^\d]/g,"");setLocalA(v);persistPred(v,localB);}} onBlur={e=>savePred(0,e.target.value)} style={{...numInput,...(localA!==""&&localA!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
           <span style={{textAlign:"center",color:C.muted}}>:</span>
-          <input type="number" inputMode="numeric" min={0} max={20} value={localB} onFocus={handleFocus} onChange={e=>setLocalB(e.target.value.replace(/[^\d]/g,""))} onBlur={e=>savePred(1,e.target.value)} style={{...numInput,...(localB!==""&&localB!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
+          <input type="number" inputMode="numeric" min={0} max={20} value={localB} onFocus={handleFocus} onChange={e=>{const v=e.target.value.replace(/[^\d]/g,"");setLocalB(v);persistPred(localA,v);}} onBlur={e=>savePred(1,e.target.value)} style={{...numInput,...(localB!==""&&localB!=null?{border:`1px solid ${C.accent}`,color:C.accent,fontWeight:700}:{})}}/>
         </>
       ):adminResult?(
         <>
@@ -3323,6 +3325,16 @@ export default function App() {
   });
   const [myPreds,setMyPreds]=useState({});
   const [myWinner,setMyWinner]=useState(null);
+  // Batched prediction auto-save: edits buffer here and flush as ONE bulk write
+  // ~500ms after the last change, so rapid box-to-box edits don't fire a save
+  // per box. (Refs live in App so they survive MyPredictions' inline re-render.)
+  const predSaveBuf   = useRef({});     // {match_n: {score_a, score_b}}
+  const predSaveEntry = useRef(null);   // entry the buffered edits belong to
+  const predSaveTimer = useRef(null);
+  // Last PERSISTED prediction values for the active form, {match_n: [a,b]}.
+  // Only advanced on a real save/load — never on optimistic typing — so the
+  // flush can drop no-op edits (focus+blur, or change-then-change-back).
+  const predBaseline  = useRef({});
   const [results,setResults]=useState({});
   const [leaderboard,setLeaderboard]=useState([]);
   const [participants,setParticipants]=useState([]);
@@ -3526,10 +3538,12 @@ export default function App() {
           setActiveEntryId(id=>id||active.id);
           const predMap={};for(const p of(active.predictions||[]))predMap[p.match_n]=[p.score_a,p.score_b];
           setMyPreds(predMap);
+          predBaseline.current={...predMap};
           setMyWinner(active.winner_pick||(d.locked_winner??null));
         }else if(d.my_predictions){
           const predMap={};for(const p of d.my_predictions)predMap[p.match_n]=[p.score_a,p.score_b];
           setMyPreds(predMap);
+          predBaseline.current={...predMap};
           const myEntry=d.leaderboard.find(e=>e.user_id===userId);
           if(myEntry)setMyWinner(myEntry.winner_pick||null);
         }
@@ -3835,33 +3849,66 @@ export default function App() {
     });
 
     function switchEntry(entryId){
+      flushPredSaves();   // persist any pending edits on the current form first
       setActiveEntryId(entryId);
       const entry=entries.find(e=>e.id===entryId);
       if(entry){
         const m={};for(const p of(entry.predictions||[]))m[p.match_n]=[p.score_a,p.score_b];
         setMyPreds(m);
+        predBaseline.current={...m};
         setMyWinner(entry.winner_pick||(lockedWinner??null));
       }
     }
 
-    async function savePred(matchN,data){
-      await api.setPrediction(matchN,data,activeEntryId);
+    // Flush buffered prediction edits as ONE bulk write. Returns a promise so
+    // submit can await it. Safe to call when empty.
+    function flushPredSaves(){
+      if(predSaveTimer.current){ clearTimeout(predSaveTimer.current); predSaveTimer.current=null; }
+      const entryId=predSaveEntry.current;
+      const buf=predSaveBuf.current; predSaveBuf.current={};
+      // Drop no-op edits vs the last-persisted baseline. Covers focusing a box
+      // without typing, blurring unchanged, and editing then changing back.
+      const base=predBaseline.current||{};
+      const changed=Object.keys(buf).filter(n=>{
+        const b=base[n]; const ba=b?(b[0]??null):null, bb=b?(b[1]??null):null;
+        return !(ba===buf[n].score_a && bb===buf[n].score_b);
+      });
+      if(!entryId||!changed.length) return Promise.resolve();
+      const items=changed.map(n=>({match_n:Number(n),score_a:buf[n].score_a,score_b:buf[n].score_b}));
+      // A genuine change invalidates the affected stages' submissions → draft.
+      const stages=new Set(changed.map(n=>matchStageObj(Number(n)).n));
+      setEntries(es=>es.map(e=>{
+        if(e.id!==entryId) return e;
+        const ss={...(e.stages_submitted||{})};
+        stages.forEach(s=>{ delete ss[s]; delete ss[String(s)]; });
+        return {...e, stages_submitted: ss};
+      }));
+      // Advance the baseline so a later change-back to these values is a no-op.
+      changed.forEach(n=>{ predBaseline.current[n]=[buf[n].score_a,buf[n].score_b]; });
+      return api.setPredictionsBulk(items, entryId)
+        .then(()=>{ refreshLb(); })
+        .catch(()=>showToast("Couldn't save your changes — please try again","err"));
+    }
+
+    // onSave from MatchRow — update the UI immediately, then batch the network
+    // write (debounced bulk) so jumping box-to-box doesn't save once per box.
+    function savePred(matchN,data){
+      // Optimistic scores so the boxes / filled-count update at once. The draft
+      // flag is only cleared in flushPredSaves, and only for a REAL change vs the
+      // baseline — so a focus-only touch or a change-back doesn't enter draft.
       setMyPreds(p=>({...p,[matchN]:[data.score_a,data.score_b]}));
-      // Editing a prediction invalidates this stage's submission — user has
-      // to re-click "Submit stage N" to confirm the changes. Mirror the
-      // server (set_prediction clears the same key) in local state so the
-      // Submit button reappears immediately.
-      const stageOfMatch = matchStageObj(matchN).n;
       setEntries(es=>es.map(e=>{
         if (e.id !== activeEntryId) return e;
         const preds = [...(e.predictions||[]).filter(p=>p.match_n!==matchN),
                        {match_n:matchN,score_a:data.score_a,score_b:data.score_b}];
-        const stagesSub = {...(e.stages_submitted||{})};
-        delete stagesSub[stageOfMatch];
-        delete stagesSub[String(stageOfMatch)];
-        return {...e, predictions: preds, stages_submitted: stagesSub};
+        return {...e, predictions: preds};
       }));
-      showToast("Saved · re-submit to confirm");
+      // Buffer + debounce the bulk write (locked onto the active form).
+      if(predSaveEntry.current && predSaveEntry.current!==activeEntryId) flushPredSaves();
+      predSaveEntry.current = activeEntryId;
+      predSaveBuf.current[matchN] = data;
+      clearTimeout(predSaveTimer.current);
+      predSaveTimer.current = setTimeout(flushPredSaves, 500);
     }
 
     // Random fill — fills the given stage's empty / no-score-yet predictions
@@ -3905,6 +3952,7 @@ export default function App() {
         filled.forEach(f => { np[f.n] = [f.a, f.b]; });
         return np;
       });
+      if(targetId===activeEntryId) filled.forEach(f=>{ predBaseline.current[f.n]=[f.a,f.b]; });
       showToast(`Random-filled ${filled.length} match${filled.length===1?"":"es"} · stage ${stageN} 🎲`);
 
       // 2) Persist in the BACKGROUND as ONE bulk write (not N concurrent PUTs).
@@ -3969,6 +4017,7 @@ export default function App() {
             return {...e, predictions:preds, stages_submitted:ss};
           }));
           setMyPreds(p=>{ const np={...p}; apply.forEach(f=>{ np[f.n]=[f.a,f.b]; }); return np; });
+          if(targetId===activeEntryId) apply.forEach(f=>{ predBaseline.current[f.n]=[f.a,f.b]; });
           showToast(
             `Imported ${apply.length} match${apply.length===1?"":"es"}${skipped?` · ${skipped} skipped`:""}`
             + (remaining>0?` · ${remaining} still empty — fill & Submit` : "") + " 📄",
@@ -4071,6 +4120,7 @@ export default function App() {
       if(!canSubmit||submitting)return;
       setSubmitting(true);
       try{
+        await flushPredSaves();   // persist any buffered edits before submitting
         await api.submitEntry(activeEntryId);
         const now=new Date().toISOString();
         setEntries(es=>es.map(e=>e.id!==activeEntryId?e:{
@@ -4129,10 +4179,14 @@ export default function App() {
         danger: true,
       });
       if(!ok) return;
+      // Discard any buffered edits — we're reverting to the last submission.
+      if(predSaveTimer.current){ clearTimeout(predSaveTimer.current); predSaveTimer.current=null; }
+      predSaveBuf.current={};
       try{
         const res = await api.resetDraft(activeEntryId);
         const m={}; for(const p of (res.predictions||[])) m[p.match_n]=[p.score_a,p.score_b];
         setMyPreds(m);
+        predBaseline.current={...m};
         setMyWinner(res.winner||null);
         setEntries(es=>es.map(e=>e.id!==activeEntryId?e:{
           ...e,
@@ -4153,6 +4207,11 @@ export default function App() {
         danger: true,
       });
       if(!ok)return;
+      // Drop any buffered edits for the form being deleted.
+      if(predSaveEntry.current===entryId){
+        if(predSaveTimer.current){ clearTimeout(predSaveTimer.current); predSaveTimer.current=null; }
+        predSaveBuf.current={};
+      }
       try{
         await api.deleteEntry(entryId);
         const next=entries.filter(e=>e.id!==entryId);
