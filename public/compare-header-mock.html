@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>MondoBet — Compare header alternatives</title>
+<style>
+  :root{--bg:#0b1020;--panel:#141c34;--panel2:#1a2547;--border:#2a3658;--text:#e7ecf3;
+    --muted:#6b7a99;--accent:#a3e635;--green:#10b981;--orange:#f59e0b;--red:#ef4444;--indigo:#6366f1;--gold:#facc15}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:26px 18px 80px}
+  h1{color:var(--accent);font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 24px}
+  .wrap{max-width:880px;margin:0 auto}
+  .opt{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 16px 18px;margin-bottom:22px}
+  .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+    color:var(--accent);background:rgba(163,230,53,.10);border:1px solid rgba(163,230,53,.3);padding:3px 9px;border-radius:999px}
+  .otitle{font-size:15px;font-weight:700;margin:8px 0 2px}
+  .odesc{font-size:12.5px;color:var(--muted);margin:0 0 14px;line-height:1.5}
+  .btn{font-family:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);padding:6px 12px;font-size:13px}
+  select{font-family:inherit;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:13px}
+  .topbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+  .topbar .sp{flex:1}
+  .cmpto{color:var(--muted);font-size:12px}
+  .mono{font-family:monospace}
+  .green{color:var(--green)}.red{color:var(--red)}.muted{color:var(--muted)}.indigo{color:var(--indigo)}.gold{color:var(--gold)}
+
+  /* A — scoreboard cards */
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .scard{border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--panel2);position:relative}
+  .scard.lead{border-color:rgba(16,185,129,.5);background:rgba(16,185,129,.06)}
+  .scard .who{font-size:11px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+  .scard .nm{font-size:13px;color:var(--text);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .scard .sc{font-size:30px;font-weight:800;font-family:monospace;line-height:1}
+  .scard .badge{position:absolute;top:10px;right:12px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px}
+  .scard.lead .badge{background:rgba(16,185,129,.16);color:var(--green);border:1px solid rgba(16,185,129,.45)}
+  .scard.trail .badge{background:rgba(148,163,184,.12);color:var(--muted);border:1px solid var(--border)}
+  .cap{text-align:center;font-size:13px;margin-top:10px;color:var(--text)}
+
+  /* B — centered VS */
+  .vsbar{display:flex;align-items:center;justify-content:center;gap:18px;background:var(--panel2);
+    border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+  .vsbar .seg{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;flex:1}
+  .vsbar .seg.r{align-items:center}
+  .vsbar .nm{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+  .vsbar .sc{font-size:30px;font-weight:800;font-family:monospace;line-height:1}
+  .vsbar .mid{color:var(--muted);font-size:13px;font-weight:700}
+  .capB{text-align:center;font-size:12.5px;margin-top:8px;color:var(--muted)}
+
+  /* C — diff bar */
+  .dlabels{display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px}
+  .bar{height:26px;border-radius:7px;overflow:hidden;display:flex;border:1px solid var(--border)}
+  .bar .l{background:linear-gradient(90deg,rgba(99,102,241,.55),rgba(99,102,241,.3));display:flex;align-items:center;padding:0 10px;font-family:monospace;font-weight:700;font-size:13px}
+  .bar .r{background:linear-gradient(90deg,rgba(250,204,21,.3),rgba(250,204,21,.55));display:flex;align-items:center;justify-content:flex-end;padding:0 10px;font-family:monospace;font-weight:700;font-size:13px;flex:1}
+  .capC{text-align:center;font-size:12.5px;margin-top:8px;color:var(--muted)}
+
+  /* D — sentence led */
+  .sent{font-size:18px;font-weight:700;line-height:1.35}
+  .pills{margin-top:8px;display:flex;gap:8px;align-items:center}
+  .pill{font-family:monospace;font-weight:700;font-size:13px;padding:3px 11px;border-radius:8px;border:1px solid var(--border)}
+  .pill.you{color:var(--indigo);border-color:rgba(99,102,241,.5);background:rgba(99,102,241,.08)}
+  .pill.them{color:var(--gold);border-color:rgba(250,204,21,.5);background:rgba(250,204,21,.08)}
+</style></head>
+<body>
+<div class="wrap">
+  <h1>Compare header — clearer alternatives</h1>
+  <p class="sub">Same data each time: <b>You (Alice — main) 22</b> · <b>Bob — Bracket A 23</b> — you're behind by 1.
+    Goal: who's who and who's ahead, readable instantly. (Back + “Compare to” stay in the top row.)</p>
+
+  <!-- A -->
+  <div class="opt">
+    <span class="tag">Option A · Recommended</span>
+    <div class="otitle">Two scoreboard cards + leader highlight</div>
+    <p class="odesc">Your card (indigo) and theirs (gold); whoever leads gets a green outline + “Leading”, the other “Behind”.
+      A plain caption states the margin. No separate “You vs …” title — the cards are the title.</p>
+    <div class="topbar"><button class="btn">← Back to leaderboard</button><span class="sp"></span>
+      <span class="cmpto">Compare to:</span><select><option>Bob — Bracket A</option><option>Charlie</option><option>Diana</option></select></div>
+    <div class="cards">
+      <div class="scard trail"><span class="badge">▼ Behind</span><div class="who">You</div><div class="nm">Alice — main</div><div class="sc indigo">22</div></div>
+      <div class="scard lead"><span class="badge">▲ Leading</span><div class="who">Comparing</div><div class="nm">Bob — Bracket A</div><div class="sc gold">23</div></div>
+    </div>
+    <div class="cap"><b class="gold">Bob — Bracket A</b> leads by <b>1 point</b>.</div>
+  </div>
+
+  <!-- B -->
+  <div class="opt">
+    <span class="tag">Option B</span>
+    <div class="otitle">Centered “VS” scoreboard</div>
+    <p class="odesc">Symmetric sports-scoreboard look. Leader’s score is green, the other muted; a caption underneath
+      spells out the margin.</p>
+    <div class="topbar"><button class="btn">← Back to leaderboard</button><span class="sp"></span>
+      <span class="cmpto">Compare to:</span><select><option>Bob — Bracket A</option><option>Charlie</option><option>Diana</option></select></div>
+    <div class="vsbar">
+      <div class="seg"><span class="nm">You · Alice — main</span><span class="sc muted">22</span></div>
+      <span class="mid">VS</span>
+      <div class="seg r"><span class="nm">Bob — Bracket A</span><span class="sc green">23</span></div>
+    </div>
+    <div class="capB">Bob — Bracket A is ahead by <b class="green">1 point</b></div>
+  </div>
+
+  <!-- C -->
+  <div class="opt">
+    <span class="tag">Option C</span>
+    <div class="otitle">Head-to-head margin bar</div>
+    <p class="odesc">A proportional bar gives an instant feel for the gap. Your share (indigo) vs theirs (gold), each
+      labelled with the points; caption confirms the lead.</p>
+    <div class="topbar"><button class="btn">← Back to leaderboard</button><span class="sp"></span>
+      <span class="cmpto">Compare to:</span><select><option>Bob — Bracket A</option><option>Charlie</option><option>Diana</option></select></div>
+    <div class="dlabels"><span class="indigo">You · Alice — main</span><span class="gold">Bob — Bracket A</span></div>
+    <div class="bar"><span class="l" style="width:49%">22</span><span class="r">23</span></div>
+    <div class="capC">Almost level — <b class="gold">Bob</b> by 1</div>
+  </div>
+
+  <!-- D -->
+  <div class="opt">
+    <span class="tag">Option D</span>
+    <div class="otitle">Plain-language sentence</div>
+    <p class="odesc">Leads with a readable sentence, then the two scores as chips. Most explicit, least “dashboard”.</p>
+    <div class="topbar"><button class="btn">← Back to leaderboard</button><span class="sp"></span>
+      <span class="cmpto">Compare to:</span><select><option>Bob — Bracket A</option><option>Charlie</option><option>Diana</option></select></div>
+    <div class="sent">You’re <span class="red">1 point behind</span> <span class="gold">Bob — Bracket A</span></div>
+    <div class="pills"><span class="pill you">You 22</span><span class="muted">vs</span><span class="pill them">Them 23</span></div>
+  </div>
+
+</div>
+</body></html>
