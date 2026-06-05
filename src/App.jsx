@@ -3346,6 +3346,8 @@ function CompareView({ matches, results, liveMatches, isMobile,
                        theirKey, theirName, theirPreds, theirTotal, theirRank, theirWinner, winnersRevealed,
                        forms, loading, onBack, onPick }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const searchRef = useRef(null);
   const [showTop, setShowTop] = useState(false);
   const liveRef = useRef(null);
   // Show a floating "↑ Top" once the user has scrolled down (the auto-scroll to
@@ -3361,6 +3363,9 @@ function CompareView({ matches, results, liveMatches, isMobile,
     const h = () => setMenuOpen(false);
     document.addEventListener("click", h);
     return () => document.removeEventListener("click", h);
+  }, [menuOpen]);
+  useEffect(() => {
+    if (menuOpen) { setSearch(""); setTimeout(() => searchRef.current?.focus(), 40); }
   }, [menuOpen]);
   // Auto-scroll to the live match once the compared form has loaded. The rows'
   // horizontal-scroll wrapper (overflow-x:auto) is also a vertical scroll
@@ -3487,22 +3492,43 @@ function CompareView({ matches, results, liveMatches, isMobile,
         <span style={{fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:200,marginTop:1}}>{winnersRevealed ? <>🏆 {theirWinner?withFlag(theirWinner):"—"}</> : "🔒 champion hidden"}</span>
       </button>
       {menuOpen&&(
-        <div style={{position:"absolute",top:"calc(100% + 4px)",right:0,minWidth:200,maxHeight:280,overflowY:"auto",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",zIndex:40,padding:4}}>
-          {forms.map((f,i)=>{
-            const showDivider = i>0 && forms[i-1].fav && !f.fav;
-            return (
-            <Fragment key={f.key}>
-              {showDivider && <div style={{height:1,background:C.border,margin:"4px 6px"}}/>}
-              <div onClick={(e)=>{e.stopPropagation();setMenuOpen(false);onPick(f.key);}}
-                style={{padding:"8px 10px",borderRadius:6,fontSize:13,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:8,
-                  color:f.key===theirKey?C.accent:C.text,fontWeight:f.key===theirKey?700:400}}>
-                <span style={{width:12,flexShrink:0,color:"#facc15",fontSize:12}}>{f.fav?"★":""}</span>
-                <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{f.name}</span>
-                <span style={{marginLeft:"auto",color:C.muted,fontFamily:"monospace",fontSize:11}}>#{f.rank}</span>
-              </div>
-            </Fragment>
-            );
-          })}
+        <div onClick={e=>e.stopPropagation()}
+          style={{position:"absolute",top:"calc(100% + 4px)",right:0,minWidth:220,background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",zIndex:40,overflow:"hidden"}}>
+          {/* Search row */}
+          <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderBottom:`1px solid ${C.border}`}}>
+            <span style={{color:C.muted,fontSize:13,flexShrink:0}}>🔍</span>
+            <input ref={searchRef} value={search} onChange={e=>setSearch(e.target.value)}
+              placeholder="Search forms…"
+              style={{border:"none",outline:"none",background:"transparent",fontSize:13,color:C.text,flex:1,fontFamily:"inherit"}}/>
+            {search&&(
+              <button onClick={()=>setSearch("")} style={{background:"none",border:0,color:C.muted,cursor:"pointer",fontSize:13,padding:0,fontFamily:"inherit"}}>✕</button>
+            )}
+          </div>
+          {/* List */}
+          <div style={{maxHeight:260,overflowY:"auto",padding:4}}>
+            {(()=>{
+              const filtered = forms.filter(f=>f.name.toLowerCase().includes(search.toLowerCase()));
+              if(filtered.length===0) return <div style={{padding:16,textAlign:"center",color:C.muted,fontSize:13}}>No forms found</div>;
+              return filtered.map((f,i)=>{
+                const origIdx = forms.indexOf(f);
+                const showDivider = !search && origIdx>0 && forms[origIdx-1].fav && !f.fav;
+                return (
+                <Fragment key={f.key}>
+                  {showDivider && <div style={{height:1,background:C.border,margin:"4px 6px"}}/>}
+                  <div onClick={()=>{setMenuOpen(false);onPick(f.key);}}
+                    style={{padding:"8px 10px",borderRadius:6,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",gap:8,
+                      background:f.key===theirKey?"rgba(163,230,53,0.08)":"transparent",
+                      color:f.key===theirKey?C.accent:C.text,fontWeight:f.key===theirKey?700:400,
+                      transition:"background .1s"}}>
+                    <span style={{width:12,flexShrink:0,color:"#facc15",fontSize:12}}>{f.fav?"★":""}</span>
+                    <span style={{overflow:"hidden",textOverflow:"ellipsis",flex:1}}>{f.name}</span>
+                    <span style={{color:C.muted,fontFamily:"monospace",fontSize:11}}>#{f.rank}</span>
+                  </div>
+                </Fragment>
+                );
+              });
+            })()}
+          </div>
         </div>
       )}
     </div>
