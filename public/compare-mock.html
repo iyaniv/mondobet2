@@ -70,7 +70,16 @@
   .ptile .plabel{font-size:9px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);font-weight:700}
   .ptile .pname{display:inline-flex;align-items:center;gap:5px;font-size:15px;font-weight:700;line-height:1.1;white-space:nowrap;color:var(--accent);max-width:200px;overflow:hidden}
   .ptile .pname span.t{overflow:hidden;text-overflow:ellipsis}
-  .ptile .pname .car{font-size:8px;opacity:.7}
+  .ptile .pname .car{font-size:8px;opacity:.7;transition:transform .2s}
+  /* dropdown menu for the Compare-to selector */
+  .selwrap{position:relative;display:inline-block}
+  .selmenu{position:absolute;top:calc(100% + 4px);right:0;min-width:190px;background:var(--panel);border:1px solid var(--border);
+    border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:30;padding:4px;display:none}
+  .selmenu.open{display:block}
+  .selitem{padding:8px 10px;border-radius:6px;font-size:13px;cursor:pointer;white-space:nowrap;color:var(--text);display:flex;align-items:center;gap:10px}
+  .selitem:hover{background:rgba(163,230,53,.08)}
+  .selitem.cur{color:var(--accent);font-weight:700}
+  .selitem .rk{margin-left:auto;color:var(--muted);font-family:monospace;font-size:11px}
   /* RANK / POINTS tile (same as the bar) */
   .tile{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:62px;
     padding:5px 12px;border-radius:8px;background:#0b1020;border:1px solid var(--border)}
@@ -151,9 +160,12 @@
           <div class="fgroup them" id="grpThem">
             <div class="tile"><span class="tlabel">Rank</span><b class="tval rank" id="themRank">#0</b></div>
             <div class="tile"><span class="tlabel">Points</span><b class="tval pts" id="themTotal">0</b></div>
-            <button class="ptile" onclick="cycleCompare()" title="Change the form to compare">
-              <span class="plabel">Compare to</span>
-              <span class="pname"><span class="t" id="themName">—</span><span class="car">▾</span></span></button>
+            <div class="selwrap">
+              <button class="ptile" onclick="toggleSel(event)" title="Change the form to compare">
+                <span class="plabel">Compare to</span>
+                <span class="pname"><span class="t" id="themName">—</span><span class="car" id="selCar">▾</span></span></button>
+              <div class="selmenu" id="selMenu"></div>
+            </div>
           </div>
         </div>
 
@@ -234,7 +246,17 @@ function buildLb(){
 const RANK = {bob:1, charlie:3, diana:4};   // their leaderboard ranks; "me" is #2
 const MY_RANK = 2;
 let liveRowId=null, currentKey=null;
-function cycleCompare(){ const keys=Object.keys(FORMS); const i=keys.indexOf(currentKey); renderCompare(keys[(i+1)%keys.length]); }
+function closeSel(){ const m=document.getElementById('selMenu'); if(m){m.classList.remove('open');} const c=document.getElementById('selCar'); if(c)c.style.transform='none'; }
+function toggleSel(e){
+  e.stopPropagation();
+  const m=document.getElementById('selMenu');
+  m.innerHTML=Object.keys(FORMS).map(k=>'<div class="selitem'+(k===currentKey?' cur':'')+'" onclick="pickCompare(event,\''+k+'\')">'+FORMS[k].name+'<span class="rk">#'+RANK[k]+'</span></div>').join('');
+  const willOpen=!m.classList.contains('open');
+  m.classList.toggle('open',willOpen);
+  document.getElementById('selCar').style.transform=willOpen?'rotate(180deg)':'none';
+}
+function pickCompare(e,k){ e.stopPropagation(); closeSel(); renderCompare(k); }
+document.addEventListener('click',closeSel);
 function renderCompare(key){
   currentKey=key;
   const them = FORMS[key];
