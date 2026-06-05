@@ -2086,7 +2086,7 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage }) {
                 {bracketMs.map(m => slotCard(m, isFinalStage ? finalSlotPx : slotPx))}
                 {/* 3rd place — floating below, not connected to bracket lines */}
                 {thirdMatch && (
-                  <div style={{marginTop:8,padding:'0 3px'}}>
+                  <div style={{marginTop:4,padding:'0 3px'}}>
                     <div style={{fontSize:10,fontWeight:700,color:C.muted,
                       padding:'0 0 4px',letterSpacing:'.06em',textTransform:'uppercase'}}>
                       🥉 3rd place
@@ -3423,7 +3423,12 @@ function CompareView({ matches, results, liveMatches,
   return (
     <div>
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
-        <Btn ghost onClick={onBack}>← Back to leaderboard</Btn>
+        <button onClick={onBack} style={{
+          display:"inline-flex",alignItems:"center",gap:7,fontFamily:"inherit",cursor:"pointer",
+          fontSize:13.5,fontWeight:700,color:C.accent,background:"rgba(163,230,53,0.10)",
+          border:`1px solid ${C.accent}`,borderRadius:8,padding:"9px 18px",whiteSpace:"nowrap"}}>
+          <span style={{fontSize:16,lineHeight:1}}>←</span> Back to leaderboard
+        </button>
         <span style={{flex:1}}/>
       </div>
       {/* Option A scoreboard — static rank/points boxes + centered gap. */}
