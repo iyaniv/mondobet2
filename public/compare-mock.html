@@ -250,7 +250,7 @@ function closeSel(){ const m=document.getElementById('selMenu'); if(m){m.classLi
 function toggleSel(e){
   e.stopPropagation();
   const m=document.getElementById('selMenu');
-  m.innerHTML=Object.keys(FORMS).map(k=>'<div class="selitem'+(k===currentKey?' cur':'')+'" onclick="pickCompare(event,\''+k+'\')">'+FORMS[k].name+'<span class="rk">#'+RANK[k]+'</span></div>').join('');
+  m.innerHTML=Object.keys(FORMS).sort((a,b)=>RANK[a]-RANK[b]).map(k=>'<div class="selitem'+(k===currentKey?' cur':'')+'" onclick="pickCompare(event,\''+k+'\')">'+FORMS[k].name+'<span class="rk">#'+RANK[k]+'</span></div>').join('');
   const willOpen=!m.classList.contains('open');
   m.classList.toggle('open',willOpen);
   document.getElementById('selCar').style.transform=willOpen?'rotate(180deg)':'none';
