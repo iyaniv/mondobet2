@@ -3341,7 +3341,7 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
 // COMPARE VIEW — shown in place of the leaderboard table when a form is clicked.
 // Side-by-side: your pick + pts | match + result | their pick + pts, per match.
 // ─────────────────────────────────────────────────────────────────────────────
-function CompareView({ matches, results, liveMatches,
+function CompareView({ matches, results, liveMatches, isMobile,
                        myName, myPreds, myTotal, myRank, myWinner,
                        theirKey, theirName, theirPreds, theirTotal, theirRank, theirWinner, winnersRevealed,
                        forms, loading, onBack, onPick }) {
@@ -3426,24 +3426,87 @@ function CompareView({ matches, results, liveMatches,
     const live=liveMatches[m.n];
     const isLive=!!(live&&live.is_live);
     let ws=null; if(eff){ if(eff[0]>eff[1])ws=0; else if(eff[1]>eff[0])ws=1; else if(eff[2]==='a')ws=0; else if(eff[2]==='b')ws=1; }
-    rowEls.push(
+    const rowBg = isLive?"rgba(239,68,68,0.05)":C.panel;
+    const rowBorder = `1px solid ${isLive?"rgba(239,68,68,0.55)":C.border}`;
+    const teams = (
+      <span style={{fontSize:11,whiteSpace:"normal",textAlign:"center",lineHeight:1.3}}>
+        <span style={{color:ws===0?C.accent:C.text,fontWeight:ws===0?700:400}}>{flag(m.a)} {m.a}</span>
+        <span style={{color:C.muted}}> v </span>
+        <span style={{color:ws===1?C.accent:C.text,fontWeight:ws===1?700:400}}>{m.b} {flag(m.b)}</span>
+      </span>
+    );
+    rowEls.push(isMobile ? (
+      // Mobile: two lines — match + result on top, your pick vs their pick below.
+      <div key={m.n} ref={isLive?liveRef:undefined} style={{background:rowBg,border:rowBorder,borderRadius:7,padding:"7px 10px",marginBottom:5}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,flexWrap:"wrap",marginBottom:6}}>{teams}{resChip(eff,live)}</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+          <span style={{display:"inline-flex",alignItems:"center",gap:6}}>{ptsChip(myPreds[m.n],eff)}{predBox(myPreds[m.n],eff)}</span>
+          <span style={{display:"inline-flex",alignItems:"center",gap:6}}>{predBox(theirPreds[m.n],eff)}{ptsChip(theirPreds[m.n],eff)}</span>
+        </div>
+      </div>
+    ) : (
       <div key={m.n} ref={isLive?liveRef:undefined} style={{display:"grid",gridTemplateColumns:GRID,alignItems:"center",gap:6,
-        background:isLive?"rgba(239,68,68,0.05)":C.panel,border:`1px solid ${isLive?"rgba(239,68,68,0.55)":C.border}`,borderRadius:7,padding:"6px 8px",marginBottom:4}}>
+        background:rowBg,border:rowBorder,borderRadius:7,padding:"6px 8px",marginBottom:4}}>
         <span style={{textAlign:"right"}}>{ptsChip(myPreds[m.n],eff)}</span>
         <span style={{display:"flex",justifyContent:"flex-end"}}>{predBox(myPreds[m.n],eff)}</span>
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,minWidth:0}}>
-          <span style={{fontSize:11,whiteSpace:"normal",textAlign:"center",lineHeight:1.3}}>
-            <span style={{color:ws===0?C.accent:C.text,fontWeight:ws===0?700:400}}>{flag(m.a)} {m.a}</span>
-            <span style={{color:C.muted}}> v </span>
-            <span style={{color:ws===1?C.accent:C.text,fontWeight:ws===1?700:400}}>{m.b} {flag(m.b)}</span>
-          </span>
-          {resChip(eff,live)}
-        </div>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,minWidth:0}}>{teams}{resChip(eff,live)}</div>
         <span style={{display:"flex",justifyContent:"flex-start"}}>{predBox(theirPreds[m.n],eff)}</span>
         <span style={{textAlign:"left"}}>{ptsChip(theirPreds[m.n],eff)}</span>
       </div>
-    );
+    ));
   });
+
+  // Header sub-blocks (composed differently for desktop vs mobile).
+  const youNameBlk = (
+    <div style={{display:"inline-flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,padding:"5px 12px",minWidth:110,maxWidth:200}}>
+      <span style={tileLabel}>Your form</span>
+      <span style={{fontSize:15,fontWeight:700,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:180}}>{myName}</span>
+      <span style={{fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:180,marginTop:1}}>🏆 {myWinner?withFlag(myWinner):"—"}</span>
+    </div>
+  );
+  const youRankTile  = <div style={tileBox}><span style={tileLabel}>Rank</span><b style={{...tileVal,color:C.text}}>{myRank?`#${myRank}`:"—"}</b></div>;
+  const youPtsTile   = <div style={tileBox}><span style={tileLabel}>Points</span><b style={{...tileVal,color:C.accent}}>{myTotal}</b></div>;
+  const theirRankTile= <div style={tileBox}><span style={tileLabel}>Rank</span><b style={{...tileVal,color:C.text}}>{theirRank?`#${theirRank}`:"—"}</b></div>;
+  const theirPtsTile = <div style={tileBox}><span style={tileLabel}>Points</span><b style={{...tileVal,color:gap<0?C.green:C.accent}}>{theirTotal}</b></div>;
+  const gapBlock = (
+    <div style={{display:"flex",flexDirection:isMobile?"row":"column",alignItems:"center",justifyContent:"center",gap:isMobile?8:0,minWidth:56}}>
+      <span style={{fontSize:10,textTransform:"uppercase",letterSpacing:".4px",color:C.muted}}>gap</span>
+      <b style={{fontSize:isMobile?18:22,fontFamily:"monospace",lineHeight:1.1,color:gap>0?C.green:gap<0?C.red:C.muted}}>{gap>0?`+${gap}`:gap}</b>
+    </div>
+  );
+  const theirPicker = (
+    <div style={{position:"relative"}}>
+      <button onClick={(e)=>{e.stopPropagation();setMenuOpen(o=>!o);}} title="Change the form to compare" style={{
+        display:"inline-flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,minWidth:120,maxWidth:220,height:"100%",
+        padding:"5px 12px",borderRadius:8,background:C.bg,border:`1px solid ${C.accent}`,fontFamily:"inherit",cursor:"pointer"}}>
+        <span style={tileLabel}>Compare to</span>
+        <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:15,fontWeight:700,color:C.accent,whiteSpace:"nowrap",maxWidth:200,overflow:"hidden"}}>
+          <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{theirName}</span>
+          <span style={{fontSize:8,opacity:.7,transition:"transform .2s",transform:menuOpen?"rotate(180deg)":"none"}}>▾</span>
+        </span>
+        <span style={{fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:200,marginTop:1}}>{winnersRevealed ? <>🏆 {theirWinner?withFlag(theirWinner):"—"}</> : "🔒 champion hidden"}</span>
+      </button>
+      {menuOpen&&(
+        <div style={{position:"absolute",top:"calc(100% + 4px)",right:0,minWidth:200,maxHeight:280,overflowY:"auto",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",zIndex:40,padding:4}}>
+          {forms.map((f,i)=>{
+            const showDivider = i>0 && forms[i-1].fav && !f.fav;
+            return (
+            <Fragment key={f.key}>
+              {showDivider && <div style={{height:1,background:C.border,margin:"4px 6px"}}/>}
+              <div onClick={(e)=>{e.stopPropagation();setMenuOpen(false);onPick(f.key);}}
+                style={{padding:"8px 10px",borderRadius:6,fontSize:13,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:8,
+                  color:f.key===theirKey?C.accent:C.text,fontWeight:f.key===theirKey?700:400}}>
+                <span style={{width:12,flexShrink:0,color:"#facc15",fontSize:12}}>{f.fav?"★":""}</span>
+                <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{f.name}</span>
+                <span style={{marginLeft:"auto",color:C.muted,fontFamily:"monospace",fontSize:11}}>#{f.rank}</span>
+              </div>
+            </Fragment>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div>
@@ -3456,74 +3519,51 @@ function CompareView({ matches, results, liveMatches,
         </button>
         <span style={{flex:1}}/>
       </div>
-      {/* Scoreboard — mirrored & centered: each box's cluster is centered, and
-          the right box is reversed (points · rank · form) so the two forms are
-          symmetric around the gap (names on the outer edges). */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:10,alignItems:"stretch",marginBottom:10}}>
-        <div style={{...groupBox,justifyContent:"center"}}>
-          <div style={{display:"inline-flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,padding:"5px 12px",minWidth:110,maxWidth:200}}>
-            <span style={tileLabel}>Your form</span>
-            <span style={{fontSize:15,fontWeight:700,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:180}}>{myName}</span>
-            <span style={{fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:180,marginTop:1}}>🏆 {myWinner?withFlag(myWinner):"—"}</span>
-          </div>
-          <div style={tileBox}><span style={tileLabel}>Rank</span><b style={{...tileVal,color:C.text}}>{myRank?`#${myRank}`:"—"}</b></div>
-          <div style={tileBox}><span style={tileLabel}>Points</span><b style={{...tileVal,color:C.accent}}>{myTotal}</b></div>
+      {/* Scoreboard — desktop: mirrored & centered 3-col (names on the outer
+          edges, rank/points toward the gap). Mobile: the two forms stacked, the
+          gap inline between them. */}
+      {isMobile ? (
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
+          <div style={{...groupBox,justifyContent:"space-between"}}>{youNameBlk}{youRankTile}{youPtsTile}</div>
+          {gapBlock}
+          <div style={{...groupBox,justifyContent:"space-between"}}>{theirPicker}{theirRankTile}{theirPtsTile}</div>
         </div>
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minWidth:56}}>
-          <span style={{fontSize:10,textTransform:"uppercase",letterSpacing:".4px",color:C.muted}}>gap</span>
-          <b style={{fontSize:22,fontFamily:"monospace",lineHeight:1.1,color:gap>0?C.green:gap<0?C.red:C.muted}}>{gap>0?`+${gap}`:gap}</b>
+      ) : (
+        <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:10,alignItems:"stretch",marginBottom:10}}>
+          <div style={{...groupBox,justifyContent:"center"}}>{youNameBlk}{youRankTile}{youPtsTile}</div>
+          {gapBlock}
+          <div style={{...groupBox,justifyContent:"center"}}>{theirPtsTile}{theirRankTile}{theirPicker}</div>
         </div>
-        <div style={{...groupBox,justifyContent:"center"}}>
-          <div style={tileBox}><span style={tileLabel}>Points</span><b style={{...tileVal,color:gap<0?C.green:C.accent}}>{theirTotal}</b></div>
-          <div style={tileBox}><span style={tileLabel}>Rank</span><b style={{...tileVal,color:C.text}}>{theirRank?`#${theirRank}`:"—"}</b></div>
-          <div style={{position:"relative"}}>
-            <button onClick={(e)=>{e.stopPropagation();setMenuOpen(o=>!o);}} title="Change the form to compare" style={{
-              display:"inline-flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,minWidth:120,maxWidth:220,height:"100%",
-              padding:"5px 12px",borderRadius:8,background:C.bg,border:`1px solid ${C.accent}`,fontFamily:"inherit",cursor:"pointer"}}>
-              <span style={tileLabel}>Compare to</span>
-              <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:15,fontWeight:700,color:C.accent,whiteSpace:"nowrap",maxWidth:200,overflow:"hidden"}}>
-                <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{theirName}</span>
-                <span style={{fontSize:8,opacity:.7,transition:"transform .2s",transform:menuOpen?"rotate(180deg)":"none"}}>▾</span>
-              </span>
-              <span style={{fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:200,marginTop:1}}>{winnersRevealed ? <>🏆 {theirWinner?withFlag(theirWinner):"—"}</> : "🔒 champion hidden"}</span>
-            </button>
-            {menuOpen&&(
-              <div style={{position:"absolute",top:"calc(100% + 4px)",right:0,minWidth:200,maxHeight:280,overflowY:"auto",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",zIndex:40,padding:4}}>
-                {forms.map((f,i)=>{
-                  // divider between the favorites group and the rest
-                  const showDivider = i>0 && forms[i-1].fav && !f.fav;
-                  return (
-                  <Fragment key={f.key}>
-                    {showDivider && <div style={{height:1,background:C.border,margin:"4px 6px"}}/>}
-                    <div onClick={(e)=>{e.stopPropagation();setMenuOpen(false);onPick(f.key);}}
-                      style={{padding:"8px 10px",borderRadius:6,fontSize:13,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:8,
-                        color:f.key===theirKey?C.accent:C.text,fontWeight:f.key===theirKey?700:400}}>
-                      <span style={{width:12,flexShrink:0,color:"#facc15",fontSize:12}}>{f.fav?"★":""}</span>
-                      <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{f.name}</span>
-                      <span style={{marginLeft:"auto",color:C.muted,fontFamily:"monospace",fontSize:11}}>#{f.rank}</span>
-                    </div>
-                  </Fragment>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-      <div style={{overflowX:"auto"}}>
-        <div style={{minWidth:520}}>
-          <div style={{display:"grid",gridTemplateColumns:GRID,gap:6,padding:"0 8px",marginBottom:6,fontSize:10,textTransform:"uppercase",letterSpacing:".4px",color:C.muted,fontWeight:700}}>
-            <span style={{gridColumn:"1 / 3",textAlign:"right"}}>Your pick · pts</span>
-            <span style={{gridColumn:"3",textAlign:"center"}}>Match · result</span>
-            <span style={{gridColumn:"4 / 6",textAlign:"left"}}>pts · their pick</span>
-          </div>
+      )}
+      {(() => {
+        const body = (
           <div style={{opacity:loading?0.5:1,transition:"opacity .2s"}}>
             {loading && <div style={{textAlign:"center",padding:16,color:C.muted,fontSize:13}}>Loading predictions…</div>}
             {!loading && displayMatches.length===0 && <div style={{textAlign:"center",padding:24,color:C.muted,fontSize:13}}>No comparable matches yet — check back once games kick off.</div>}
             {!loading && rowEls}
           </div>
-        </div>
-      </div>
+        );
+        if (isMobile) return (
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",padding:"0 10px",marginBottom:6,fontSize:10,textTransform:"uppercase",letterSpacing:".4px",color:C.muted,fontWeight:700}}>
+              <span>Your pick · pts</span><span>pts · their pick</span>
+            </div>
+            {body}
+          </div>
+        );
+        return (
+          <div style={{overflowX:"auto"}}>
+            <div style={{minWidth:520}}>
+              <div style={{display:"grid",gridTemplateColumns:GRID,gap:6,padding:"0 8px",marginBottom:6,fontSize:10,textTransform:"uppercase",letterSpacing:".4px",color:C.muted,fontWeight:700}}>
+                <span style={{gridColumn:"1 / 3",textAlign:"right"}}>Your pick · pts</span>
+                <span style={{gridColumn:"3",textAlign:"center"}}>Match · result</span>
+                <span style={{gridColumn:"4 / 6",textAlign:"left"}}>pts · their pick</span>
+              </div>
+              {body}
+            </div>
+          </div>
+        );
+      })()}
       {/* Floating "scroll to top" — matches the leaderboard FAB style. */}
       <div style={{position:"fixed",bottom:20,right:18,zIndex:200,
         pointerEvents:showTop?"auto":"none",opacity:showTop?1:0,
@@ -5115,7 +5155,7 @@ export default function App() {
         <div>
           <TodaysGames matches={matches} results={results} liveMatches={liveMatches} tz={tz}/>
           <CompareView
-            matches={matches} results={results} liveMatches={liveMatches}
+            matches={matches} results={results} liveMatches={liveMatches} isMobile={isMobile}
             myName={myLbRow?myLbRow.name:"Your form"} myPreds={myPreds} myTotal={myLbRow?myLbRow.total:0} myRank={myRank} myWinner={myWinner}
             theirKey={compareKey} theirName={themRow?themRow.name:"—"}
             theirPreds={comparePreds} theirTotal={themRow?themRow.total:0} theirRank={themRank} theirWinner={compareWinner} winnersRevealed={(config.current_stage||1)>1}
