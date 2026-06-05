@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>MondoBet — "Find my forms" options</title>
+<style>
+  :root{--bg:#0b1020;--panel:#141c34;--panel2:#1a2547;--border:#2a3658;--text:#e7ecf3;
+    --muted:#6b7a99;--accent:#a3e635;--green:#10b981;--red:#ef4444;--indigo:#6366f1;--gold:#facc15}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:26px 18px 80px}
+  h1{color:var(--accent);font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 24px;line-height:1.5}
+  .wrap{max-width:760px;margin:0 auto}
+  .opt{margin-bottom:30px}
+  .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--accent);background:rgba(163,230,53,.10);border:1px solid rgba(163,230,53,.3);padding:3px 9px;border-radius:999px}
+  .otitle{font-size:15px;font-weight:700;margin:8px 0 2px}
+  .odesc{font-size:12.5px;color:var(--muted);margin:0 0 12px;line-height:1.5}
+
+  .lb{background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  thead tr{background:var(--panel2)}
+  th{padding:8px 8px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);text-align:left;font-size:12px}
+  th.c{text-align:center;width:34px}
+  td{padding:9px 8px;border-bottom:1px solid rgba(42,54,88,.45)}
+  td.c{text-align:center;width:34px}
+  .rk{text-align:center;font-weight:700}
+  .pts{text-align:center;color:var(--accent);font-weight:700;font-family:monospace;font-size:15px}
+  .you{background:var(--indigo);color:#fff;font-size:9px;padding:1px 5px;border-radius:4px;margin-left:6px}
+  .star{color:var(--muted);opacity:.5}
+  .me-row{background:rgba(99,102,241,.10)}
+  .me-row td:first-child{box-shadow:inset 3px 0 0 var(--indigo)}
+  .up{color:var(--green);font-size:10px;font-weight:700}.down{color:var(--red);font-size:10px;font-weight:700}
+  .lock{color:var(--muted)}
+  .ctrls{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+  .seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .seg button{font-family:inherit;font-size:12.5px;font-weight:700;padding:6px 14px;border:0;background:transparent;color:var(--muted);cursor:pointer}
+  .seg button.on{background:var(--accent);color:#0b1020}
+  .chip{font-family:inherit;font-size:12px;font-weight:600;padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:var(--panel2);color:var(--muted);cursor:pointer}
+  .chip.on{background:rgba(99,102,241,.15);border-color:var(--indigo);color:#c7ccff}
+
+  /* A — summary panel */
+  .mypanel{background:var(--panel);border:1px solid rgba(99,102,241,.4);border-radius:10px;padding:10px 12px;margin-bottom:12px}
+  .mypanel .h{font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between}
+  .myrow{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;background:var(--panel2);margin-bottom:6px}
+  .myrow:last-child{margin-bottom:0}
+  .myrow .nm{font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .myrow .badge{font-family:monospace;font-weight:800;font-size:16px}
+  .myrow .ptsv{font-family:monospace;font-weight:700;color:var(--accent);min-width:42px;text-align:right}
+  .myrow .gap{font-size:11px;color:var(--muted);white-space:nowrap}
+  .myrow .go{color:var(--muted);font-size:14px}
+  .divider{padding:6px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);background:rgba(99,102,241,.06)}
+</style></head>
+<body>
+<div class="wrap">
+  <h1>Find / focus my forms — options</h1>
+  <p class="sub">You're <b>Alice</b> with two forms — <b>Alice — main (#4)</b> and <b>Alice — backup (#6)</b> — in a 12-form board. Goal: see where your forms stand without hunting through the list (replacing the auto-scroll). Pick one (or combine).</p>
+
+  <!-- A -->
+  <div class="opt">
+    <span class="tag">Option A · Recommended</span>
+    <div class="otitle">"Your forms" summary panel (pinned above the table)</div>
+    <p class="odesc">A compact card at the top always shows each of your forms — rank, points, stage movement, and the gap to the form just above. Tap one to jump to it (or compare). No scrolling needed.</p>
+    <div class="mypanel">
+      <div class="h"><span>Your forms</span><span>best: #4 of 12</span></div>
+      <div class="myrow"><span class="badge" style="color:var(--text)">#4</span><span class="nm">Alice — main 🏆🇫🇷</span><span class="up">▲1</span><span class="gap">5 pts behind #3</span><span class="ptsv">464</span><span class="go">→</span></div>
+      <div class="myrow"><span class="badge" style="color:var(--text)">#6</span><span class="nm">Alice — backup 🏆🇧🇷</span><span class="down">▼1</span><span class="gap">2 pts behind #5</span><span class="ptsv">377</span><span class="go">→</span></div>
+    </div>
+    <div class="lb"><table><thead><tr><th class="c">#</th><th class="c">★</th><th>Name</th><th class="c">Pts</th><th>Winner</th></tr></thead><tbody>
+      <tr><td class="rk">1</td><td class="c"><span class="star">☆</span></td><td>Bob — strategy B</td><td class="pts">524</td><td>🇪🇸</td></tr>
+      <tr><td class="rk">2</td><td class="c"><span class="star">☆</span></td><td>Diana</td><td class="pts">515</td><td>🇫🇷</td></tr>
+      <tr><td class="rk">3</td><td class="c"><span class="star">☆</span></td><td>Yaniv — A</td><td class="pts">514</td><td>🇫🇷</td></tr>
+      <tr class="me-row"><td class="rk">4</td><td class="c">★</td><td>Alice — main <span class="you">YOU</span></td><td class="pts">464</td><td>🇫🇷</td></tr>
+    </tbody></table></div>
+  </div>
+
+  <!-- B -->
+  <div class="opt">
+    <span class="tag">Option B</span>
+    <div class="otitle">"Mine" filter toggle</div>
+    <p class="odesc">A toggle next to the ★ favorites filter — flip it to show only your own forms (with their real ranks). Quick way to isolate yours, then flip back to the full board.</p>
+    <div class="ctrls">
+      <span class="chip">★ Favorites</span>
+      <span class="chip on">👤 My forms</span>
+      <span style="margin-left:auto" class="seg"><button class="on">Actual</button><button>Simulate</button></span>
+    </div>
+    <div class="lb"><table><thead><tr><th class="c">#</th><th class="c">★</th><th>Name</th><th class="c">Pts</th><th>Winner</th></tr></thead><tbody>
+      <tr class="me-row"><td class="rk">4</td><td class="c">★</td><td>Alice — main <span class="you">YOU</span></td><td class="pts">464</td><td>🇫🇷</td></tr>
+      <tr class="me-row"><td class="rk">6</td><td class="c">★</td><td>Alice — backup <span class="you">YOU</span></td><td class="pts">377</td><td>🇧🇷</td></tr>
+    </tbody></table></div>
+  </div>
+
+  <!-- C -->
+  <div class="opt">
+    <span class="tag">Option C</span>
+    <div class="otitle">Pin my forms to the top</div>
+    <p class="odesc">Your forms are pinned in a highlighted band at the very top (keeping their true rank), then a divider and the full leaderboard from #1. You always see yours and the leaders together.</p>
+    <div class="lb"><table><thead><tr><th class="c">#</th><th class="c">★</th><th>Name</th><th class="c">Pts</th><th>Winner</th></tr></thead><tbody>
+      <tr class="me-row"><td class="rk">4</td><td class="c">★</td><td>Alice — main <span class="you">YOU</span></td><td class="pts">464</td><td>🇫🇷</td></tr>
+      <tr class="me-row"><td class="rk">6</td><td class="c">★</td><td>Alice — backup <span class="you">YOU</span></td><td class="pts">377</td><td>🇧🇷</td></tr>
+      <tr><td class="divider" colspan="5">— Full leaderboard —</td></tr>
+      <tr><td class="rk">1</td><td class="c"><span class="star">☆</span></td><td>Bob — strategy B</td><td class="pts">524</td><td>🇪🇸</td></tr>
+      <tr><td class="rk">2</td><td class="c"><span class="star">☆</span></td><td>Diana</td><td class="pts">515</td><td>🇫🇷</td></tr>
+      <tr><td class="rk">3</td><td class="c"><span class="star">☆</span></td><td>Yaniv — A</td><td class="pts">514</td><td>🇫🇷</td></tr>
+    </tbody></table></div>
+  </div>
+
+  <!-- D -->
+  <div class="opt">
+    <span class="tag">Option D</span>
+    <div class="otitle">Sticky own rows</div>
+    <p class="odesc">Keep the normal ordered list, but your rows "stick" to the top edge as you scroll past them — so one of your forms is always visible on screen no matter where you are in the list. (Subtle; works best combined with A.)</p>
+    <div class="lb"><table><thead><tr><th class="c">#</th><th class="c">★</th><th>Name</th><th class="c">Pts</th><th>Winner</th></tr></thead><tbody>
+      <tr class="me-row" style="box-shadow:inset 0 -1px 0 var(--indigo),inset 0 1px 0 var(--indigo)"><td class="rk">4</td><td class="c">★</td><td>Alice — main <span class="you">YOU</span> <span style="font-size:10px;color:var(--muted)">· pinned while scrolling</span></td><td class="pts">464</td><td>🇫🇷</td></tr>
+      <tr><td class="rk">5</td><td class="c"><span class="star">☆</span></td><td>Grace</td><td class="pts">459</td><td>🇦🇷</td></tr>
+      <tr class="me-row"><td class="rk">6</td><td class="c">★</td><td>Alice — backup <span class="you">YOU</span></td><td class="pts">377</td><td>🇧🇷</td></tr>
+      <tr><td class="rk">7</td><td class="c"><span class="star">☆</span></td><td>Frank — copy</td><td class="pts">373</td><td>🏴</td></tr>
+    </tbody></table></div>
+  </div>
+
+</div>
+</body></html>
