@@ -76,17 +76,16 @@ html { -webkit-text-size-adjust: 100%; }
 }
 .help-blink { animation: helpBlink 1.2s ease-out 1; }
 
-/* Leaderboard header-star blink — same double-pulse shape as helpBlink but
-   gold-tinted and looping every 4 s so it keeps drawing attention until the
-   user stars their first row. Stops once `showFavHint` is false. */
+/* Leaderboard header-star blink — double color+opacity pulse, looping every
+   3.5 s. Uses only color/opacity (no box-shadow/transform) so the table's
+   overflow:auto wrapper never clips it. Stops once showFavHint is false. */
 @keyframes lbStarBlink {
-  0%, 100% { transform: scale(1);    box-shadow: 0 0 0 0   rgba(250,204,21,0); }
-  12%      { transform: scale(1.22); box-shadow: 0 0 0 6px rgba(250,204,21,0.5); }
-  24%      { transform: scale(1);    box-shadow: 0 0 0 0   rgba(250,204,21,0); }
-  36%      { transform: scale(1.22); box-shadow: 0 0 0 6px rgba(250,204,21,0.5); }
-  48%      { transform: scale(1);    box-shadow: 0 0 0 0   rgba(250,204,21,0); }
+  0%        { color: #facc15; opacity: 0.35; }
+  12%, 36%  { color: #facc15; opacity: 1;    }
+  24%, 48%  { color: #facc15; opacity: 0.2;  }
+  60%, 100% { color: #facc15; opacity: 1;    }
 }
-.lb-star-blink { animation: lbStarBlink 4s ease-out infinite; border-radius: 5px; }
+.lb-star-blink { animation: lbStarBlink 3.5s ease-in-out infinite; }
 
 /* Submit button "ready to go" pulse — used on the My-predictions action bar
    once the form is complete (all matches + champion). Uses a pseudo-element

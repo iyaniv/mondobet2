@@ -5517,10 +5517,10 @@ export default function App() {
                       return (
                         <span onClick={()=>setFavOnly(v=>!v)}
                           title={favOnly?"Showing favorites only — click to show all":"Show favorites only"}
-                          className={showFavHint?"lb-star-blink":""}
                           style={{cursor:"pointer",userSelect:"none",display:"inline-flex",flexDirection:"column",
                             alignItems:"center",gap:1,position:"relative",verticalAlign:"middle"}}>
-                          <span style={{fontSize:17,lineHeight:1,color:starColor,transition:"color .2s"}}>{starChar}</span>
+                          <span className={showFavHint?"lb-star-blink":""}
+                            style={{fontSize:17,lineHeight:1,color:showFavHint?undefined:starColor,transition:"color .2s"}}>{starChar}</span>
                           {hasFavs&&!favOnly&&(
                             <span style={{position:"absolute",top:-2,right:-4,width:7,height:7,borderRadius:"50%",
                               background:HINT_GOLD,border:`1.5px solid ${C.panel2}`}}/>
