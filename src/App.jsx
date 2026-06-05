@@ -3346,7 +3346,16 @@ function CompareView({ matches, results, liveMatches,
                        theirKey, theirName, theirPreds, theirTotal, theirRank,
                        forms, loading, onBack, onPick }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showTop, setShowTop] = useState(false);
   const liveRef = useRef(null);
+  // Show a floating "↑ Top" once the user has scrolled down (the auto-scroll to
+  // the live match can leave them deep in the list).
+  useEffect(() => {
+    const onScroll = () => setShowTop(window.scrollY > 400);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
   useEffect(() => {
     if (!menuOpen) return;
     const h = () => setMenuOpen(false);
@@ -3509,6 +3518,17 @@ function CompareView({ matches, results, liveMatches,
             {!loading && displayMatches.length===0 && <div style={{textAlign:"center",padding:24,color:C.muted,fontSize:13}}>No comparable matches yet — check back once games kick off.</div>}
             {!loading && rowEls}
           </div>
+        </div>
+      </div>
+      {/* Floating "scroll to top" — matches the leaderboard FAB style. */}
+      <div style={{position:"fixed",bottom:20,right:18,zIndex:200,
+        pointerEvents:showTop?"auto":"none",opacity:showTop?1:0,
+        transform:showTop?"translateY(0)":"translateY(10px)",transition:"opacity .22s,transform .22s"}}>
+        <div onClick={()=>window.scrollTo({top:0,behavior:"smooth"})}
+          style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:600,cursor:"pointer",
+            borderRadius:22,padding:"8px 14px",boxShadow:"0 4px 18px rgba(0,0,0,.55)",
+            background:C.panel2,border:`1px solid ${C.border}`,color:C.muted}}>
+          ↑ Top
         </div>
       </div>
     </div>
