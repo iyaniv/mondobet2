@@ -3353,10 +3353,26 @@ function CompareView({ matches, results, liveMatches,
     document.addEventListener("click", h);
     return () => document.removeEventListener("click", h);
   }, [menuOpen]);
-  // Auto-scroll to the live match (Today's Games panel up top already flags it).
+  // Auto-scroll to the live match once the compared form has loaded. The rows'
+  // horizontal-scroll wrapper (overflow-x:auto) is also a vertical scroll
+  // container, which eats scrollIntoView — so scroll the WINDOW to the row's
+  // computed position instead.
   useEffect(() => {
-    const t = setTimeout(() => { if (liveRef.current) liveRef.current.scrollIntoView({ behavior:"smooth", block:"center" }); }, 320);
-    return () => clearTimeout(t);
+    if (loading) return;
+    // Re-center the live row a few times over ~1.2s. A single timed jump gets
+    // clamped back to the top when the list height briefly shrinks (a follow-up
+    // data refresh, or React's dev double-render). Re-asserting until the layout
+    // settles is reliable; once the row is centered, each pass is a no-op.
+    let n = 0;
+    const id = setInterval(() => {
+      const el = liveRef.current;
+      if (el) {
+        const r = el.getBoundingClientRect();
+        window.scrollTo({ top: Math.max(0, r.top + window.scrollY - (window.innerHeight / 2) + (r.height / 2)), behavior: "auto" });
+      }
+      if (++n >= 8) clearInterval(id);
+    }, 150);
+    return () => clearInterval(id);
   }, [theirKey, loading]);
 
   const GREEN="#10b981", ORANGE="#f59e0b", RED="#ef4444";
