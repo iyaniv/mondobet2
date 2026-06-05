@@ -14,12 +14,22 @@
   .tab.on{background:var(--accent);color:#0b1020;font-weight:700;border-color:var(--accent)}
   .tab.gone{text-decoration:line-through;opacity:.4;position:relative}
   .gonetag{font-size:9px;color:var(--red);position:absolute;top:-8px;left:50%;transform:translateX(-50%);white-space:nowrap}
-  .wrap{max-width:900px;margin:20px auto;padding:0 16px}
+  .wrap{max-width:900px;margin:18px auto;padding:0 16px}
   h2{font-size:18px;margin:0 0 12px}
   .muted{color:var(--muted)}
-  .btn{font-family:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);padding:7px 13px;font-size:13px}
-  .btn.accent{background:var(--accent);color:#0b1020;border-color:var(--accent);font-weight:700}
-  select{font-family:inherit;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px}
+  .btn{font-family:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);padding:6px 12px;font-size:13px}
+  select{font-family:inherit;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:13px}
+
+  /* ---- Today's Games panel (persistent, stays on top) ---- */
+  .today{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:16px;
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .today .ttl{font-weight:800;letter-spacing:.5px;font-size:13px;color:var(--text)}
+  .today .day{color:var(--muted);font-size:12px}
+  .gcard{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid rgba(239,68,68,.4);
+    border-radius:8px;padding:5px 10px;font-size:12.5px;margin-left:auto}
+  .gcard .livep{display:inline-flex;align-items:center;gap:4px;color:var(--red);font-weight:700;font-size:10px;text-transform:uppercase}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);animation:blink 1s infinite}
+  @keyframes blink{50%{opacity:.3}}
 
   /* leaderboard */
   .lb{background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden}
@@ -35,19 +45,25 @@
   .vsbtn{text-align:right;color:var(--muted);font-size:12px;white-space:nowrap}
   tr.row:hover .vsbtn{color:var(--accent)}
 
-  /* compare header */
-  .cmpbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
-  .totals{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:stretch;margin-bottom:14px}
-  .tcard{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:center}
-  .tcard .nm{font-size:12px;color:var(--muted);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .tcard .v{font-size:26px;font-weight:800;font-family:monospace;color:var(--accent)}
-  .tcard.you{border-top:3px solid var(--indigo)}
-  .tcard.them{border-top:3px solid var(--gold)}
-  .diff{display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;color:var(--muted)}
-  .diff b{font-size:20px;font-family:monospace}
+  /* ---- crossfade transition between leaderboard and compare ---- */
+  .stage{position:relative}
+  .screen{transition:opacity .22s ease, transform .22s ease}
+  .screen.out{opacity:0;transform:translateY(8px);pointer-events:none;position:absolute;inset:0}
+  .screen.inHidden{display:none}
 
-  .livebanner{display:flex;align-items:center;gap:10px;background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.4);
-    border-radius:8px;padding:9px 13px;margin-bottom:12px;font-size:13px}
+  /* compare header (compact) */
+  .cmpbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+  .cmpbar h2{margin:0;flex:1;font-size:16px}
+  /* slim totals strip */
+  .summary{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--border);
+    border-radius:9px;padding:8px 14px;margin-bottom:6px;font-size:13px;flex-wrap:wrap}
+  .summary .side{display:flex;align-items:baseline;gap:7px}
+  .summary .side .lbl{color:var(--muted);font-size:12px}
+  .summary .side b{font-size:18px;font-family:monospace}
+  .summary .mine b{color:var(--indigo)}
+  .summary .theirs b{color:var(--gold)}
+  .summary .vs{color:var(--muted);font-size:11px}
+  .summary .diffpill{margin-left:auto;font-family:monospace;font-weight:700;font-size:13px;padding:2px 9px;border-radius:999px}
 
   .stagehdr{color:var(--indigo);font-weight:700;font-size:13px;margin:14px 0 6px;padding:6px 10px;background:var(--panel2);border-radius:6px}
 
@@ -67,15 +83,7 @@
   .res.final{background:rgba(48,209,88,.14);border:1px solid rgba(48,209,88,.4);color:var(--green)}
   .res.live{background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.4);color:var(--red)}
   .res.none{background:var(--panel2);border:1px solid var(--border);color:var(--muted)}
-  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);margin-right:4px;animation:blink 1s infinite}
-  @keyframes blink{50%{opacity:.3}}
-  @keyframes flash{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}50%{box-shadow:0 0 0 4px rgba(239,68,68,.25)}}
-  .flash{animation:flash 1.4s ease-out 2}
-  .colhdr{display:grid;grid-template-columns:46px 1fr 150px 1fr 46px;gap:6px;padding:0 8px;margin-bottom:6px;font-size:10px;
-    text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:700}
-  .colhdr .l{grid-column:1 / 3;text-align:right}
-  .colhdr .c{grid-column:3;text-align:center}
-  .colhdr .r{grid-column:4 / 6;text-align:left}
+  .res .dot{margin-right:4px}
   .hide{display:none}
 </style></head>
 <body>
@@ -89,47 +97,49 @@
   </div>
   <div class="wrap">
 
-    <!-- ===== LEADERBOARD SCREEN ===== -->
-    <div id="lbScreen">
-      <h2>🏆 Leaderboard <span class="muted" style="font-size:13px">— click any form to compare it with yours</span></h2>
-      <div class="lb">
-        <table>
-          <thead><tr><th class="c">#</th><th>Name</th><th class="c">Points</th><th>Winner pick</th><th></th></tr></thead>
-          <tbody id="lbBody"></tbody>
-        </table>
-      </div>
+    <!-- Today's Games panel — persistent on top in BOTH views -->
+    <div class="today">
+      <span class="ttl">⚽ TODAY'S GAMES</span><span class="day">Thursday, June 4</span>
+      <span class="gcard"><span class="livep"><span class="dot"></span>Live</span> 🇧🇷 Brazil <b>1–1</b> Korea Rep. 🇰🇷 <span class="muted">67′</span></span>
     </div>
 
-    <!-- ===== COMPARE SCREEN ===== -->
-    <div id="cmpScreen" class="hide">
-      <div class="cmpbar">
-        <button class="btn" onclick="showLb()">← Back to leaderboard</button>
-        <h2 id="cmpTitle" style="margin:0;flex:1"></h2>
-        <label class="muted" style="font-size:12px">Compare to:
-          <select id="cmpSelect" onchange="renderCompare(this.value)"></select>
-        </label>
+    <div class="stage" id="stage">
+      <!-- ===== LEADERBOARD SCREEN ===== -->
+      <div id="lbScreen" class="screen">
+        <h2>🏆 Leaderboard <span class="muted" style="font-size:13px">— click any form to compare it with yours</span></h2>
+        <div class="lb">
+          <table>
+            <thead><tr><th class="c">#</th><th>Name</th><th class="c">Points</th><th>Winner pick</th><th></th></tr></thead>
+            <tbody id="lbBody"></tbody>
+          </table>
+        </div>
       </div>
 
-      <div id="liveBanner" class="livebanner hide">
-        <span><span class="dot"></span><b>Live now</b> — <span id="liveLabel"></span></span>
-        <button class="btn" style="margin-left:auto" onclick="jumpLive()">Jump to live ↓</button>
-      </div>
+      <!-- ===== COMPARE SCREEN ===== -->
+      <div id="cmpScreen" class="screen inHidden">
+        <div class="cmpbar">
+          <button class="btn" onclick="showLb()">← Back to leaderboard</button>
+          <h2 id="cmpTitle"></h2>
+          <label class="muted" style="font-size:12px">Compare to:
+            <select id="cmpSelect" onchange="renderCompare(this.value)"></select>
+          </label>
+        </div>
 
-      <div class="totals">
-        <div class="tcard you"><div class="nm">YOU · Alice — main</div><div class="v" id="youTotal">0</div></div>
-        <div class="diff"><span>diff</span><b id="diffVal">0</b></div>
-        <div class="tcard them"><div class="nm" id="themName">—</div><div class="v" id="themTotal" style="color:var(--gold)">0</div></div>
-      </div>
+        <div class="summary">
+          <span class="side mine"><span class="lbl">You · Alice — main</span><b id="youTotal">0</b></span>
+          <span class="vs">vs</span>
+          <span class="side theirs"><b id="themTotal">0</b><span class="lbl" id="themName">—</span></span>
+          <span class="diffpill" id="diffPill">0</span>
+        </div>
 
-      <div class="colhdr"><span class="l">Your pick · pts</span><span class="c">Match · result</span><span class="r">pts · their pick</span></div>
-      <div id="cmpRows"></div>
+        <div id="cmpRows"></div>
+      </div>
     </div>
 
   </div>
 
 <script>
 const F = {green:'#10b981',orange:'#f59e0b',red:'#ef4444',muted:'#6b7a99',text:'#e7ecf3',accent:'#a3e635'};
-// stage label, teams, actual result/live
 const MATCHES = [
   {n:73,a:'Mexico',b:'South Africa',fa:'🇲🇽',fb:'🇿🇦',stage:'Round of 32',result:[2,1],live:null},
   {n:74,a:'Argentina',b:'Australia',fa:'🇦🇷',fb:'🇦🇺',stage:'Round of 32',result:[1,0],live:null},
@@ -153,7 +163,6 @@ const LB = [
 ];
 
 function eff(m){ return m.result ? {s:m.result,live:false} : (m.live ? {s:m.live.score,live:true,min:m.live.minute} : null); }
-// scoring: dir(5) + exact(3 both / 1 one)
 function score(pred,res){
   if(!pred||!res) return null;
   const sign=x=>x===0?0:x>0?1:-1;
@@ -203,15 +212,13 @@ function renderCompare(key){
   document.getElementById('cmpTitle').innerHTML = 'You <span class="muted">vs</span> '+them.name;
   document.getElementById('themName').textContent = them.name;
   document.getElementById('cmpSelect').value = key;
-  let you=0, th=0, rows='', lastStage=null, liveLabel=null; liveRowId=null;
+  let you=0, th=0, rows='', lastStage=null; liveRowId=null;
   MATCHES.forEach(m=>{
     const e=eff(m);
     const myP = ME.preds[m.n], thP = them.preds[m.n];
     if(e){ const a=score(myP,e.s), b=score(thP,e.s); if(a)you+=a.total; if(b)th+=b.total; }
     if(m.stage!==lastStage){ rows+='<div class="stagehdr">▸ '+m.stage+'</div>'; lastStage=m.stage; }
-    const isLive = e&&e.live;
-    const rid = 'm'+m.n;
-    if(isLive){ liveRowId=rid; liveLabel=m.fa+' '+m.a+' v '+m.b+' '+m.fb+' · '+e.s[0]+':'+e.s[1]+' '+e.min+"′"; }
+    const isLive = e&&e.live; const rid='m'+m.n; if(isLive) liveRowId=rid;
     rows += '<div class="crow'+(isLive?' live':'')+'" id="'+rid+'">'
       + '<div class="pcell left">'+ptsChip(myP,e&&e.s)+'</div>'
       + '<div class="pcell left">'+predBox(myP,e&&e.s)+'</div>'
@@ -223,23 +230,31 @@ function renderCompare(key){
   document.getElementById('cmpRows').innerHTML = rows;
   document.getElementById('youTotal').textContent = you;
   document.getElementById('themTotal').textContent = th;
-  const d = you-th;
-  document.getElementById('diffVal').textContent = (d>0?'+':'')+d;
-  document.getElementById('diffVal').style.color = d>0?F.green:d<0?F.red:F.muted;
-  const lb = document.getElementById('liveBanner');
-  if(liveRowId){ lb.classList.remove('hide'); document.getElementById('liveLabel').textContent=liveLabel; setTimeout(jumpLive,250); }
-  else lb.classList.add('hide');
+  const d = you-th; const dp=document.getElementById('diffPill');
+  dp.textContent=(d>0?'+':'')+d+' you';
+  dp.style.color = d>0?F.green:d<0?F.red:F.muted;
+  dp.style.background = d>0?'rgba(16,185,129,.12)':d<0?'rgba(239,68,68,.12)':'rgba(148,163,184,.12)';
+  // Auto-jump to the live match silently (no banner) — Today's Games panel stays on top.
+  if(liveRowId) setTimeout(()=>{ const el=document.getElementById(liveRowId); if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); }, 260);
 }
-function jumpLive(){ if(!liveRowId) return; const el=document.getElementById(liveRowId);
-  el.scrollIntoView({behavior:'smooth',block:'center'}); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+
+// crossfade: fade current screen out, fade the other in — feels like one page.
+function swap(fromId,toId,after){
+  const from=document.getElementById(fromId), to=document.getElementById(toId);
+  from.classList.add('out');
+  setTimeout(()=>{
+    from.classList.add('inHidden'); from.classList.remove('out');
+    to.classList.remove('inHidden');
+    if(after) after();
+    // next frame: fade-in from a slight offset
+    to.classList.add('out'); void to.offsetWidth; to.classList.remove('out');
+  },200);
+}
 function openCompare(key){
   document.getElementById('cmpSelect').innerHTML = Object.keys(FORMS).map(k=>'<option value="'+k+'">'+FORMS[k].name+'</option>').join('');
-  document.getElementById('lbScreen').classList.add('hide');
-  document.getElementById('cmpScreen').classList.remove('hide');
-  renderCompare(key);
-  window.scrollTo(0,0);
+  swap('lbScreen','cmpScreen',()=>renderCompare(key));
 }
-function showLb(){ document.getElementById('cmpScreen').classList.add('hide'); document.getElementById('lbScreen').classList.remove('hide'); }
+function showLb(){ swap('cmpScreen','lbScreen'); }
 buildLb();
 </script>
 </body></html>
