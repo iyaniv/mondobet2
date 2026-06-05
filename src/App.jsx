@@ -5545,8 +5545,8 @@ export default function App() {
                           title={favOnly?"Showing favorites only — click to show all":"Show favorites only"}
                           style={{cursor:"pointer",userSelect:"none",display:"inline-flex",flexDirection:"column",
                             alignItems:"center",gap:1,position:"relative",verticalAlign:"middle"}}>
-                          <span className={showFavHint?"lb-star-blink":""}
-                            style={{fontSize:17,lineHeight:1,color:showFavHint?undefined:starColor,transition:"color .2s"}}>{starChar}</span>
+                          <span className={favorites.length===0&&!favOnly?"lb-star-blink":""}
+                            style={{fontSize:17,lineHeight:1,color:favorites.length===0&&!favOnly?undefined:starColor,transition:"color .2s"}}>{starChar}</span>
                           {hasFavs&&!favOnly&&(
                             <span style={{position:"absolute",top:-2,right:-4,width:7,height:7,borderRadius:"50%",
                               background:HINT_GOLD,border:`1.5px solid ${C.panel2}`}}/>
