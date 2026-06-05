@@ -3388,7 +3388,9 @@ function CompareView({ matches, results, liveMatches,
   const tileLabel={fontSize:9,letterSpacing:".6px",textTransform:"uppercase",color:C.muted,fontWeight:700};
   const tileVal={fontSize:19,fontFamily:"monospace",fontWeight:800,lineHeight:1.15};
   const groupBox={display:"flex",alignItems:"stretch",gap:8,border:`1px solid ${C.border}`,borderRadius:10,padding:6,background:C.panel};
-  const GRID = "40px 1fr minmax(140px,auto) 1fr 40px";
+  // Fixed-width center column so every row's boxes line up (an auto/flex center
+  // would size per-row and make the columns jitter). Long names wrap inside it.
+  const GRID = "44px 1fr 210px 1fr 44px";
 
   let lastStage=null;
   const rowEls=[];
@@ -3404,8 +3406,8 @@ function CompareView({ matches, results, liveMatches,
         background:isLive?"rgba(239,68,68,0.05)":C.panel,border:`1px solid ${isLive?"rgba(239,68,68,0.55)":C.border}`,borderRadius:7,padding:"6px 8px",marginBottom:4}}>
         <span style={{textAlign:"right"}}>{ptsChip(myPreds[m.n],eff)}</span>
         <span style={{display:"flex",justifyContent:"flex-end"}}>{predBox(myPreds[m.n],eff)}</span>
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-          <span style={{fontSize:11,whiteSpace:"nowrap"}}>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,minWidth:0}}>
+          <span style={{fontSize:11,whiteSpace:"normal",textAlign:"center",lineHeight:1.3}}>
             <span style={{color:ws===0?C.accent:C.text,fontWeight:ws===0?700:400}}>{flag(m.a)} {m.a}</span>
             <span style={{color:C.muted}}> v </span>
             <span style={{color:ws===1?C.accent:C.text,fontWeight:ws===1?700:400}}>{m.b} {flag(m.b)}</span>
@@ -3453,14 +3455,22 @@ function CompareView({ matches, results, liveMatches,
             </button>
             {menuOpen&&(
               <div style={{position:"absolute",top:"calc(100% + 4px)",right:0,minWidth:200,maxHeight:280,overflowY:"auto",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",zIndex:40,padding:4}}>
-                {forms.map(f=>(
-                  <div key={f.key} onClick={(e)=>{e.stopPropagation();setMenuOpen(false);onPick(f.key);}}
-                    style={{padding:"8px 10px",borderRadius:6,fontSize:13,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:10,
-                      color:f.key===theirKey?C.accent:C.text,fontWeight:f.key===theirKey?700:400}}>
-                    <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{f.name}</span>
-                    <span style={{marginLeft:"auto",color:C.muted,fontFamily:"monospace",fontSize:11}}>#{f.rank}</span>
-                  </div>
-                ))}
+                {forms.map((f,i)=>{
+                  // divider between the favorites group and the rest
+                  const showDivider = i>0 && forms[i-1].fav && !f.fav;
+                  return (
+                  <Fragment key={f.key}>
+                    {showDivider && <div style={{height:1,background:C.border,margin:"4px 6px"}}/>}
+                    <div onClick={(e)=>{e.stopPropagation();setMenuOpen(false);onPick(f.key);}}
+                      style={{padding:"8px 10px",borderRadius:6,fontSize:13,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:8,
+                        color:f.key===theirKey?C.accent:C.text,fontWeight:f.key===theirKey?700:400}}>
+                      <span style={{width:12,flexShrink:0,color:"#facc15",fontSize:12}}>{f.fav?"★":""}</span>
+                      <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{f.name}</span>
+                      <span style={{marginLeft:"auto",color:C.muted,fontFamily:"monospace",fontSize:11}}>#{f.rank}</span>
+                    </div>
+                  </Fragment>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -5049,9 +5059,13 @@ export default function App() {
       const themRow = leaderboard.find(e=>(e.entry_id||e.user_id)===compareKey) || null;
       const myRank  = myLbRow  ? leaderboard.indexOf(myLbRow)+1  : null;
       const themRank= themRow  ? leaderboard.indexOf(themRow)+1  : null;
+      // Dropdown list: favorited forms first (own forms + starred), then the
+      // rest — each group kept in leaderboard (rank) order. Sort is stable.
+      const isFavForm = (e)=> e.user_id===user?.id || favorites.includes(e.entry_id||e.user_id);
       const compareForms = leaderboard
         .filter(e=>(e.entry_id||e.user_id)!==myLbKey)
-        .map(e=>({key:e.entry_id||e.user_id, name:e.name, rank:leaderboard.indexOf(e)+1}));
+        .map(e=>({key:e.entry_id||e.user_id, name:e.name, rank:leaderboard.indexOf(e)+1, fav:isFavForm(e)}))
+        .sort((a,b)=>(b.fav?1:0)-(a.fav?1:0));
       return (
         <div>
           <TodaysGames matches={matches} results={results} liveMatches={liveMatches} tz={tz}/>
