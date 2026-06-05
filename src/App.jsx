@@ -2703,17 +2703,9 @@ const HELP_CONTENT = {
     body: [
       "**Today's Games** (top) — today's matches with 🔴 **live** scores, finished results, and upcoming kickoff times. It updates live as games start, change, and finish.",
       "Rankings across every submitted form, updated as results come in.",
-      "Click a row to see that participant's full picks (or your own).",
+      "Click any form to **compare it against yours** — your picks and theirs side by side, with the points each of you earned per match.",
       "Tap the **★** next to any name to favorite that form — your own forms are always favorited. Tap the **★** in the column header to show only your favorites.",
       "**Simulate** ▾ — see hypothetical standings *if* every remaining pick of yours comes true. Only you see the simulation.",
-    ],
-  },
-  byuser: {
-    badge: "👥",
-    title: "By participant",
-    body: [
-      "Browse anyone's submitted forms.",
-      "While a stage is still open, others' picks for that stage stay hidden — fair play.",
     ],
   },
   settings: {
@@ -2744,7 +2736,7 @@ const HELP_CONTENT = {
   },
 };
 // Tabs that should never auto-open a dialog (welcome is special; auth isn't a real tab).
-const HELP_TABS = ["predictions","tournament","leaderboard","byuser","settings","results","dashboard"];
+const HELP_TABS = ["predictions","tournament","leaderboard","settings","results","dashboard"];
 
 // Read any pre-existing localStorage flags from older builds so a returning
 // user doesn't see the welcome again. Wipe the key after reading.
@@ -3346,87 +3338,147 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BY USER — outside App so ParticipantPicker never remounts on App re-renders
+// COMPARE VIEW — shown in place of the leaderboard table when a form is clicked.
+// Side-by-side: your pick + pts | match + result | their pick + pts, per match.
 // ─────────────────────────────────────────────────────────────────────────────
-function ByUser({ config, leaderboard, results, liveMatches, matches, user,
-                  viewUserId, setViewUserId, viewUserPreds, setViewUserPreds,
-                  viewUserWinner, setViewUserWinner, showToast }) {
-  const [predsLoading, setPredsLoading] = useState(false);
-
-  // Select first entry once leaderboard arrives
+function CompareView({ matches, results, liveMatches,
+                       myName, myPreds, myTotal, myRank,
+                       theirKey, theirName, theirPreds, theirTotal, theirRank,
+                       forms, loading, onBack, onPick }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const liveRef = useRef(null);
   useEffect(() => {
-    if (!viewUserId && leaderboard.length > 0) setViewUserId(leaderboard[0].entry_id||leaderboard[0].user_id);
-  }, [leaderboard.length]);
-
-  // Fetch preds when selection changes
+    if (!menuOpen) return;
+    const h = () => setMenuOpen(false);
+    document.addEventListener("click", h);
+    return () => document.removeEventListener("click", h);
+  }, [menuOpen]);
+  // Auto-scroll to the live match (Today's Games panel up top already flags it).
   useEffect(() => {
-    if (!viewUserId) return;
-    const lbEntry = leaderboard.find(e => (e.entry_id||e.user_id) === viewUserId);
-    if (!lbEntry) return;
-    setPredsLoading(true);
-    api.getUserPredictions(lbEntry.user_id, lbEntry.entry_id||null)
-      .then(preds => {
-        const m = {}; for (const p of preds) m[p.match_n] = [p.score_a, p.score_b];
-        setViewUserPreds(m);
-        setViewUserWinner(lbEntry.winner_pick || null);
-      })
-      .catch(e => showToast(e.message, "err"))
-      .finally(() => setPredsLoading(false));
-  }, [viewUserId]);
+    const t = setTimeout(() => { if (liveRef.current) liveRef.current.scrollIntoView({ behavior:"smooth", block:"center" }); }, 320);
+    return () => clearTimeout(t);
+  }, [theirKey, loading]);
 
-  const pillMap = {
-    open:   {text:"🟢 Betting round is OPEN",  bg:"rgba(16,185,129,0.1)",  color:C.green, border:`1px solid ${C.green}`},
-    closed: {text:"🔒 Betting round is CLOSED",bg:"rgba(239,68,68,0.1)",   color:C.red,   border:`1px solid ${C.red}`},
-    idle:   {text:"⏸️ No betting round yet",   bg:"rgba(148,163,184,0.1)", color:C.muted, border:`1px solid ${C.border}`},
+  const GREEN="#10b981", ORANGE="#f59e0b", RED="#ef4444";
+  const palBg = (t) => t>=5?"rgba(16,185,129,0.14)":t===1?"rgba(245,158,11,0.14)":"rgba(239,68,68,0.14)";
+  const palFg = (t) => t>=5?GREEN:t===1?ORANGE:RED;
+  const boxBase = {fontFamily:"monospace",fontWeight:700,fontSize:14,padding:"3px 9px",borderRadius:5,whiteSpace:"nowrap"};
+  const predBox = (pred, eff) => {
+    if (pred?.[0]==null) return <span style={{...boxBase,background:C.bg,border:`1px solid ${C.border}`,color:C.muted}}>—</span>;
+    if (!eff) return <span style={{...boxBase,background:C.bg,border:`1px solid ${C.border}`,color:C.text}}>{pred[0]}:{pred[1]}</span>;
+    const sc=scorePrediction(pred,eff);
+    return <span style={{...boxBase,background:palBg(sc.total),border:`1px solid ${palFg(sc.total)}`}}>
+      <span style={{color:sc.aMatch?GREEN:RED}}>{pred[0]}</span>:<span style={{color:sc.bMatch?GREEN:RED}}>{pred[1]}</span></span>;
   };
-  const pill = pillMap[config.round_state] || pillMap.idle;
+  const ptsChip = (pred, eff) => {
+    const sc=scorePrediction(pred,eff); if(!sc) return null;
+    return <span style={{fontFamily:"monospace",fontWeight:700,fontSize:11,padding:"1px 6px",borderRadius:4,background:palBg(sc.total),border:`1px solid ${palFg(sc.total)}`,color:palFg(sc.total)}}>+{sc.total}</span>;
+  };
+  const resChip = (eff, live) => {
+    if(!eff) return <span style={{fontFamily:"monospace",fontWeight:700,fontSize:11,padding:"1px 7px",borderRadius:4,background:C.panel2,border:`1px solid ${C.border}`,color:C.muted}}>— : —</span>;
+    const isLive=!!(live&&live.is_live);
+    return <span style={{fontFamily:"monospace",fontWeight:700,fontSize:11,padding:"1px 7px",borderRadius:4,whiteSpace:"nowrap",
+      background:isLive?"rgba(239,68,68,0.10)":"rgba(48,209,88,0.14)",border:`1px solid ${isLive?"rgba(239,68,68,0.4)":"rgba(48,209,88,0.4)"}`,color:isLive?RED:GREEN}}>
+      {isLive&&<span className="live-dot" style={{marginRight:4}}/>}{!isLive&&"✓ "}{eff[0]}:{eff[1]}{isLive&&<span style={{marginLeft:4,fontSize:10}}>{live.minute}′</span>}</span>;
+  };
 
-  const selected = leaderboard.find(e => (e.entry_id||e.user_id) === viewUserId);
-  // Show every match for which we have something to display — either the
-  // participant has a prediction OR the match has been started/finished.
-  // For admins the backend returns the full prediction set, so they see
-  // every match the participant bet on. For non-admin viewers the backend
-  // already restricts to matches with results/live (privacy), so unplayed
-  // predictions on others won't appear regardless.
-  const displayMatches = matches.filter(m =>
-       viewUserPreds[m.n]?.[0] != null
-    || results[m.n] != null
-    || liveMatches[m.n] != null
-  );
-  const playedCount = matches.filter(m => results[m.n] || liveMatches[m.n]).length;
+  const displayMatches = matches.filter(m => myPreds[m.n]?.[0]!=null || theirPreds[m.n]?.[0]!=null || results[m.n]!=null || liveMatches[m.n]!=null);
+  const gap = myTotal - theirTotal;
+  const tileBox={display:"inline-flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,minWidth:62,padding:"5px 12px",borderRadius:8,background:C.bg,border:`1px solid ${C.border}`};
+  const tileLabel={fontSize:9,letterSpacing:".6px",textTransform:"uppercase",color:C.muted,fontWeight:700};
+  const tileVal={fontSize:19,fontFamily:"monospace",fontWeight:800,lineHeight:1.15};
+  const groupBox={display:"flex",alignItems:"stretch",gap:8,border:`1px solid ${C.border}`,borderRadius:10,padding:6,background:C.panel};
+  const GRID = "40px 1fr minmax(140px,auto) 1fr 40px";
 
-  const roundOpen = config.round_state === "open";
-  const openStage = config.current_stage || 1;
+  let lastStage=null;
+  const rowEls=[];
+  displayMatches.forEach(m=>{
+    const stg=matchStageObj(m.n);
+    if(stg.n!==lastStage){ lastStage=stg.n; rowEls.push(<div key={"s"+stg.n} style={{color:C.indigo,fontWeight:700,fontSize:13,margin:"14px 0 6px",padding:"6px 10px",background:C.panel2,borderRadius:6}}>▸ {stg.name}</div>); }
+    const eff=effScoreOf(results[m.n], liveMatches[m.n]);
+    const live=liveMatches[m.n];
+    const isLive=!!(live&&live.is_live);
+    let ws=null; if(eff){ if(eff[0]>eff[1])ws=0; else if(eff[1]>eff[0])ws=1; else if(eff[2]==='a')ws=0; else if(eff[2]==='b')ws=1; }
+    rowEls.push(
+      <div key={m.n} ref={isLive?liveRef:undefined} style={{display:"grid",gridTemplateColumns:GRID,alignItems:"center",gap:6,
+        background:isLive?"rgba(239,68,68,0.05)":C.panel,border:`1px solid ${isLive?"rgba(239,68,68,0.55)":C.border}`,borderRadius:7,padding:"6px 8px",marginBottom:4}}>
+        <span style={{textAlign:"right"}}>{ptsChip(myPreds[m.n],eff)}</span>
+        <span style={{display:"flex",justifyContent:"flex-end"}}>{predBox(myPreds[m.n],eff)}</span>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+          <span style={{fontSize:11,whiteSpace:"nowrap"}}>
+            <span style={{color:ws===0?C.accent:C.text,fontWeight:ws===0?700:400}}>{flag(m.a)} {m.a}</span>
+            <span style={{color:C.muted}}> v </span>
+            <span style={{color:ws===1?C.accent:C.text,fontWeight:ws===1?700:400}}>{m.b} {flag(m.b)}</span>
+          </span>
+          {resChip(eff,live)}
+        </div>
+        <span style={{display:"flex",justifyContent:"flex-start"}}>{predBox(theirPreds[m.n],eff)}</span>
+        <span style={{textAlign:"left"}}>{ptsChip(theirPreds[m.n],eff)}</span>
+      </div>
+    );
+  });
 
   return (
     <div>
-      <div style={{marginBottom:14}}>
-        <span style={{display:"inline-block",padding:"4px 14px",borderRadius:999,fontSize:13,fontWeight:600,
-          background:pill.bg,color:pill.color,border:pill.border}}>{pill.text}</span>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
+        <Btn ghost onClick={onBack}>← Back to leaderboard</Btn>
+        <span style={{flex:1}}/>
       </div>
-      <h1 style={{color:C.accent,fontSize:20,marginBottom:12}}>By participant</h1>
-      <InfoBlock>
-        Only <b>submitted</b> forms are shown here. Showing <b>{displayMatches.length}</b> prediction{displayMatches.length!==1?"s":""} for this form ({playedCount} with a result so far).
-      </InfoBlock>
-      <div style={{marginBottom:16}}>
-        <ParticipantPicker entries={leaderboard} value={viewUserId} onChange={setViewUserId}/>
-      </div>
-      {selected&&(
-        <div style={{textAlign:"right",padding:"8px 12px",background:C.panel2,borderRadius:6,marginBottom:12,fontSize:14,color:C.text}}>
-          <b>{selected.name}:</b> <span style={{color:C.accent,fontWeight:700,fontFamily:"monospace"}}>{selected.total}</span> pts
-          &nbsp;·&nbsp;winner: <b>{viewUserWinner?withFlag(viewUserWinner):"—"}</b>
+      {/* Option A scoreboard — static rank/points boxes + centered gap. */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:10,alignItems:"stretch",marginBottom:10}}>
+        <div style={groupBox}>
+          <div style={{display:"inline-flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,padding:"5px 12px",minWidth:110,maxWidth:200}}>
+            <span style={tileLabel}>Your form</span>
+            <span style={{fontSize:15,fontWeight:700,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:180}}>{myName}</span>
+          </div>
+          <div style={tileBox}><span style={tileLabel}>Rank</span><b style={{...tileVal,color:C.text}}>{myRank?`#${myRank}`:"—"}</b></div>
+          <div style={tileBox}><span style={tileLabel}>Points</span><b style={{...tileVal,color:C.accent}}>{myTotal}</b></div>
         </div>
-      )}
-      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10,
-        opacity:predsLoading?0.5:1,transition:"opacity .25s"}}>
-        {predsLoading&&<div style={{textAlign:"center",padding:16,color:C.muted,fontSize:13}}>Loading predictions…</div>}
-        {displayMatches.map(m=>(
-          <MatchRow key={m.n} match={resolvedMatch(m, results, matches)}
-            pred={viewUserPreds[m.n]??null} result={results[m.n]??null}
-            liveData={liveMatches[m.n]??null}
-            editable={false} adminResult={false} roundState={config.round_state}
-            onSave={()=>{}} onResultSave={()=>{}}/>
-        ))}
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minWidth:56}}>
+          <span style={{fontSize:10,textTransform:"uppercase",letterSpacing:".4px",color:C.muted}}>gap</span>
+          <b style={{fontSize:22,fontFamily:"monospace",lineHeight:1.1,color:gap>0?C.green:gap<0?C.red:C.muted}}>{gap>0?`+${gap}`:gap}</b>
+        </div>
+        <div style={{...groupBox,justifyContent:"flex-end"}}>
+          <div style={tileBox}><span style={tileLabel}>Rank</span><b style={{...tileVal,color:C.text}}>{theirRank?`#${theirRank}`:"—"}</b></div>
+          <div style={tileBox}><span style={tileLabel}>Points</span><b style={{...tileVal,color:gap<0?C.green:C.accent}}>{theirTotal}</b></div>
+          <div style={{position:"relative"}}>
+            <button onClick={(e)=>{e.stopPropagation();setMenuOpen(o=>!o);}} title="Change the form to compare" style={{
+              display:"inline-flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,minWidth:120,maxWidth:220,height:"100%",
+              padding:"5px 12px",borderRadius:8,background:C.bg,border:`1px solid ${C.accent}`,fontFamily:"inherit",cursor:"pointer"}}>
+              <span style={tileLabel}>Compare to</span>
+              <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:15,fontWeight:700,color:C.accent,whiteSpace:"nowrap",maxWidth:200,overflow:"hidden"}}>
+                <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{theirName}</span>
+                <span style={{fontSize:8,opacity:.7,transition:"transform .2s",transform:menuOpen?"rotate(180deg)":"none"}}>▾</span>
+              </span>
+            </button>
+            {menuOpen&&(
+              <div style={{position:"absolute",top:"calc(100% + 4px)",right:0,minWidth:200,maxHeight:280,overflowY:"auto",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",zIndex:40,padding:4}}>
+                {forms.map(f=>(
+                  <div key={f.key} onClick={(e)=>{e.stopPropagation();setMenuOpen(false);onPick(f.key);}}
+                    style={{padding:"8px 10px",borderRadius:6,fontSize:13,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:10,
+                      color:f.key===theirKey?C.accent:C.text,fontWeight:f.key===theirKey?700:400}}>
+                    <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{f.name}</span>
+                    <span style={{marginLeft:"auto",color:C.muted,fontFamily:"monospace",fontSize:11}}>#{f.rank}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      <div style={{overflowX:"auto"}}>
+        <div style={{minWidth:520}}>
+          <div style={{display:"grid",gridTemplateColumns:GRID,gap:6,padding:"0 8px",marginBottom:6,fontSize:10,textTransform:"uppercase",letterSpacing:".4px",color:C.muted,fontWeight:700}}>
+            <span style={{gridColumn:"1 / 3",textAlign:"right"}}>Your pick · pts</span>
+            <span style={{gridColumn:"3",textAlign:"center"}}>Match · result</span>
+            <span style={{gridColumn:"4 / 6",textAlign:"left"}}>pts · their pick</span>
+          </div>
+          <div style={{opacity:loading?0.5:1,transition:"opacity .2s"}}>
+            {loading && <div style={{textAlign:"center",padding:16,color:C.muted,fontSize:13}}>Loading predictions…</div>}
+            {!loading && displayMatches.length===0 && <div style={{textAlign:"center",padding:24,color:C.muted,fontSize:13}}>No comparable matches yet — check back once games kick off.</div>}
+            {!loading && rowEls}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -3480,9 +3532,27 @@ export default function App() {
   // (otherwise a newly-created empty form gets the previous form's champion).
   const activeEntryIdRef = useRef(activeEntryId); activeEntryIdRef.current = activeEntryId;
   const lockedWinnerRef  = useRef(lockedWinner);  lockedWinnerRef.current  = lockedWinner;
-  const [viewEntryId,setViewEntryId]=useState(null);
-  const [viewUserPreds,setViewUserPreds]=useState({});
-  const [viewUserWinner,setViewUserWinner]=useState(null);
+  // In-place form comparison (replaces the old By-participant tab). compareKey
+  // is the entry_id|user_id of the form being compared against the active form.
+  const [compareKey,setCompareKey]=useState(null);
+  const [comparePreds,setComparePreds]=useState({});
+  const [compareWinner,setCompareWinner]=useState(null);
+  const [compareLoading,setCompareLoading]=useState(false);
+  // Fetch the compared form's predictions. The backend restricts non-admins to
+  // the other form's picks on matches that have a result or are live (privacy).
+  useEffect(()=>{
+    if(!compareKey){ setComparePreds({}); setCompareWinner(null); return; }
+    const lbEntry=leaderboard.find(e=>(e.entry_id||e.user_id)===compareKey);
+    if(!lbEntry) return;
+    setCompareLoading(true);
+    api.getUserPredictions(lbEntry.user_id, lbEntry.entry_id||null)
+      .then(preds=>{ const m={}; for(const p of preds) m[p.match_n]=[p.score_a,p.score_b]; setComparePreds(m); setCompareWinner(lbEntry.winner_pick||null); })
+      .catch(e=>showToast(e.message,"err"))
+      .finally(()=>setCompareLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[compareKey]);
+  // Leave compare mode when navigating away from the leaderboard tab.
+  useEffect(()=>{ if(tab!=="leaderboard") setCompareKey(null); },[tab]);
   const [liveMatches,setLiveMatches]=useState({});
   const [predsLoaded,setPredsLoaded]=useState(false);
   const [toast,setToast]=useState(null);
@@ -3960,8 +4030,8 @@ export default function App() {
   }, [user?.id, config.round_state, tab]);
 
   const tabs=!user?[]:user.is_admin
-    ?[{id:"tournament",label:"🏟 Tournament"},{id:"leaderboard",label:"Leaderboard"},{id:"byuser",label:"By participant"},{id:"results",label:"Results",admin:true},{id:"dashboard",label:"Dashboard",admin:true},{id:"settings",label:"⚙ Settings"}]
-    :[{id:"tournament",label:"🏟 Tournament"},{id:"leaderboard",label:"Leaderboard"},...(leaderboard.length>0?[{id:"byuser",label:"By participant"}]:[]),{id:"predictions",label:"My predictions"},{id:"settings",label:"⚙ Settings"}];
+    ?[{id:"tournament",label:"🏟 Tournament"},{id:"leaderboard",label:"Leaderboard"},{id:"results",label:"Results",admin:true},{id:"dashboard",label:"Dashboard",admin:true},{id:"settings",label:"⚙ Settings"}]
+    :[{id:"tournament",label:"🏟 Tournament"},{id:"leaderboard",label:"Leaderboard"},{id:"predictions",label:"My predictions"},{id:"settings",label:"⚙ Settings"}];
 
   function RoundPill(){
     const map={
@@ -4961,11 +5031,40 @@ export default function App() {
     // result to already exist, which made the rows non-clickable on a freshly
     // closed stage even though the By-participant tab worked.
     const canJumpToParticipant = !!user && (user.is_admin || leaderboard.length > 0);
+    // The active user's own row on the board (their active form, else any row
+    // of theirs) — used as the "your form" side of a comparison.
+    const myLbRow = leaderboard.find(e=>e.entry_id===activeEntryId) || leaderboard.find(e=>e.user_id===user?.id) || null;
+    const myLbKey = myLbRow ? (myLbRow.entry_id || myLbRow.user_id) : null;
+    // Clicking a leaderboard row compares that form against the active form,
+    // in place (the table is swapped for the compare view — same tab).
     const jumpToParticipant = (row) => {
       if (!canJumpToParticipant) return;
-      setViewEntryId(row.entry_id || row.user_id);
-      setTab("byuser");
+      const key = row.entry_id || row.user_id;
+      if (key === myLbKey) return;   // can't compare a form with itself
+      setCompareKey(key);
     };
+
+    // ── Compare mode: swap the table for the side-by-side compare view ───────
+    if (compareKey) {
+      const themRow = leaderboard.find(e=>(e.entry_id||e.user_id)===compareKey) || null;
+      const myRank  = myLbRow  ? leaderboard.indexOf(myLbRow)+1  : null;
+      const themRank= themRow  ? leaderboard.indexOf(themRow)+1  : null;
+      const compareForms = leaderboard
+        .filter(e=>(e.entry_id||e.user_id)!==myLbKey)
+        .map(e=>({key:e.entry_id||e.user_id, name:e.name, rank:leaderboard.indexOf(e)+1}));
+      return (
+        <div>
+          <TodaysGames matches={matches} results={results} liveMatches={liveMatches} tz={tz}/>
+          <CompareView
+            matches={matches} results={results} liveMatches={liveMatches}
+            myName={myLbRow?myLbRow.name:"Your form"} myPreds={myPreds} myTotal={myLbRow?myLbRow.total:0} myRank={myRank}
+            theirKey={compareKey} theirName={themRow?themRow.name:"—"}
+            theirPreds={comparePreds} theirTotal={themRow?themRow.total:0} theirRank={themRank}
+            forms={compareForms} loading={compareLoading}
+            onBack={()=>setCompareKey(null)} onPick={(k)=>setCompareKey(k)}/>
+        </div>
+      );
+    }
 
     // Simulate mode — state + fetch effect live in App (see lifted block);
     // unplayedPredMatches / canSim / simMode / simLb / simLoading are in scope
@@ -5616,16 +5715,6 @@ export default function App() {
         {!user&&<AuthView roundState={config.round_state} onSuccess={doLogin}/>}
         {user&&tab==="predictions"&&MyPredictions()}
         {user&&tab==="leaderboard"&&LeaderboardView()}
-        {user&&tab==="byuser"&&(
-          <ByUser
-            config={config} leaderboard={effLeaderboard} results={effResults}
-            liveMatches={liveMatches} matches={matches} user={user} simActive={simActive}
-            viewUserId={viewEntryId} setViewUserId={setViewEntryId}
-            viewUserPreds={viewUserPreds} setViewUserPreds={setViewUserPreds}
-            viewUserWinner={viewUserWinner} setViewUserWinner={setViewUserWinner}
-            showToast={showToast}
-          />
-        )}
         {user&&tab==="dashboard"&&(
           <AdminDashboard
             config={config} setConfig={setConfig}
