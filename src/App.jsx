@@ -1992,13 +1992,50 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage }) {
   }
 
   // Slot-based layout: each card lives in a slot whose height doubles each round.
-  // R32 has 16 matches → slot = 1 unit. R16 has 8 → slot = 2 units. QF → 4. SF → 8.
-  // Final also has 2 matches so same slot size as SF.
-  // This ensures each card is vertically centred between the two source cards that feed it.
-  const MATCH_COUNTS  = {2:16, 3:8, 4:4, 5:2, 6:2};
-  const BASE_COUNT    = 16; // R32
-  const BASE_SLOT_PX  = 80; // height of one R32 slot (card + label + breathing room)
-  const LABEL_H       = 16; // fixed height reserved above every card for the winner label
+  // R32 = 1×, R16 = 2×, QF = 4×, SF = 8× base slot.
+  // Stage 6 (Final & 3rd): the Final gets the full 16-slot height (centred between
+  // both SF matches). The 3rd-place match floats below — no bracket lines connect to it.
+  const MATCH_COUNTS  = {2:16, 3:8, 4:4, 5:2};   // stage 6 handled separately
+  const BASE_COUNT    = 16;
+  const BASE_SLOT_PX  = 80;
+  const LABEL_H       = 16;
+
+  function aboveCardLabel(m) {
+    const res = results[m.n];
+    const live = liveMatches[m.n];
+    const isLive = !!(live && live.is_live);
+    const winner = isLive ? live.winner : (res ? res[2] : null);
+    if (res && winner) {
+      const wt = winner==='a'
+        ? resolveTeamDeep(m.a, results, matches)
+        : resolveTeamDeep(m.b, results, matches);
+      return <span style={{fontSize:10,fontWeight:700,color:C.muted,
+        whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+        {flag(wt)} <span style={{color:C.accent}}>{wt}</span> wins
+      </span>;
+    }
+    if (isLive) return <span style={{fontSize:10,fontWeight:700,
+      display:'flex',alignItems:'center',gap:3}}>
+      <span className="live-dot" style={{width:6,height:6}}/>
+      <span style={{color:C.red}}>LIVE</span>
+    </span>;
+    return null;
+  }
+
+  function slotCard(m, slotPx) {
+    return (
+      <div key={m.n} style={{
+        height:slotPx, display:'flex', flexDirection:'column',
+        justifyContent:'center', paddingTop:LABEL_H, position:'relative',
+      }}>
+        <div style={{position:'absolute',top:0,left:4,right:4,height:LABEL_H,
+          overflow:'hidden',display:'flex',alignItems:'flex-end'}}>
+          {aboveCardLabel(m)}
+        </div>
+        {renderMatchup(m)}
+      </div>
+    );
+  }
 
   return (
     <div style={{overflowX:'auto',overflowY:'visible',paddingBottom:8}}>
@@ -2006,55 +2043,38 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage }) {
         {knockoutStages.map((s, colIdx) => {
           const isCurrent  = s.n === currentStage;
           const stageMs    = matches.filter(m => m.n >= s.first && m.n <= s.last);
-          const count      = MATCH_COUNTS[s.n] || stageMs.length || 1;
+          const isFinalStage = s.n === 6;
+          const count      = MATCH_COUNTS[s.n] || 1;
           const slotPx     = (BASE_COUNT / count) * BASE_SLOT_PX;
+
+          // Stage 6: Final gets a single slot spanning the full bracket height;
+          // 3rd place is a floating card below (outside the slot layout, no connectors).
+          const finalMatch = isFinalStage ? stageMs.find(m => m.g === 'FIN') : null;
+          const thirdMatch = isFinalStage ? stageMs.find(m => m.g === '3P')  : null;
+          const bracketMs  = isFinalStage ? (finalMatch ? [finalMatch] : stageMs.slice(0,1)) : stageMs;
+          const finalSlotPx = isFinalStage ? (BASE_COUNT / 1) * BASE_SLOT_PX : slotPx;
 
           return (
             <Fragment key={s.n}>
               <div data-round-col={s.n} style={{display:'flex',flexDirection:'column',
-                width:160,flexShrink:0,opacity:isCurrent?1:0.5}}>
-                {/* Column header — fixed height row so all columns start at the same top */}
+                width:160, flexShrink:0, opacity:isCurrent?1:0.5}}>
                 <div style={{fontSize:10,fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',
                   padding:'0 4px 8px',textAlign:'center',height:24,
                   color:isCurrent?C.accent:C.muted}}>
                   {s.name}
                 </div>
-                {stageMs.map(m => (
-                  <div key={m.n} style={{
-                    height:slotPx,
-                    display:'flex',flexDirection:'column',
-                    justifyContent:'center',
-                    paddingTop: LABEL_H,  // keep space for label above without shifting centre
-                    position:'relative',
-                  }}>
-                    {/* above-card label sits at the top of the slot */}
-                    <div style={{position:'absolute',top:0,left:4,right:4,height:LABEL_H,
-                      overflow:'hidden',display:'flex',alignItems:'flex-end'}}>
-                      {(() => {
-                        const res = results[m.n];
-                        const live = liveMatches[m.n];
-                        const isLive = !!(live && live.is_live);
-                        const winner = isLive ? live.winner : (res ? res[2] : null);
-                        if (res && winner) {
-                          const wt = winner==='a'
-                            ? resolveTeamDeep(m.a, results, matches)
-                            : resolveTeamDeep(m.b, results, matches);
-                          return <span style={{fontSize:10,fontWeight:700,color:C.muted,
-                            whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-                            {flag(wt)} <span style={{color:C.accent}}>{wt}</span> wins
-                          </span>;
-                        }
-                        if (isLive) return <span style={{fontSize:10,fontWeight:700,
-                          display:'flex',alignItems:'center',gap:3}}>
-                          <span className="live-dot" style={{width:6,height:6}}/>
-                          <span style={{color:C.red}}>LIVE</span>
-                        </span>;
-                        return null;
-                      })()}
+                {/* Normal bracket cards */}
+                {bracketMs.map(m => slotCard(m, isFinalStage ? finalSlotPx : slotPx))}
+                {/* 3rd place — floating below, not connected to bracket lines */}
+                {thirdMatch && (
+                  <div style={{marginTop:20,padding:'0 3px'}}>
+                    <div style={{fontSize:10,fontWeight:700,color:C.muted,
+                      padding:'0 0 4px',letterSpacing:'.06em',textTransform:'uppercase'}}>
+                      🥉 3rd place
                     </div>
-                    {renderMatchup(m)}
+                    {renderMatchup(thirdMatch)}
                   </div>
-                ))}
+                )}
               </div>
               {colIdx < knockoutStages.length - 1 && (
                 <div style={{width:28,flexShrink:0,alignSelf:'stretch',position:'relative'}}>
