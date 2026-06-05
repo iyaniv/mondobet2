@@ -3342,8 +3342,8 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
 // Side-by-side: your pick + pts | match + result | their pick + pts, per match.
 // ─────────────────────────────────────────────────────────────────────────────
 function CompareView({ matches, results, liveMatches,
-                       myName, myPreds, myTotal, myRank,
-                       theirKey, theirName, theirPreds, theirTotal, theirRank,
+                       myName, myPreds, myTotal, myRank, myWinner,
+                       theirKey, theirName, theirPreds, theirTotal, theirRank, theirWinner,
                        forms, loading, onBack, onPick }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showTop, setShowTop] = useState(false);
@@ -3462,6 +3462,7 @@ function CompareView({ matches, results, liveMatches,
           <div style={{display:"inline-flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,padding:"5px 12px",minWidth:110,maxWidth:200}}>
             <span style={tileLabel}>Your form</span>
             <span style={{fontSize:15,fontWeight:700,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:180}}>{myName}</span>
+            <span style={{fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:180,marginTop:1}}>🏆 {myWinner?withFlag(myWinner):"—"}</span>
           </div>
           <div style={tileBox}><span style={tileLabel}>Rank</span><b style={{...tileVal,color:C.text}}>{myRank?`#${myRank}`:"—"}</b></div>
           <div style={tileBox}><span style={tileLabel}>Points</span><b style={{...tileVal,color:C.accent}}>{myTotal}</b></div>
@@ -3482,6 +3483,7 @@ function CompareView({ matches, results, liveMatches,
                 <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{theirName}</span>
                 <span style={{fontSize:8,opacity:.7,transition:"transform .2s",transform:menuOpen?"rotate(180deg)":"none"}}>▾</span>
               </span>
+              <span style={{fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:200,marginTop:1}}>🏆 {theirWinner?withFlag(theirWinner):"—"}</span>
             </button>
             {menuOpen&&(
               <div style={{position:"absolute",top:"calc(100% + 4px)",right:0,minWidth:200,maxHeight:280,overflowY:"auto",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",zIndex:40,padding:4}}>
@@ -5112,9 +5114,9 @@ export default function App() {
           <TodaysGames matches={matches} results={results} liveMatches={liveMatches} tz={tz}/>
           <CompareView
             matches={matches} results={results} liveMatches={liveMatches}
-            myName={myLbRow?myLbRow.name:"Your form"} myPreds={myPreds} myTotal={myLbRow?myLbRow.total:0} myRank={myRank}
+            myName={myLbRow?myLbRow.name:"Your form"} myPreds={myPreds} myTotal={myLbRow?myLbRow.total:0} myRank={myRank} myWinner={myWinner}
             theirKey={compareKey} theirName={themRow?themRow.name:"—"}
-            theirPreds={comparePreds} theirTotal={themRow?themRow.total:0} theirRank={themRank}
+            theirPreds={comparePreds} theirTotal={themRow?themRow.total:0} theirRank={themRank} theirWinner={compareWinner}
             forms={compareForms} loading={compareLoading}
             onBack={()=>setCompareKey(null)} onPick={(k)=>setCompareKey(k)}/>
         </div>
@@ -5650,7 +5652,7 @@ export default function App() {
           <div style={{fontFamily:'var(--c-font-display)',fontWeight:400,color:C.accent,fontSize:24,letterSpacing:1}}>MondoBet</div>
           <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
             {tabs.map(t=>(
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{background:tab===t.id?(t.admin?C.red:C.accent):"transparent",color:tab===t.id?(t.admin?"#fff":"#0b1020"):(t.admin?C.red:C.text),border:`1px solid ${tab===t.id?(t.admin?C.red:C.accent):C.border}`,padding:"6px 12px",borderRadius:6,cursor:"pointer",fontSize:13,fontWeight:tab===t.id?700:400}}>
+              <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="leaderboard") setCompareKey(null); }} style={{background:tab===t.id?(t.admin?C.red:C.accent):"transparent",color:tab===t.id?(t.admin?"#fff":"#0b1020"):(t.admin?C.red:C.text),border:`1px solid ${tab===t.id?(t.admin?C.red:C.accent):C.border}`,padding:"6px 12px",borderRadius:6,cursor:"pointer",fontSize:13,fontWeight:tab===t.id?700:400}}>
                 {t.label}
               </button>
             ))}
