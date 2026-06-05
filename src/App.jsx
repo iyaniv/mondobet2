@@ -1888,103 +1888,167 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user, t
 
       {/* ── Knockout stages (2-6) ── */}
       {effectiveStage > 1 && (
-        <div>
-          <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,
-            padding:"10px 16px",marginBottom:16,display:"flex",alignItems:"center",
-            justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontFamily:"var(--c-font-display)",fontSize:20,color:C.accent,letterSpacing:1}}>
-                {stageObj.name.toUpperCase()}
-              </span>
-              <span style={{fontSize:13,color:C.muted}}>
-                <b style={{color:C.text}}>{knockoutDone}</b> / {stageMatchList.length} played
-              </span>
-            </div>
-          </div>
-
-          <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:10}}>
-            {stageMatchList.map(m => {
-              const resolvedA = resolveTeamDeep(m.a, results, matches);
-              const resolvedB = resolveTeamDeep(m.b, results, matches);
-              const res       = results[m.n];
-              const live      = liveMatches[m.n];
-              const isMatchLive = !!(live && live.is_live);
-              const dispScore = live ? [live.score_a, live.score_b] : res ?? null;
-              // Extra-time / penalty scores + the advancing side ("a"/"b").
-              // For a knockout draw at 90', the winner is decided by these —
-              // so users (not just the admin) see who went through.
-              const winnerField = live ? (live.winner ?? null) : (res ? res[2] : null);
-              const etA  = live ? (live.et_a  ?? null) : (res ? res[3] : null);
-              const etB  = live ? (live.et_b  ?? null) : (res ? res[4] : null);
-              const penA = live ? (live.pen_a ?? null) : (res ? res[5] : null);
-              const penB = live ? (live.pen_b ?? null) : (res ? res[6] : null);
-              const winA      = dispScore
-                ? (dispScore[0] > dispScore[1] ? true
-                   : dispScore[1] > dispScore[0] ? false
-                   : winnerField === 'a' ? true
-                   : winnerField === 'b' ? false
-                   : null)
-                : null;
-              const rowBg     = isMatchLive ? "rgba(239,68,68,0.06)"
-                              : res         ? "rgba(16,185,129,0.04)"
-                              : live        ? C.panel2
-                              : C.panel2;
-              const rowBd     = `1px solid ${isMatchLive ? "rgba(239,68,68,0.35)"
-                              : res                       ? "rgba(16,185,129,0.2)"
-                              : C.border}`;
-              return (
-                <Fragment key={m.n}>
-                <StageMatchLabel m={m}/>
-                <div style={{
-                  display:"grid",gridTemplateColumns:"32px 1fr 88px 1fr",
-                  alignItems:"center",gap:6,padding:"7px 10px",borderRadius:6,
-                  marginBottom:4,background:rowBg,border:rowBd,fontSize:13,
-                }}>
-                  <span style={{color:C.muted,fontSize:11,fontFamily:"monospace"}}>#{m.n}</span>
-                  <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
-                    color:winA===true?C.accent:winA===false?C.muted:C.text,fontWeight:winA===true?700:400}}>
-                    {flag(resolvedA)} {resolvedA}
-                  </span>
-                  <div style={{textAlign:"center"}}>
-                    {isMatchLive ? (
-                      <>
-                        <div style={{fontFamily:"monospace",fontWeight:700,color:C.red,fontSize:15}}>
-                          {live.score_a}:{live.score_b}
-                        </div>
-                        {(etA!=null&&etB!=null)&&<div style={{fontSize:9,color:C.muted,fontFamily:"monospace"}}>a.e.t. {etA}:{etB}</div>}
-                        {(penA!=null&&penB!=null)&&<div style={{fontSize:9,color:C.muted,fontFamily:"monospace"}}>pen {penA}:{penB}</div>}
-                        <div style={{fontSize:10,color:C.red,display:"flex",alignItems:"center",gap:2,justifyContent:"center"}}>
-                          <span className="live-dot"/>{live.minute}′
-                        </div>
-                      </>
-                    ) : dispScore ? (
-                      <>
-                        <div style={{fontFamily:"monospace",fontWeight:700,
-                          color:res?C.green:C.text,fontSize:15}}>
-                          {dispScore[0]}:{dispScore[1]}
-                        </div>
-                        {(etA!=null&&etB!=null)&&<div style={{fontSize:9,color:C.muted,fontFamily:"monospace"}}>a.e.t. {etA}:{etB}</div>}
-                        {(penA!=null&&penB!=null)&&<div style={{fontSize:9,color:C.muted,fontFamily:"monospace"}}>pen {penA}:{penB}</div>}
-                      </>
-                    ) : (
-                      <span style={{color:C.muted,fontSize:12}}>vs</span>
-                    )}
-                  </div>
-                  <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:"right",
-                    color:winA===false?C.accent:winA===true?C.muted:C.text,fontWeight:winA===false?700:400}}>
-                    {resolvedB} {flag(resolvedB)}
-                  </span>
-                </div>
-                </Fragment>
-              );
-            })}
-          </div>
-        </div>
+        <KnockoutBracket
+          matches={matches}
+          results={results}
+          liveMatches={liveMatches}
+          currentStage={effectiveStage}
+        />
       )}
     </div>
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KNOCKOUT BRACKET — bracket view for stages 2+
+// ─────────────────────────────────────────────────────────────────────────────
+function KnockoutBracket({ matches, results, liveMatches={}, currentStage }) {
+  const wrapRef = useRef(null);
+  const knockoutStages = STAGES.filter(s => s.n >= 2);
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const cols = wrap.querySelectorAll('[data-round-col]');
+    knockoutStages.slice(0, -1).forEach((s, ci) => {
+      const svg = wrap.querySelector(`[data-conn-svg="${s.n}"]`);
+      if (!svg) return;
+      svg.innerHTML = '';
+      const svgRect = svg.getBoundingClientRect();
+      const leftCards  = cols[ci]?.querySelectorAll('[data-matchup]') || [];
+      const rightCards = cols[ci+1]?.querySelectorAll('[data-matchup]') || [];
+      const stroke = s.n === currentStage ? 'rgba(163,230,53,.35)' : 'var(--c-border)';
+      for (let ri = 0; ri < rightCards.length; ri++) {
+        const li1 = leftCards[ri * 2];
+        const li2 = leftCards[ri * 2 + 1];
+        const rm  = rightCards[ri];
+        if (!li1 || !rm) continue;
+        const r1 = li1.getBoundingClientRect();
+        const r2 = (li2 || li1).getBoundingClientRect();
+        const rr = rm.getBoundingClientRect();
+        const y1 = (r1.top + r1.bottom) / 2 - svgRect.top;
+        const y2 = (r2.top + r2.bottom) / 2 - svgRect.top;
+        const yM = (y1 + y2) / 2;
+        const yT = (rr.top + rr.bottom) / 2 - svgRect.top;
+        const d = `M0,${y1} H12 V${y2} M0,${y2} H12 V${yM} H28 M12,${yM} V${yT} H28`;
+        const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+        path.setAttribute('d', d);
+        path.setAttribute('stroke', stroke);
+        path.setAttribute('stroke-width', '1.5');
+        path.setAttribute('fill', 'none');
+        svg.appendChild(path);
+      }
+    });
+  });
+
+  function renderMatchup(m) {
+    const teamA   = resolveTeamDeep(m.a, results, matches);
+    const teamB   = resolveTeamDeep(m.b, results, matches);
+    const live    = liveMatches[m.n];
+    const res     = results[m.n];
+    const isLive  = !!(live && live.is_live);
+    const isDone  = !!res;
+    const scoreA  = isLive ? live.score_a : (res ? res[0] : null);
+    const scoreB  = isLive ? live.score_b : (res ? res[1] : null);
+    const winner  = isLive ? live.winner  : (res ? res[2] : null);
+    const winA    = scoreA != null
+      ? (scoreA > scoreB ? true : scoreB > scoreA ? false
+         : winner === 'a' ? true : winner === 'b' ? false : null)
+      : null;
+    const border  = isLive ? `1px solid ${C.red}` : isDone ? `1px solid rgba(16,185,129,0.2)` : `1px solid ${C.border}`;
+    const pending = !isLive && !isDone;
+
+    const rowA = {display:'flex',alignItems:'center',gap:5,padding:'6px 8px',
+      borderBottom:`1px solid ${C.border}`,
+      background: winA===true ? 'rgba(163,230,53,.07)' : 'transparent'};
+    const rowB = {display:'flex',alignItems:'center',gap:5,padding:'6px 8px',
+      background: winA===false ? 'rgba(163,230,53,.07)' : 'transparent'};
+    const nameStyle = (won) => ({fontSize:12,fontWeight:won?700:400,flex:1,
+      whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',
+      color: won===false ? C.muted : C.text});
+    const scoreStyle = (won) => ({fontSize:12,fontWeight:700,fontFamily:'monospace',
+      minWidth:18,textAlign:'right',
+      color: won===true ? C.accent : isDone ? C.muted : C.muted});
+
+    let aboveLabel;
+    if (isDone && winner) {
+      const wt = winner === 'a' ? teamA : teamB;
+      aboveLabel = (
+        <div style={{fontSize:10,fontWeight:700,color:C.muted,padding:'0 4px 4px',
+          whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+          {flag(wt)} <span style={{color:C.accent}}>{wt}</span> wins
+        </div>
+      );
+    } else if (isLive) {
+      aboveLabel = (
+        <div style={{fontSize:10,fontWeight:700,padding:'0 4px 4px',
+          display:'flex',alignItems:'center',gap:4}}>
+          <span className="live-dot" style={{width:6,height:6}}/><span style={{color:C.red}}>LIVE</span>
+        </div>
+      );
+    } else {
+      aboveLabel = <div style={{height:14}}/>;
+    }
+
+    return (
+      <Fragment key={m.n}>
+        {aboveLabel}
+        <div data-matchup={m.n} style={{background:C.panel,border,borderRadius:8,overflow:'hidden',opacity:pending?0.6:1}}>
+          <div style={rowA}>
+            <span style={{fontSize:14,width:20,textAlign:'center',flexShrink:0}}>{flag(teamA)}</span>
+            <span style={nameStyle(winA===true)}>{teamA}</span>
+            {isLive
+              ? <span className="live-dot" style={{width:6,height:6}}/>
+              : <span style={scoreStyle(winA===true)}>{scoreA != null ? scoreA : '–'}</span>}
+          </div>
+          <div style={rowB}>
+            <span style={{fontSize:14,width:20,textAlign:'center',flexShrink:0}}>{flag(teamB)}</span>
+            <span style={nameStyle(winA===false)}>{teamB}</span>
+            {isLive
+              ? <span className="live-dot" style={{width:6,height:6}}/>
+              : <span style={scoreStyle(winA===false)}>{scoreB != null ? scoreB : '–'}</span>}
+          </div>
+        </div>
+      </Fragment>
+    );
+  }
+
+  return (
+    <div style={{overflowX:'auto',overflowY:'visible',paddingBottom:8}}>
+      <div ref={wrapRef} style={{display:'flex',alignItems:'flex-start',minWidth:'min-content'}}>
+        {knockoutStages.map((s, colIdx) => {
+          const isCurrent  = s.n === currentStage;
+          const stageMs    = matches.filter(m => m.n >= s.first && m.n <= s.last);
+          return (
+            <Fragment key={s.n}>
+              <div data-round-col={s.n} style={{display:'flex',flexDirection:'column',
+                width:160,flexShrink:0,opacity:isCurrent?1:0.5}}>
+                <div style={{fontSize:10,fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',
+                  padding:'0 4px 10px',textAlign:'center',
+                  color:isCurrent?C.accent:C.muted}}>
+                  {s.name}
+                </div>
+                {stageMs.map((m, i) => (
+                  <Fragment key={m.n}>
+                    {i > 0 && <div style={{height:18}}/>}
+                    {renderMatchup(m)}
+                  </Fragment>
+                ))}
+              </div>
+              {colIdx < knockoutStages.length - 1 && (
+                <div style={{width:28,flexShrink:0,alignSelf:'stretch',position:'relative'}}>
+                  <svg data-conn-svg={s.n} width="28" height="100%"
+                    style={{position:'absolute',inset:0,overflow:'visible'}}/>
+                </div>
+              )}
+            </Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ADMIN MATCH ROW — handles pending / live / final states; outside App
