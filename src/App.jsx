@@ -3456,9 +3456,11 @@ function CompareView({ matches, results, liveMatches,
         </button>
         <span style={{flex:1}}/>
       </div>
-      {/* Option A scoreboard — static rank/points boxes + centered gap. */}
+      {/* Scoreboard — mirrored & centered: each box's cluster is centered, and
+          the right box is reversed (points · rank · form) so the two forms are
+          symmetric around the gap (names on the outer edges). */}
       <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:10,alignItems:"stretch",marginBottom:10}}>
-        <div style={groupBox}>
+        <div style={{...groupBox,justifyContent:"center"}}>
           <div style={{display:"inline-flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,padding:"5px 12px",minWidth:110,maxWidth:200}}>
             <span style={tileLabel}>Your form</span>
             <span style={{fontSize:15,fontWeight:700,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:180}}>{myName}</span>
@@ -3471,9 +3473,9 @@ function CompareView({ matches, results, liveMatches,
           <span style={{fontSize:10,textTransform:"uppercase",letterSpacing:".4px",color:C.muted}}>gap</span>
           <b style={{fontSize:22,fontFamily:"monospace",lineHeight:1.1,color:gap>0?C.green:gap<0?C.red:C.muted}}>{gap>0?`+${gap}`:gap}</b>
         </div>
-        <div style={{...groupBox,justifyContent:"flex-end"}}>
-          <div style={tileBox}><span style={tileLabel}>Rank</span><b style={{...tileVal,color:C.text}}>{theirRank?`#${theirRank}`:"—"}</b></div>
+        <div style={{...groupBox,justifyContent:"center"}}>
           <div style={tileBox}><span style={tileLabel}>Points</span><b style={{...tileVal,color:gap<0?C.green:C.accent}}>{theirTotal}</b></div>
+          <div style={tileBox}><span style={tileLabel}>Rank</span><b style={{...tileVal,color:C.text}}>{theirRank?`#${theirRank}`:"—"}</b></div>
           <div style={{position:"relative"}}>
             <button onClick={(e)=>{e.stopPropagation();setMenuOpen(o=>!o);}} title="Change the form to compare" style={{
               display:"inline-flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,minWidth:120,maxWidth:220,height:"100%",
