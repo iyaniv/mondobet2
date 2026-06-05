@@ -3343,7 +3343,7 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
 // ─────────────────────────────────────────────────────────────────────────────
 function CompareView({ matches, results, liveMatches,
                        myName, myPreds, myTotal, myRank, myWinner,
-                       theirKey, theirName, theirPreds, theirTotal, theirRank, theirWinner,
+                       theirKey, theirName, theirPreds, theirTotal, theirRank, theirWinner, winnersRevealed,
                        forms, loading, onBack, onPick }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showTop, setShowTop] = useState(false);
@@ -3485,7 +3485,7 @@ function CompareView({ matches, results, liveMatches,
                 <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{theirName}</span>
                 <span style={{fontSize:8,opacity:.7,transition:"transform .2s",transform:menuOpen?"rotate(180deg)":"none"}}>▾</span>
               </span>
-              <span style={{fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:200,marginTop:1}}>🏆 {theirWinner?withFlag(theirWinner):"—"}</span>
+              <span style={{fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:200,marginTop:1}}>{winnersRevealed ? <>🏆 {theirWinner?withFlag(theirWinner):"—"}</> : "🔒 champion hidden"}</span>
             </button>
             {menuOpen&&(
               <div style={{position:"absolute",top:"calc(100% + 4px)",right:0,minWidth:200,maxHeight:280,overflowY:"auto",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",zIndex:40,padding:4}}>
@@ -5118,7 +5118,7 @@ export default function App() {
             matches={matches} results={results} liveMatches={liveMatches}
             myName={myLbRow?myLbRow.name:"Your form"} myPreds={myPreds} myTotal={myLbRow?myLbRow.total:0} myRank={myRank} myWinner={myWinner}
             theirKey={compareKey} theirName={themRow?themRow.name:"—"}
-            theirPreds={comparePreds} theirTotal={themRow?themRow.total:0} theirRank={themRank} theirWinner={compareWinner}
+            theirPreds={comparePreds} theirTotal={themRow?themRow.total:0} theirRank={themRank} theirWinner={compareWinner} winnersRevealed={(config.current_stage||1)>1}
             forms={compareForms} loading={compareLoading}
             onBack={()=>setCompareKey(null)} onPick={(k)=>setCompareKey(k)}/>
         </div>
