@@ -1931,7 +1931,7 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage }) {
         const y2 = (r2.top + r2.bottom) / 2 - svgRect.top;
         const yM = (y1 + y2) / 2;
         const yT = (rr.top + rr.bottom) / 2 - svgRect.top;
-        const d = `M0,${y1} H12 V${y2} M0,${y2} H12 V${yM} H28 M12,${yM} V${yT} H28`;
+        const d = `M0,${y1} H12 M0,${y2} H12 M12,${y1} V${y2} M12,${yM} H28`;
         const path = document.createElementNS('http://www.w3.org/2000/svg','path');
         path.setAttribute('d', d);
         path.setAttribute('stroke', stroke);
@@ -1971,30 +1971,8 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage }) {
       minWidth:18,textAlign:'right',
       color: won===true ? C.accent : isDone ? C.muted : C.muted});
 
-    let aboveLabel;
-    if (isDone && winner) {
-      const wt = winner === 'a' ? teamA : teamB;
-      aboveLabel = (
-        <div style={{fontSize:10,fontWeight:700,color:C.muted,padding:'0 4px 4px',
-          whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-          {flag(wt)} <span style={{color:C.accent}}>{wt}</span> wins
-        </div>
-      );
-    } else if (isLive) {
-      aboveLabel = (
-        <div style={{fontSize:10,fontWeight:700,padding:'0 4px 4px',
-          display:'flex',alignItems:'center',gap:4}}>
-          <span className="live-dot" style={{width:6,height:6}}/><span style={{color:C.red}}>LIVE</span>
-        </div>
-      );
-    } else {
-      aboveLabel = <div style={{height:14}}/>;
-    }
-
     return (
-      <Fragment key={m.n}>
-        {aboveLabel}
-        <div data-matchup={m.n} style={{background:C.panel,border,borderRadius:8,overflow:'hidden',opacity:pending?0.6:1}}>
+      <div data-matchup={m.n} style={{background:C.panel,border,borderRadius:8,overflow:'hidden',opacity:pending?0.6:1,margin:'0 3px'}}>
           <div style={rowA}>
             <span style={{fontSize:14,width:20,textAlign:'center',flexShrink:0}}>{flag(teamA)}</span>
             <span style={nameStyle(winA===true)}>{teamA}</span>
@@ -2010,9 +1988,17 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage }) {
               : <span style={scoreStyle(winA===false)}>{scoreB != null ? scoreB : '–'}</span>}
           </div>
         </div>
-      </Fragment>
     );
   }
+
+  // Slot-based layout: each card lives in a slot whose height doubles each round.
+  // R32 has 16 matches → slot = 1 unit. R16 has 8 → slot = 2 units. QF → 4. SF → 8.
+  // Final also has 2 matches so same slot size as SF.
+  // This ensures each card is vertically centred between the two source cards that feed it.
+  const MATCH_COUNTS  = {2:16, 3:8, 4:4, 5:2, 6:2};
+  const BASE_COUNT    = 16; // R32
+  const BASE_SLOT_PX  = 80; // height of one R32 slot (card + label + breathing room)
+  const LABEL_H       = 16; // fixed height reserved above every card for the winner label
 
   return (
     <div style={{overflowX:'auto',overflowY:'visible',paddingBottom:8}}>
@@ -2020,20 +2006,54 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage }) {
         {knockoutStages.map((s, colIdx) => {
           const isCurrent  = s.n === currentStage;
           const stageMs    = matches.filter(m => m.n >= s.first && m.n <= s.last);
+          const count      = MATCH_COUNTS[s.n] || stageMs.length || 1;
+          const slotPx     = (BASE_COUNT / count) * BASE_SLOT_PX;
+
           return (
             <Fragment key={s.n}>
               <div data-round-col={s.n} style={{display:'flex',flexDirection:'column',
                 width:160,flexShrink:0,opacity:isCurrent?1:0.5}}>
+                {/* Column header — fixed height row so all columns start at the same top */}
                 <div style={{fontSize:10,fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',
-                  padding:'0 4px 10px',textAlign:'center',
+                  padding:'0 4px 8px',textAlign:'center',height:24,
                   color:isCurrent?C.accent:C.muted}}>
                   {s.name}
                 </div>
-                {stageMs.map((m, i) => (
-                  <Fragment key={m.n}>
-                    {i > 0 && <div style={{height:18}}/>}
+                {stageMs.map(m => (
+                  <div key={m.n} style={{
+                    height:slotPx,
+                    display:'flex',flexDirection:'column',
+                    justifyContent:'center',
+                    paddingTop: LABEL_H,  // keep space for label above without shifting centre
+                    position:'relative',
+                  }}>
+                    {/* above-card label sits at the top of the slot */}
+                    <div style={{position:'absolute',top:0,left:4,right:4,height:LABEL_H,
+                      overflow:'hidden',display:'flex',alignItems:'flex-end'}}>
+                      {(() => {
+                        const res = results[m.n];
+                        const live = liveMatches[m.n];
+                        const isLive = !!(live && live.is_live);
+                        const winner = isLive ? live.winner : (res ? res[2] : null);
+                        if (res && winner) {
+                          const wt = winner==='a'
+                            ? resolveTeamDeep(m.a, results, matches)
+                            : resolveTeamDeep(m.b, results, matches);
+                          return <span style={{fontSize:10,fontWeight:700,color:C.muted,
+                            whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                            {flag(wt)} <span style={{color:C.accent}}>{wt}</span> wins
+                          </span>;
+                        }
+                        if (isLive) return <span style={{fontSize:10,fontWeight:700,
+                          display:'flex',alignItems:'center',gap:3}}>
+                          <span className="live-dot" style={{width:6,height:6}}/>
+                          <span style={{color:C.red}}>LIVE</span>
+                        </span>;
+                        return null;
+                      })()}
+                    </div>
                     {renderMatchup(m)}
-                  </Fragment>
+                  </div>
                 ))}
               </div>
               {colIdx < knockoutStages.length - 1 && (
