@@ -786,6 +786,25 @@ function Btn({ children, onClick, green, red, ghost, disabled }) {
   );
 }
 
+// Effective 90-min score for a match: final result wins, else the in-play live
+// score. Returns [a,b,(winner?)] or null. Shared by MatchRow + CompareView.
+function effScoreOf(result, liveData) {
+  if (result) return result;
+  if (liveData && liveData.score_a != null) return [liveData.score_a, liveData.score_b, liveData.winner || null];
+  return null;
+}
+// Score one prediction against an effective score, using the same rules as
+// MatchRow: +5 for correct direction, +3 for exact (both goals) or +1 for one
+// goal. Returns {total, aMatch, bMatch} or null when not scorable.
+function scorePrediction(pred, eff) {
+  if (!eff || pred?.[0] == null || pred?.[1] == null) return null;
+  const sign = (x) => x === 0 ? 0 : x > 0 ? 1 : -1;
+  const dir = sign(pred[0] - pred[1]) === sign(eff[0] - eff[1]) ? 5 : 0;
+  const goals = (pred[0] === eff[0] ? 1 : 0) + (pred[1] === eff[1] ? 1 : 0);
+  const exact = goals === 2 ? 3 : goals === 1 ? 1 : 0;
+  return { total: dir + exact, aMatch: pred[0] === eff[0], bMatch: pred[1] === eff[1] };
+}
+
 // MatchRow — outside App so localA/localB survive App re-renders
 function MatchRow({ match, pred, result, liveData, editable, adminResult, roundState, onSave, onResultSave }) {
   const [localA, setLocalA] = useState(pred?.[0]!=null?String(pred[0]):"");
@@ -2067,7 +2086,7 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage }) {
                 {bracketMs.map(m => slotCard(m, isFinalStage ? finalSlotPx : slotPx))}
                 {/* 3rd place — floating below, not connected to bracket lines */}
                 {thirdMatch && (
-                  <div style={{marginTop:20,padding:'0 3px'}}>
+                  <div style={{marginTop:8,padding:'0 3px'}}>
                     <div style={{fontSize:10,fontWeight:700,color:C.muted,
                       padding:'0 0 4px',letterSpacing:'.06em',textTransform:'uppercase'}}>
                       🥉 3rd place
