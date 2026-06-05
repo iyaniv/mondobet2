@@ -53,21 +53,30 @@
 
   /* compare header */
   .cmpbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
-  /* Option A scoreboard: two cards with the gap between them */
+  /* Scoreboard built from the My-Predictions bar vocabulary: a champion-picker
+     style "form" tile + matching RANK / POINTS tiles, with the gap between. */
   .scoreboard{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:stretch;margin-bottom:6px}
-  .scard{border:1px solid var(--border);border-radius:10px;padding:11px 14px;background:var(--panel);position:relative}
-  .scard.lead{border-color:rgba(16,185,129,.5);background:rgba(16,185,129,.06)}
-  .scard .who{font-size:11px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
-  .scard .rk{font-family:monospace;font-weight:700}
-  .scard .nm{font-size:13px;color:var(--text);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .scard .sc{font-size:28px;font-weight:800;font-family:monospace;line-height:1}
-  .scard.mine .sc{color:var(--indigo)} .scard.theirs .sc{color:var(--gold)}
-  .scard .badge{position:absolute;top:10px;right:12px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px}
-  .scard.lead .badge{background:rgba(16,185,129,.16);color:var(--green);border:1px solid rgba(16,185,129,.45)}
-  .scard.trail .badge{background:rgba(148,163,184,.12);color:var(--muted);border:1px solid var(--border)}
-  .gap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:64px}
+  .fgroup{display:flex;align-items:stretch;gap:8px;border:1px solid transparent;border-radius:10px;padding:5px}
+  .fgroup.them{justify-content:flex-end}
+  .fgroup.lead{border-color:rgba(16,185,129,.45);background:rgba(16,185,129,.05)}
+  /* champion-picker style tile (form name / selector) */
+  .ptile{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:120px;max-width:220px;
+    padding:5px 12px;border-radius:8px;background:#0b1020;border:1px solid var(--accent);font-family:inherit;cursor:pointer}
+  .ptile.static{cursor:default}
+  .ptile .plabel{font-size:9px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .ptile .pname{display:inline-flex;align-items:center;gap:5px;font-size:15px;font-weight:700;line-height:1.1;white-space:nowrap;color:var(--accent);max-width:200px;overflow:hidden}
+  .ptile .pname span.t{overflow:hidden;text-overflow:ellipsis}
+  .ptile .pname .car{font-size:8px;opacity:.7}
+  /* RANK / POINTS tile (same as the bar) */
+  .tile{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:62px;
+    padding:5px 12px;border-radius:8px;background:#0b1020;border:1px solid var(--border)}
+  .tlabel{font-size:9px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .tval{font-size:19px;font-family:monospace;font-weight:800;line-height:1.15}
+  .tval.rank{color:var(--text)} .tval.pts{color:var(--accent)}
+  .fgroup.lead .tval.pts{color:var(--green)}
+  .gap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:56px}
   .gap .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
-  .gap b{font-size:24px;font-family:monospace;line-height:1.1}
+  .gap b{font-size:22px;font-family:monospace;line-height:1.1}
 
   .stagehdr{color:var(--indigo);font-weight:700;font-size:13px;margin:14px 0 6px;padding:6px 10px;background:var(--panel2);border-radius:6px}
 
@@ -124,24 +133,24 @@
         <div class="cmpbar">
           <button class="btn" onclick="showLb()">← Back to leaderboard</button>
           <span style="flex:1"></span>
-          <label class="muted" style="font-size:12px">Compare to:
-            <select id="cmpSelect" onchange="renderCompare(this.value)"></select>
-          </label>
         </div>
 
         <div class="scoreboard">
-          <div class="scard mine" id="cardYou">
-            <span class="badge" id="youBadge"></span>
-            <div class="who">You · <span class="rk" id="youRank"></span></div>
-            <div class="nm">Alice — main</div>
-            <div class="sc" id="youTotal">0</div>
+          <!-- YOU -->
+          <div class="fgroup mine" id="grpYou">
+            <button class="ptile static"><span class="plabel">Your form</span>
+              <span class="pname"><span class="t">Alice — main</span></span></button>
+            <div class="tile"><span class="tlabel">Rank</span><b class="tval rank" id="youRank">#2</b></div>
+            <div class="tile"><span class="tlabel">Points</span><b class="tval pts" id="youTotal">0</b></div>
           </div>
           <div class="gap"><span class="lbl">gap</span><b id="diffVal">0</b></div>
-          <div class="scard theirs" id="cardThem">
-            <span class="badge" id="themBadge"></span>
-            <div class="who">Comparing · <span class="rk" id="themRank"></span></div>
-            <div class="nm" id="themName">—</div>
-            <div class="sc" id="themTotal">0</div>
+          <!-- COMPARING -->
+          <div class="fgroup them" id="grpThem">
+            <div class="tile"><span class="tlabel">Rank</span><b class="tval rank" id="themRank">#0</b></div>
+            <div class="tile"><span class="tlabel">Points</span><b class="tval pts" id="themTotal">0</b></div>
+            <button class="ptile" onclick="cycleCompare()" title="Change the form to compare">
+              <span class="plabel">Compare to</span>
+              <span class="pname"><span class="t" id="themName">—</span><span class="car">▾</span></span></button>
           </div>
         </div>
 
@@ -221,11 +230,12 @@ function buildLb(){
 
 const RANK = {bob:1, charlie:3, diana:4};   // their leaderboard ranks; "me" is #2
 const MY_RANK = 2;
-let liveRowId=null;
+let liveRowId=null, currentKey=null;
+function cycleCompare(){ const keys=Object.keys(FORMS); const i=keys.indexOf(currentKey); renderCompare(keys[(i+1)%keys.length]); }
 function renderCompare(key){
+  currentKey=key;
   const them = FORMS[key];
   document.getElementById('themName').textContent = them.name;
-  document.getElementById('cmpSelect').value = key;
   let you=0, th=0, rows='', lastStage=null; liveRowId=null;
   MATCHES.forEach(m=>{
     const e=eff(m);
@@ -250,13 +260,9 @@ function renderCompare(key){
   const d = you-th; const dv=document.getElementById('diffVal');
   dv.textContent=(d>0?'+':'')+d;
   dv.style.color = d>0?F.green:d<0?F.red:F.muted;
-  // leader highlight + badges
-  const cy=document.getElementById('cardYou'), ct=document.getElementById('cardThem');
-  const by=document.getElementById('youBadge'), bt=document.getElementById('themBadge');
-  cy.classList.remove('lead','trail'); ct.classList.remove('lead','trail');
-  if(you>th){ cy.classList.add('lead'); ct.classList.add('trail'); by.textContent='▲ Leading'; bt.textContent='▼ Behind'; }
-  else if(th>you){ ct.classList.add('lead'); cy.classList.add('trail'); bt.textContent='▲ Leading'; by.textContent='▼ Behind'; }
-  else { by.textContent='Level'; bt.textContent='Level'; cy.classList.add('trail'); ct.classList.add('trail'); }
+  // leader highlight on the winning group (green outline + green points)
+  const gy=document.getElementById('grpYou'), gt=document.getElementById('grpThem');
+  gy.classList.toggle('lead', you>th); gt.classList.toggle('lead', th>you);
   // Auto-jump to the live match silently (no banner) — Today's Games panel stays on top.
   if(liveRowId) setTimeout(()=>{ const el=document.getElementById(liveRowId); if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); }, 260);
 }
@@ -274,7 +280,6 @@ function swap(fromId,toId,after){
   },200);
 }
 function openCompare(key){
-  document.getElementById('cmpSelect').innerHTML = Object.keys(FORMS).map(k=>'<option value="'+k+'">'+FORMS[k].name+'</option>').join('');
   swap('lbScreen','cmpScreen',()=>renderCompare(key));
 }
 function showLb(){ swap('cmpScreen','lbScreen'); }
