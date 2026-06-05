@@ -3725,29 +3725,8 @@ export default function App() {
   const lbScrollRef = useRef(null);
   const myLbRowRef  = useRef(null);
   const [lbFabState,setLbFabState]=useState({showTop:false,showMe:false,meAbove:false});
-  // Inject the flash keyframe once (no CSS file in this project).
-  useEffect(()=>{
-    const id="lb-flash-style";
-    if(!document.getElementById(id)){
-      const s=document.createElement("style");
-      s.id=id;
-      s.textContent=`@keyframes lbFlash{0%{background:rgba(99,102,241,.4)}55%{background:rgba(99,102,241,.4)}100%{background:rgba(163,230,53,.08)}} .lb-flash{animation:lbFlash 1.6s ease-out forwards}`;
-      document.head.appendChild(s);
-    }
-  },[]);
-  // When the user lands on the leaderboard tab, scroll to their row and flash it.
-  useEffect(()=>{
-    if(tab!=="leaderboard") return;
-    const timer=setTimeout(()=>{
-      const row=myLbRowRef.current;
-      if(!row) return;
-      row.scrollIntoView({behavior:"smooth",block:"center"});
-      row.classList.remove("lb-flash");
-      void row.offsetHeight;
-      row.classList.add("lb-flash");
-    },350);
-    return ()=>clearTimeout(timer);
-  },[tab]);
+  // (Auto-scroll-to-my-row on landing removed — users found it jarring. The
+  //  "↑ My form" FAB still lets them jump there manually.)
   // Lifted so LeaderboardView (called inline, not mounted) can branch its
   // layout responsively without itself calling a hook conditionally.
   const isMobile = useIsMobile();
@@ -5535,6 +5514,7 @@ export default function App() {
                       return (
                         <span onClick={()=>setFavOnly(v=>!v)}
                           title={favOnly?"Showing favorites only — click to show all":"Show favorites only"}
+                          className={showFavHint?"lb-star-blink":""}
                           style={{cursor:"pointer",userSelect:"none",display:"inline-flex",flexDirection:"column",
                             alignItems:"center",gap:1,position:"relative",verticalAlign:"middle"}}>
                           <span style={{fontSize:17,lineHeight:1,color:starColor,transition:"color .2s"}}>{starChar}</span>
