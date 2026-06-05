@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>MondoBet — Leaderboard scroll demo</title>
+<style>
+  :root{--bg:#0b1020;--panel:#141c34;--panel2:#1a2547;--border:#2a3658;--text:#e7ecf3;
+    --muted:#6b7a99;--accent:#a3e635;--green:#10b981;--red:#ef4444;--indigo:#6366f1;--gold:#facc15}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:14px;
+    height:100vh;display:flex;flex-direction:column}
+
+  /* nav */
+  .nav{display:flex;align-items:center;gap:10px;padding:12px 18px;
+    border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+  .logo{font-weight:800;letter-spacing:.5px;color:var(--accent);font-size:18px;margin-right:4px}
+  .tab{font-size:13px;color:var(--muted);padding:6px 12px;border:1px solid var(--border);
+    border-radius:8px;cursor:pointer;transition:all .15s}
+  .tab.on{background:var(--accent);color:#0b1020;font-weight:700;border-color:var(--accent)}
+
+  /* main area = nav + toolbar + table, fills remaining height */
+  .main{flex:1;display:flex;flex-direction:column;overflow:hidden;max-width:760px;
+    width:100%;margin:0 auto;padding:0 14px}
+
+  /* toolbar */
+  .toolbar{display:flex;align-items:center;gap:10px;padding:12px 0 10px;flex-shrink:0;flex-wrap:wrap}
+  .toolbar-btn{font-family:inherit;font-size:12px;cursor:pointer;border-radius:8px;
+    border:1px solid var(--border);background:var(--panel2);color:var(--text);
+    padding:6px 12px;transition:all .15s}
+  .toolbar-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .toolbar-btn.active{background:var(--accent);color:#0b1020;border-color:var(--accent);font-weight:700}
+  .sep{width:1px;height:22px;background:var(--border)}
+
+  /* leaderboard card fills remaining height */
+  .lb-card{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:10px;
+    overflow:hidden;display:flex;flex-direction:column;margin-bottom:14px}
+  .lb-scroll{flex:1;overflow-y:auto;scroll-behavior:smooth}
+
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  thead tr{background:var(--panel2);position:sticky;top:0;z-index:5}
+  th{padding:9px 8px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);text-align:left}
+  th.c{text-align:center;width:42px}
+  td{padding:10px 8px;border-bottom:1px solid rgba(42,54,88,.5);transition:background .12s}
+  .rank{text-align:center;width:40px;padding:8px 4px !important;font-weight:700}
+  .rankup{font-size:10px;font-weight:700;line-height:1;margin-top:2px}
+  .star-col{text-align:center;width:40px;padding:8px 4px !important}
+  .star-ring{display:inline-flex;align-items:center;justify-content:center;
+    width:22px;height:22px;border-radius:50%;border:2px solid var(--indigo);
+    font-size:13px;color:var(--accent);user-select:none}
+  .you{background:var(--indigo);color:#fff;font-size:10px;padding:1px 5px;border-radius:4px;margin-left:6px}
+  .pts{text-align:center;color:var(--accent);font-weight:700;font-family:monospace;font-size:17px}
+  .winner-col{color:var(--muted);font-size:13px}
+  .arrow-col{text-align:right;color:var(--muted);font-size:15px;opacity:.3;width:28px;padding-right:12px !important;
+    transition:opacity .12s}
+  tr:hover .arrow-col{opacity:1;color:var(--accent)}
+  tr{transition:background .12s}
+
+  /* flash animation */
+  @keyframes flashRow{
+    0%  {background:rgba(99,102,241,.45)}
+    55% {background:rgba(99,102,241,.45)}
+    100%{background:rgba(163,230,53,.08)}
+  }
+  .flash-me{animation:flashRow 1.6s ease-out forwards}
+
+  /* FABs */
+  .fab-wrap{position:fixed;bottom:20px;left:0;right:0;
+    display:flex;justify-content:space-between;padding:0 22px;
+    pointer-events:none;z-index:100}
+  .chip{pointer-events:auto;display:flex;align-items:center;gap:6px;font-size:12px;
+    font-weight:600;cursor:pointer;border-radius:22px;padding:8px 14px;
+    box-shadow:0 4px 18px rgba(0,0,0,.55);transition:opacity .25s,transform .25s,border-color .15s,color .15s;
+    background:var(--panel2);border:1px solid var(--border);color:var(--text)}
+  .chip:hover{border-color:var(--accent);color:var(--accent)}
+  .chip.hidden{opacity:0;pointer-events:none;transform:translateY(10px)}
+  .chip-icon{font-size:15px;line-height:1}
+
+  /* header star with badge */
+  .th-star-wrap{position:relative;display:inline-flex;align-items:center;justify-content:center;
+    width:28px;height:28px;border-radius:6px;transition:background .15s}
+  .th-star-wrap:hover{background:rgba(163,230,53,.1)}
+  .th-star-icon{font-size:16px;line-height:1;transition:color .2s}
+  /* dot badge */
+  .th-badge{position:absolute;top:1px;right:1px;width:7px;height:7px;border-radius:50%;
+    background:var(--gold);border:1.5px solid var(--panel2);
+    opacity:0;transform:scale(0);transition:opacity .2s,transform .2s}
+  .th-badge.visible{opacity:1;transform:scale(1)}
+  /* count label that appears next to the star */
+  .th-fav-count{font-size:10px;font-weight:700;color:var(--gold);margin-left:3px;
+    opacity:0;transition:opacity .2s;white-space:nowrap}
+  .th-fav-count.visible{opacity:1}
+  /* pulse on new fav */
+  @keyframes headerPop{0%{transform:scale(1.5)}100%{transform:scale(1)}}
+  .th-badge.pop{animation:headerPop .35s ease-out}
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <span class="logo">MondoBet</span>
+  <span class="tab">🏟 Tournament</span>
+  <span class="tab on" id="lbTab">Leaderboard</span>
+  <span class="tab">By participant</span>
+  <span class="tab">My predictions</span>
+  <span class="tab">⚙ Settings</span>
+</div>
+
+<div class="main">
+  <div class="toolbar">
+    <span style="font-size:12px;color:var(--muted)">Demo controls:</span>
+    <button class="toolbar-btn" onclick="scrollToTop()">↑ Scroll to top</button>
+    <div class="sep"></div>
+    <button class="toolbar-btn" onclick="triggerLanding()" title="Simulates switching to the Leaderboard tab">
+      ▶ Re-trigger landing (scroll + flash)
+    </button>
+    <div class="sep"></div>
+    <button class="toolbar-btn" id="favBtn" onclick="toggleFavOnly()">★ Favorites only</button>
+  </div>
+
+  <div class="lb-card">
+    <div class="lb-scroll" id="lbScroll">
+      <table>
+        <thead><tr>
+          <th class="c">#</th>
+          <th class="c" id="thStar" style="cursor:pointer" onclick="toggleFavOnly()" title="Show favorites only">
+            <div class="th-star-wrap">
+              <span class="th-star-icon" id="thStarIcon">☆</span>
+              <span class="th-badge" id="thBadge"></span>
+            </div>
+            <span class="th-fav-count" id="thFavCount"></span>
+          </th>
+          <th>Name</th>
+          <th class="c">Pts</th>
+          <th>Winner pick</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="lbBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- floating chips -->
+<div class="fab-wrap">
+  <div class="chip hidden" id="topChip" onclick="scrollToTop()">
+    <span class="chip-icon">↑</span> Top
+  </div>
+  <div class="chip hidden" id="myChip" onclick="scrollToMe()">
+    <span class="chip-icon" id="myChipArrow">↓</span> My form
+  </div>
+</div>
+
+<script>
+const ME_IDX = 11; // rank 12 (0-based 11) — deep enough to require scrolling
+
+const ROWS = [
+  {name:"Brunson",   pts:142, winner:"🇺🇸 OKC", fav:false},
+  {name:"KAT",       pts:138, winner:"🇺🇸 IND", fav:false},
+  {name:"NYK",       pts:131, winner:"🇺🇸 OKC", fav:true},
+  {name:"Karpiel",   pts:128, winner:"🇺🇸 OKC", fav:false},
+  {name:"MikeD",     pts:120, winner:"🇺🇸 MIN", fav:true},
+  {name:"Shai42",    pts:115, winner:"🇺🇸 IND", fav:false},
+  {name:"Jokić",     pts:110, winner:"🇺🇸 OKC", fav:false},
+  {name:"Tatum",     pts:107, winner:"🇺🇸 OKC", fav:false},
+  {name:"Celtics1",  pts:103, winner:"🇺🇸 IND", fav:false},
+  {name:"GuardHero", pts: 99, winner:"🇺🇸 MIN", fav:false},
+  {name:"BoxScore",  pts: 96, winner:"🇺🇸 OKC", fav:false},
+  {name:"Yaniv Itzhaki", pts:93, winner:"🇺🇸 OKC", fav:false, isMe:true},
+  {name:"CoachK",    pts: 89, winner:"🇺🇸 MIN", fav:false},
+  {name:"RingChaser",pts: 85, winner:"🇺🇸 IND", fav:false},
+  {name:"DraftDay",  pts: 82, winner:"🇺🇸 OKC", fav:false},
+  {name:"MVP_voter", pts: 77, winner:"🇺🇸 IND", fav:false},
+  {name:"Buckets",   pts: 74, winner:"🇺🇸 MIN", fav:false},
+  {name:"Clutch",    pts: 70, winner:"🇺🇸 OKC", fav:false},
+  {name:"FoulOut",   pts: 66, winner:"🇺🇸 IND", fav:false},
+  {name:"RimRocker", pts: 60, winner:"🇺🇸 MIN", fav:false},
+];
+
+let favOnly = false;
+let myRowEl = null;
+
+function rowBg(i, isFav) {
+  if (i === 0) return "rgba(163,230,53,0.12)";
+  if (i === 1) return "rgba(163,230,53,0.07)";
+  if (i === 2) return "rgba(163,230,53,0.03)";
+  if (isFav)   return "rgba(163,230,53,0.05)";
+  return "transparent";
+}
+
+function buildTable() {
+  const tbody = document.getElementById("lbBody");
+  tbody.innerHTML = "";
+  myRowEl = null;
+
+  const display = favOnly ? ROWS.filter(r => r.isMe || r.fav) : ROWS;
+
+  display.forEach((r, i) => {
+    const globalRank = ROWS.indexOf(r) + 1;
+    const isFav = r.fav || r.isMe;
+    const bl = r.isMe ? "3px solid #6366f1" : isFav ? "3px solid #a3e635" : "3px solid transparent";
+    const bg = r.isMe ? "rgba(163,230,53,0.08)" : rowBg(i, isFav);
+
+    const tr = document.createElement("tr");
+    tr.style.cssText = `background:${bg};border-left:${bl}`;
+    if (r.isMe) myRowEl = tr;
+
+    const starHtml = r.isMe
+      ? `<span class="star-ring" title="Your form">★</span>`
+      : isFav
+        ? `<span style="font-size:16px;color:#a3e635;cursor:pointer;user-select:none" onclick="toggleFav(${ROWS.indexOf(r)})" title="Remove from favorites">★</span>`
+        : `<span style="font-size:16px;color:#6b7a99;opacity:.5;cursor:pointer;user-select:none" onclick="toggleFav(${ROWS.indexOf(r)})" title="Add to favorites">☆</span>`;
+
+    const nameHtml = r.isMe
+      ? `${r.name}<span class="you">YOU</span>`
+      : r.name;
+
+    tr.innerHTML = `
+      <td class="rank">${globalRank}</td>
+      <td class="star-col">${starHtml}</td>
+      <td>${nameHtml}</td>
+      <td class="pts">${r.pts}</td>
+      <td class="winner-col">${r.winner}</td>
+      <td class="arrow-col">→</td>`;
+    tbody.appendChild(tr);
+  });
+
+  updateFabs();
+}
+
+function toggleFav(idx) {
+  const wasAdding = !ROWS[idx].fav;
+  ROWS[idx].fav = !ROWS[idx].fav;
+  buildTable();
+  updateHeaderStar(wasAdding);
+}
+
+function updateHeaderStar(pop) {
+  const otherFavs = ROWS.filter(r => !r.isMe && r.fav);
+  const count = otherFavs.length;
+  const thIcon  = document.getElementById("thStarIcon");
+  const thBadge = document.getElementById("thBadge");
+  const thCount = document.getElementById("thFavCount");
+
+  if (favOnly) {
+    // filter active — show filled star in gold
+    thIcon.textContent = "★";
+    thIcon.style.color = "#facc15";
+  } else if (count > 0) {
+    // has favorites but filter off — green star
+    thIcon.textContent = "★";
+    thIcon.style.color = "#a3e635";
+  } else {
+    thIcon.textContent = "☆";
+    thIcon.style.color = "";
+  }
+
+  // dot badge — visible when favorites exist and filter is off
+  const showBadge = count > 0 && !favOnly;
+  thBadge.classList.toggle("visible", showBadge);
+  if (showBadge && pop) {
+    thBadge.classList.remove("pop");
+    void thBadge.offsetHeight;
+    thBadge.classList.add("pop");
+  }
+
+  // count label
+  if (count > 0 && !favOnly) {
+    thCount.textContent = count;
+    thCount.classList.add("visible");
+  } else {
+    thCount.classList.remove("visible");
+  }
+}
+
+function toggleFavOnly() {
+  favOnly = !favOnly;
+  document.getElementById("favBtn").classList.toggle("active", favOnly);
+  buildTable();
+  updateHeaderStar(false);
+  if (!favOnly) setTimeout(() => updateFabs(), 50);
+}
+
+// ── Scroll helpers ────────────────────────────────────────────────────────
+const lbScroll = document.getElementById("lbScroll");
+
+function scrollToTop() {
+  lbScroll.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function scrollToMe() {
+  if (!myRowEl) return;
+  myRowEl.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+// ── Landing animation ─────────────────────────────────────────────────────
+function triggerLanding() {
+  // 1. jump to top instantly so the scroll animation is visible
+  lbScroll.scrollTop = 0;
+  if (!myRowEl) return;
+
+  setTimeout(() => {
+    myRowEl.scrollIntoView({ behavior: "smooth", block: "center" });
+
+    // flash: remove → reflow → add class
+    myRowEl.classList.remove("flash-me");
+    void myRowEl.offsetHeight; // reflow
+    myRowEl.classList.add("flash-me");
+
+    // cleanup so re-triggering always works
+    myRowEl.addEventListener("animationend", () => {
+      myRowEl.classList.remove("flash-me");
+      myRowEl.style.background = "rgba(163,230,53,0.08)";
+    }, { once: true });
+  }, 300);
+}
+
+// ── FAB visibility + arrow direction ─────────────────────────────────────
+const topChip  = document.getElementById("topChip");
+const myChip   = document.getElementById("myChip");
+const myChipArrow = document.getElementById("myChipArrow");
+
+function updateFabs() {
+  const st = lbScroll.scrollTop;
+  const maxScroll = lbScroll.scrollHeight - lbScroll.clientHeight;
+
+  // Top chip: visible once scrolled down at all
+  topChip.classList.toggle("hidden", st < 30);
+
+  // My-form chip: visible whenever table is scrollable
+  const canScroll = maxScroll > 10;
+  myChip.classList.toggle("hidden", !canScroll);
+
+  if (myRowEl && canScroll) {
+    const wRect = lbScroll.getBoundingClientRect();
+    const mRect = myRowEl.getBoundingClientRect();
+    // row is below the visible area → arrow down; row is above → arrow up
+    const rowBelow = mRect.top > wRect.bottom - 20;
+    myChipArrow.textContent = rowBelow ? "↓" : "↑";
+  }
+}
+
+lbScroll.addEventListener("scroll", updateFabs);
+window.addEventListener("resize", updateFabs);
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+buildTable();
+updateHeaderStar(false);
+// auto-trigger landing after a short pause (simulates switching to the tab)
+setTimeout(triggerLanding, 500);
+</script>
+</body></html>

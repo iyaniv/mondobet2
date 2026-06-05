@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>MondoBet — Header star demo</title>
+<style>
+  :root{--bg:#0b1020;--panel:#141c34;--panel2:#1a2547;--border:#2a3658;--text:#e7ecf3;
+    --muted:#6b7a99;--accent:#a3e635;--indigo:#6366f1;--gold:#facc15}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:14px;display:flex;flex-direction:column;min-height:100vh}
+
+  /* nav */
+  .nav{display:flex;align-items:center;gap:10px;padding:12px 18px;
+    border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .logo{font-weight:800;color:var(--accent);font-size:18px;margin-right:4px}
+  .tab{font-size:13px;color:var(--muted);padding:6px 12px;border:1px solid var(--border);border-radius:8px}
+  .tab.on{background:var(--accent);color:#0b1020;font-weight:700;border-color:var(--accent)}
+
+  /* layout */
+  .wrap{max-width:560px;margin:22px auto;padding:0 14px;width:100%}
+
+  /* card */
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  thead tr{background:var(--panel2)}
+  th{padding:9px 8px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);text-align:left}
+  td{padding:10px 8px;border-bottom:1px solid rgba(42,54,88,.5);transition:background .12s}
+  tr:last-child td{border-bottom:none}
+  .rank{text-align:center;width:40px;padding:8px 4px !important;font-weight:700}
+  .star-col{text-align:center;width:44px;padding:8px 4px !important}
+
+  /* row star */
+  .row-star{font-size:17px;line-height:1;cursor:pointer;user-select:none;transition:color .15s,transform .15s,opacity .15s}
+  .row-star:hover{transform:scale(1.25)}
+  .star-ring{display:inline-flex;align-items:center;justify-content:center;
+    width:24px;height:24px;border-radius:50%;border:2px solid var(--indigo);
+    font-size:14px;color:var(--accent);user-select:none}
+
+  /* YOU badge */
+  .you{background:var(--indigo);color:#fff;font-size:10px;padding:1px 5px;border-radius:4px;margin-left:6px}
+  .pts{text-align:center;color:var(--accent);font-weight:700;font-family:monospace;font-size:17px;width:56px}
+
+  /* ── header star cell ── */
+  .th-star-cell{cursor:pointer;text-align:center;width:44px;padding:9px 4px !important;user-select:none}
+  .th-star-inner{position:relative;display:inline-flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:1px}
+  .th-star-icon{font-size:17px;line-height:1;transition:color .2s,transform .2s}
+  /* gold dot */
+  .th-dot{width:7px;height:7px;border-radius:50%;background:var(--gold);
+    border:1.5px solid var(--panel2);
+    position:absolute;top:-1px;right:-3px;
+    opacity:0;transform:scale(0);transition:opacity .2s,transform .25s}
+  .th-dot.on{opacity:1;transform:scale(1)}
+  /* count pill below star */
+  .th-count{font-size:10px;font-weight:700;color:var(--gold);line-height:1;
+    height:12px;overflow:hidden;transition:opacity .2s;opacity:0}
+  .th-count.on{opacity:1}
+  /* active filter state */
+  .th-star-cell.filtering .th-star-icon{color:var(--gold)}
+
+  /* pop animation */
+  @keyframes dotPop{0%{transform:scale(2)}100%{transform:scale(1)}}
+  .th-dot.pop{animation:dotPop .3s ease-out}
+
+  /* hint strip */
+  .hint{font-size:12px;color:var(--muted);padding:11px 14px;
+    border-top:1px solid var(--border);line-height:1.5;background:rgba(255,255,255,.02)}
+  .hint b{color:var(--text)}
+
+  /* fav-only empty state */
+  .empty{padding:22px 14px;text-align:center;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <span class="logo">MondoBet</span>
+  <span class="tab">🏟 Tournament</span>
+  <span class="tab on">Leaderboard</span>
+  <span class="tab">By participant</span>
+  <span class="tab">My predictions</span>
+  <span class="tab">⚙ Settings</span>
+</div>
+
+<div class="wrap">
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th class="rank" style="width:40px">#</th>
+          <th class="th-star-cell" id="thCell" onclick="toggleFavOnly()" title="Show favorites only">
+            <div class="th-star-inner">
+              <span class="th-star-icon" id="thIcon">☆</span>
+              <span class="th-dot"        id="thDot"></span>
+              <span class="th-count"      id="thCount"></span>
+            </div>
+          </th>
+          <th>Name</th>
+          <th class="pts">Pts</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="hint" id="hint">
+      Tap <b>☆</b> on any row to favorite it — the header star lights up to let you know the filter is available.
+    </div>
+  </div>
+</div>
+
+<script>
+const ME = "Yaniv Itzhaki";
+const ROWS = [
+  {name:"Brunson",       pts:142},
+  {name:"KAT",           pts:138},
+  {name:"NYK",           pts:131},
+  {name:"Karpiel",       pts:128},
+  {name:"MikeD",         pts:120},
+  {name:"Shai42",        pts:115},
+  {name:"Jokić",         pts:110},
+  {name:"Yaniv Itzhaki", pts:107, isMe:true},
+  {name:"Tatum",         pts:103},
+  {name:"Celtics1",      pts: 99},
+];
+
+const favs = new Set(); // tracks favorited row indices (non-me)
+let favOnly = false;
+
+// ── render ────────────────────────────────────────────────────────────────
+function render() {
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = "";
+
+  const display = favOnly
+    ? ROWS.filter((r, i) => r.isMe || favs.has(i))
+    : ROWS;
+
+  if (display.length === 0) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="4" class="empty">No favorites yet — turn off the filter and tap ☆ on any row.</td>`;
+    tbody.appendChild(tr);
+    return;
+  }
+
+  display.forEach(r => {
+    const idx = ROWS.indexOf(r);
+    const isFav = r.isMe || favs.has(idx);
+    const rank  = idx + 1;
+
+    const bg = idx === 0 ? "rgba(163,230,53,0.12)"
+             : idx === 1 ? "rgba(163,230,53,0.07)"
+             : idx === 2 ? "rgba(163,230,53,0.03)"
+             : isFav     ? "rgba(163,230,53,0.05)"
+             : "transparent";
+
+    const borderLeft = r.isMe   ? "3px solid #6366f1"
+                     : isFav    ? "3px solid #a3e635"
+                     : "3px solid transparent";
+
+    const starCell = r.isMe
+      ? `<span class="star-ring" title="Your own form — always favorited">★</span>`
+      : favs.has(idx)
+        ? `<span class="row-star" style="color:#a3e635" onclick="toggleFav(${idx})" title="Remove from favorites">★</span>`
+        : `<span class="row-star" style="color:#6b7a99;opacity:.45" onclick="toggleFav(${idx})" title="Add to favorites">☆</span>`;
+
+    const nameCell = r.isMe
+      ? `${r.name}<span class="you">YOU</span>`
+      : r.name;
+
+    const tr = document.createElement("tr");
+    tr.style.cssText = `background:${bg};border-left:${borderLeft}`;
+    tr.innerHTML = `
+      <td class="rank">${rank}</td>
+      <td class="star-col">${starCell}</td>
+      <td>${nameCell}</td>
+      <td class="pts">${r.pts}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  syncHeader();
+}
+
+// ── header star sync ──────────────────────────────────────────────────────
+function syncHeader(pop) {
+  const n      = favs.size; // count of OTHER people starred (not counting isMe)
+  const thCell  = document.getElementById("thCell");
+  const thIcon  = document.getElementById("thIcon");
+  const thDot   = document.getElementById("thDot");
+  const thCount = document.getElementById("thCount");
+  const hint    = document.getElementById("hint");
+
+  if (favOnly) {
+    // filter active → gold star, hide badge (filter IS the signal)
+    thIcon.textContent = "★";
+    thIcon.style.color = "var(--gold)";
+    thCell.classList.add("filtering");
+    thDot.classList.remove("on","pop");
+    thCount.classList.remove("on");
+    hint.textContent = "Showing favorites only. Tap ★ again to show everyone.";
+  } else if (n > 0) {
+    // favorites exist, filter off → green star + gold dot + count
+    thIcon.textContent = "★";
+    thIcon.style.color = "var(--accent)";
+    thCell.classList.remove("filtering");
+
+    thDot.classList.add("on");
+    if (pop) {
+      thDot.classList.remove("pop");
+      void thDot.offsetHeight;
+      thDot.classList.add("pop");
+    }
+    thCount.textContent = n;
+    thCount.classList.add("on");
+    hint.innerHTML = `<b>${n} favorite${n>1?"s":""}</b> — tap ★ in the header to show only your favorites.`;
+  } else {
+    // no favorites
+    thIcon.textContent = "☆";
+    thIcon.style.color = "";
+    thCell.classList.remove("filtering");
+    thDot.classList.remove("on","pop");
+    thCount.classList.remove("on");
+    hint.innerHTML = `Tap <b>☆</b> on any row to favorite it — the header star lights up to let you know the filter is available.`;
+  }
+}
+
+// ── actions ───────────────────────────────────────────────────────────────
+function toggleFav(idx) {
+  const adding = !favs.has(idx);
+  if (adding) favs.add(idx); else favs.delete(idx);
+  render();
+  syncHeader(adding);
+}
+
+function toggleFavOnly() {
+  favOnly = !favOnly;
+  render();
+}
+
+// ── boot ──────────────────────────────────────────────────────────────────
+render();
+</script>
+</body></html>

@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>MondoBet — Leaderboard UX mock</title>
+<style>
+  :root{--bg:#0b1020;--panel:#141c34;--panel2:#1a2547;--border:#2a3658;--text:#e7ecf3;
+    --muted:#6b7a99;--accent:#a3e635;--green:#10b981;--orange:#f59e0b;--red:#ef4444;
+    --indigo:#6366f1;--gold:#facc15;--sky:#38bdf8}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:14px}
+
+  /* ── nav ── */
+  .nav{display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .logo{font-weight:800;letter-spacing:.5px;color:var(--accent);font-size:18px;margin-right:4px}
+  .tab{font-size:13px;color:var(--muted);padding:6px 12px;border:1px solid var(--border);border-radius:8px;cursor:pointer}
+  .tab.on{background:var(--accent);color:#0b1020;font-weight:700;border-color:var(--accent)}
+
+  /* ── layout ── */
+  .wrap{max-width:760px;margin:18px auto;padding:0 14px}
+  .section-label{font-size:11px;font-weight:700;letter-spacing:.7px;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px}
+
+  /* ── table ── */
+  table{width:100%;border-collapse:collapse}
+  thead tr{background:var(--panel2)}
+  th{padding:9px 8px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);text-align:left}
+  th.c{text-align:center;width:42px}
+  td{padding:10px 8px;border-bottom:1px solid rgba(42,54,88,.5)}
+  tr.row{transition:background .12s}
+
+  /* rank col */
+  .rank{text-align:center;width:40px;padding:8px 4px !important;font-weight:700}
+  .rankup{font-size:10px;font-weight:700;color:var(--green);line-height:1;margin-top:2px}
+  /* star col */
+  .star-col{text-align:center;width:40px;padding:8px 4px !important}
+  .star{font-size:16px;line-height:1;cursor:pointer;user-select:none}
+
+  /* YOU badge */
+  .you{background:var(--indigo);color:#fff;font-size:10px;padding:1px 5px;border-radius:4px;margin-left:6px}
+  /* pts */
+  .pts{text-align:center;color:var(--accent);font-weight:700;font-family:monospace;font-size:17px}
+  /* arrow */
+  .arrow-col{text-align:right;color:var(--muted);font-size:15px;opacity:.35;width:28px;padding-right:12px !important}
+
+  /* ── variant annotations ── */
+  .variants{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:28px}
+  @media(max-width:600px){.variants{grid-template-columns:1fr}}
+  .vcard{background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+  .vcard-head{background:var(--panel2);padding:10px 14px;font-weight:700;font-size:13px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+  .vtag{font-size:10px;background:var(--indigo);color:#fff;border-radius:4px;padding:1px 6px;font-weight:600}
+  .vtag.new{background:#0ea5e9}
+  .vcard table{font-size:13px}
+  .vcard td,.vcard th{padding:8px 8px}
+
+  /* ── ring around MY star ── */
+  .star-ring{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:22px;height:22px;border-radius:50%;
+    border:2px solid var(--indigo);
+    font-size:13px;line-height:1;cursor:default;user-select:none;
+    color:var(--accent);
+  }
+
+  /* ── scroll-to-me FAB ── */
+  .fab{
+    position:fixed;bottom:22px;right:18px;
+    background:var(--panel2);border:1px solid var(--border);
+    border-radius:22px;padding:7px 13px;
+    display:flex;align-items:center;gap:6px;
+    font-size:12px;font-weight:600;cursor:pointer;
+    box-shadow:0 4px 16px rgba(0,0,0,.5);
+    color:var(--text);
+    transition:opacity .2s;
+    z-index:50;
+  }
+  .fab:hover{border-color:var(--accent);color:var(--accent)}
+  .fab .arrow{font-size:16px;line-height:1}
+
+  /* ── scroll-to-top chip ── */
+  .top-chip{
+    position:fixed;bottom:22px;left:18px;
+    background:var(--panel2);border:1px solid var(--border);
+    border-radius:22px;padding:7px 13px;
+    display:flex;align-items:center;gap:6px;
+    font-size:12px;font-weight:600;cursor:pointer;
+    box-shadow:0 4px 16px rgba(0,0,0,.5);
+    color:var(--muted);
+    transition:opacity .2s;
+    z-index:50;
+  }
+  .top-chip:hover{border-color:var(--accent);color:var(--accent)}
+
+  /* ── highlight flash (simulated) ── */
+  @keyframes flashMe{
+    0%{background:rgba(99,102,241,.35)}
+    60%{background:rgba(99,102,241,.35)}
+    100%{background:rgba(163,230,53,.08)}
+  }
+  .me-flash{animation:flashMe 1.4s ease-out forwards}
+
+  /* ── annotation boxes ── */
+  .note{font-size:12px;color:var(--muted);background:rgba(255,255,255,.03);border:1px solid var(--border);
+    border-radius:7px;padding:10px 13px;margin-bottom:14px;line-height:1.55}
+  .note b{color:var(--text)}
+  .note code{background:rgba(163,230,53,.1);color:var(--accent);padding:1px 5px;border-radius:4px;font-family:monospace;font-size:11px}
+
+  /* colors legend */
+  .legend{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+  .leg{display:flex;align-items:center;gap:6px;font-size:12px}
+  .leg-dot{width:10px;height:10px;border-radius:50%}
+  .leg-star{font-size:14px;line-height:1}
+
+  h2{font-size:17px;font-weight:700;margin-bottom:6px}
+  h3{font-size:14px;font-weight:700;margin-bottom:10px;color:var(--muted)}
+  hr{border:none;border-top:1px solid var(--border);margin:28px 0}
+</style>
+</head>
+<body>
+
+<!-- nav -->
+<div class="nav">
+  <span class="logo">MondoBet</span>
+  <span class="tab">🏟 Tournament</span>
+  <span class="tab on">Leaderboard</span>
+  <span class="tab">By participant</span>
+  <span class="tab">My predictions</span>
+  <span class="tab">⚙ Settings</span>
+</div>
+
+<div class="wrap">
+
+  <!-- ── SECTION 1: Star differentiation ─────────────────────────────── -->
+  <h2 style="margin-bottom:4px">1 · Star differentiation — MY form vs Favorited forms</h2>
+  <p class="note" style="margin-bottom:14px">
+    <b>Problem:</b> currently <code>isMe</code> and <code>isFav</code> rows both render an identical green ★ with
+    an identical green left-border. The user can't tell at a glance which form is theirs vs which forms they starred.
+    <br><br>
+    <b>Proposal:</b> wrap the <em>MY form</em> star inside a small <b>indigo ring</b> so it stands out.
+    Favorited-others keep the plain green ★. The left-border stays green for both (it's a "this is highlighted" signal),
+    but the ring makes your own form uniquely identifiable at a glance.
+  </p>
+
+  <div class="legend">
+    <div class="leg"><span class="leg-star" style="color:#a3e635">★</span> <span>Favorited — someone else's form</span></div>
+    <div class="leg">
+      <span class="star-ring">★</span>
+      <span>Your own form — ring = indigo, star = green</span>
+    </div>
+    <div class="leg"><span class="leg-star" style="color:#6b7a99;opacity:.5">☆</span> <span>Unfavorited row</span></div>
+  </div>
+
+  <div class="variants">
+    <!-- BEFORE -->
+    <div class="vcard">
+      <div class="vcard-head"><span class="vtag">BEFORE</span> Both stars look identical</div>
+      <table>
+        <thead><tr>
+          <th class="c">#</th><th class="c">☆</th><th>Name</th><th class="c">Pts</th>
+        </tr></thead>
+        <tbody>
+          <!-- leader -->
+          <tr class="row" style="background:rgba(163,230,53,0.12);border-left:3px solid #a3e635">
+            <td class="rank">1</td>
+            <td class="star-col"><span class="star" style="color:#6b7a99;opacity:.5">☆</span></td>
+            <td>Brunson</td><td class="pts">142</td>
+          </tr>
+          <!-- favorited other -->
+          <tr class="row" style="background:rgba(163,230,53,0.05);border-left:3px solid #a3e635">
+            <td class="rank">3</td>
+            <td class="star-col"><span class="star" style="color:#a3e635">★</span></td>
+            <td>NYK</td><td class="pts">131</td>
+          </tr>
+          <!-- ME — same star as above, you can't tell the difference -->
+          <tr class="row" style="background:rgba(163,230,53,0.08);border-left:3px solid #a3e635">
+            <td class="rank">4</td>
+            <td class="star-col"><span class="star" style="color:#a3e635">★</span></td>
+            <td>Yaniv Itzhaki <span class="you">YOU</span></td><td class="pts">128</td>
+          </tr>
+          <tr class="row" style="background:transparent;border-left:3px solid transparent">
+            <td class="rank">5</td>
+            <td class="star-col"><span class="star" style="color:#6b7a99;opacity:.5">☆</span></td>
+            <td>Karpiel</td><td class="pts">120</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- AFTER -->
+    <div class="vcard">
+      <div class="vcard-head"><span class="vtag new">AFTER</span> MY row has an indigo ring</div>
+      <table>
+        <thead><tr>
+          <th class="c">#</th><th class="c">☆</th><th>Name</th><th class="c">Pts</th>
+        </tr></thead>
+        <tbody>
+          <!-- leader -->
+          <tr class="row" style="background:rgba(163,230,53,0.12);border-left:3px solid #a3e635">
+            <td class="rank">1</td>
+            <td class="star-col"><span class="star" style="color:#6b7a99;opacity:.5">☆</span></td>
+            <td>Brunson</td><td class="pts">142</td>
+          </tr>
+          <!-- favorited other — plain green star, no ring -->
+          <tr class="row" style="background:rgba(163,230,53,0.05);border-left:3px solid #a3e635">
+            <td class="rank">3</td>
+            <td class="star-col"><span class="star" style="color:#a3e635">★</span></td>
+            <td>NYK</td><td class="pts">131</td>
+          </tr>
+          <!-- ME — indigo ring around the star -->
+          <tr class="row" style="background:rgba(163,230,53,0.08);border-left:3px solid #6366f1">
+            <td class="rank">4</td>
+            <td class="star-col"><span class="star-ring">★</span></td>
+            <td>Yaniv Itzhaki <span class="you">YOU</span></td><td class="pts">128</td>
+          </tr>
+          <tr class="row" style="background:transparent;border-left:3px solid transparent">
+            <td class="rank">5</td>
+            <td class="star-col"><span class="star" style="color:#6b7a99;opacity:.5">☆</span></td>
+            <td>Karpiel</td><td class="pts">120</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- ── SECTION 2: Scroll-to-me + back-to-top ─────────────────────────── -->
+  <h2 style="margin-bottom:4px">2 · Auto-scroll to your row + back-to-top FAB</h2>
+  <p class="note" style="margin-bottom:14px">
+    <b>On landing:</b> when the user switches to the Leaderboard tab, the table scrolls smoothly to their first
+    form and briefly <b>flashes the row indigo</b> (1.4s CSS animation → fades to the normal row background).
+    <br><br>
+    <b>Back to top:</b> a <code>↑ Top</code> chip appears bottom-left while the user is scrolled down — clicking jumps to rank #1.
+    <br><br>
+    <b>Jump to me:</b> a <code>↓ My form</code> pill appears bottom-right when the user is scrolled above their row —
+    reversed to <code>↑ My form</code> when below it.
+  </p>
+
+  <!-- Simulated full leaderboard (scrollable) -->
+  <p class="section-label">Simulated scrollable leaderboard</p>
+  <div class="card" id="lbWrap" style="max-height:340px;overflow-y:auto">
+    <table id="lb">
+      <thead><tr style="background:var(--panel2);position:sticky;top:0;z-index:5">
+        <th class="c">#</th>
+        <th class="c" title="Show favorites only" style="cursor:pointer;color:#a3e635">★</th>
+        <th>Name</th><th class="c">Pts</th><th>Winner</th><th></th>
+      </tr></thead>
+      <tbody id="lbBody"></tbody>
+    </table>
+  </div>
+
+  <!-- floating buttons (demo — interact with the table above) -->
+  <div class="top-chip" id="topChip" onclick="scrollToTop()" title="Scroll to rank #1">↑ Top</div>
+  <div class="fab" id="myFab" onclick="scrollToMe()">
+    <span class="arrow" id="fabArrow">↓</span>
+    <span>My form</span>
+  </div>
+
+  <p class="note" style="margin-top:14px">
+    <b>Implementation notes:</b><br>
+    • On <code>tab === "leaderboard"</code> mount: <code>myRef.current?.scrollIntoView({behavior:"smooth",block:"center"})</code>
+    then add/remove a CSS class that plays the flash animation.<br>
+    • FAB visibility: hide both chips while the table fits in view (no scroll). Show them once
+    <code>scrollTop &gt; 0</code> on the table container.<br>
+    • Arrow direction: compare the MY row's <code>getBoundingClientRect().top</code> with the container's midpoint.
+  </p>
+
+  <hr>
+
+  <!-- ── SECTION 3: Full combined view ────────────────────────────────── -->
+  <h2 style="margin-bottom:8px">3 · Combined — everything together</h2>
+  <div class="variants" style="grid-template-columns:1fr">
+    <div class="vcard">
+      <div class="vcard-head"><span class="vtag new">PROPOSED</span> Ring + flash row + FABs</div>
+      <table style="font-size:13px">
+        <thead><tr style="background:var(--panel2)">
+          <th class="c">#</th><th class="c">☆</th><th>Name</th><th class="c">Pts</th><th>Winner</th><th></th>
+        </tr></thead>
+        <tbody>
+          <tr style="background:rgba(163,230,53,0.12);border-left:3px solid #a3e635">
+            <td class="rank">1</td><td class="star-col"><span class="star" style="color:#6b7a99;opacity:.5">☆</span></td>
+            <td>Brunson</td><td class="pts">142</td><td>🇺🇸 OKC</td><td class="arrow-col">→</td>
+          </tr>
+          <tr style="background:rgba(163,230,53,0.07);border-left:3px solid transparent">
+            <td class="rank">2</td><td class="star-col"><span class="star" style="color:#6b7a99;opacity:.5">☆</span></td>
+            <td>KAT</td><td class="pts">138</td><td>🇺🇸 IND</td><td class="arrow-col">→</td>
+          </tr>
+          <tr style="background:rgba(163,230,53,0.05);border-left:3px solid #a3e635">
+            <td class="rank">3</td><td class="star-col"><span class="star" style="color:#a3e635">★</span></td>
+            <td>NYK</td><td class="pts">131</td><td>🇺🇸 OKC</td><td class="arrow-col">→</td>
+          </tr>
+          <!-- MY ROW: indigo ring + indigo left border + flash animation -->
+          <tr class="me-flash" style="border-left:3px solid #6366f1">
+            <td class="rank">4</td>
+            <td class="star-col"><span class="star-ring">★</span></td>
+            <td>Yaniv Itzhaki <span class="you">YOU</span></td>
+            <td class="pts" style="color:#a3e635">128</td>
+            <td>🇺🇸 OKC</td><td class="arrow-col">→</td>
+          </tr>
+          <tr style="background:transparent;border-left:3px solid transparent">
+            <td class="rank">5</td><td class="star-col"><span class="star" style="color:#6b7a99;opacity:.5">☆</span></td>
+            <td>Karpiel</td><td class="pts">120</td><td>🇺🇸 MIN</td><td class="arrow-col">→</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<script>
+// ── Build demo leaderboard ────────────────────────────────────────────────
+const names=["Brunson","KAT","NYK","Yaniv Itzhaki ★YOU","Karpiel","MikeD","Shai42","Jokić","Tatum","Celtics1",
+             "GuardHero","BoxScore","CoachK","RingChaser","DraftDay","MVP_voter","Buckets","Clutch","FoulOut","RimRocker"];
+const MY_IDX = 3; // Yaniv is at rank 4 (0-indexed: 3)
+const winners=["🇺🇸 OKC","🇺🇸 IND","🇺🇸 OKC","🇺🇸 OKC","🇺🇸 MIN","🇺🇸 IND","🇺🇸 OKC","🇺🇸 OKC","🇺🇸 IND","🇺🇸 MIN",
+                "🇺🇸 OKC","🇺🇸 IND","🇺🇸 OKC","🇺🇸 MIN","🇺🇸 IND","🇺🇸 OKC","🇺🇸 MIN","🇺🇸 IND","🇺🇸 OKC","🇺🇸 MIN"];
+const pts=[142,138,131,128,120,115,110,107,103,99,96,93,89,85,82,77,74,70,66,60];
+const favs=new Set([2,3]); // NYK (2) and me (3) are "favorited"
+
+const tbody=document.getElementById("lbBody");
+let myRow=null;
+names.forEach((n,i)=>{
+  const isMe=i===MY_IDX;
+  const isFav=favs.has(i);
+  const bg=i===0?"rgba(163,230,53,0.12)":i===1?"rgba(163,230,53,0.07)":i===2?"rgba(163,230,53,0.03)":isFav?"rgba(163,230,53,0.05)":"transparent";
+  const bl=isMe?"3px solid #6366f1":isFav?"3px solid #a3e635":"3px solid transparent";
+  const tr=document.createElement("tr");
+  tr.style.cssText=`background:${bg};border-left:${bl};transition:background .12s`;
+  tr.id=isMe?"myRow":"";
+  const starHtml=isMe
+    ?`<span class="star-ring">★</span>`
+    :isFav?`<span class="star" style="color:#a3e635">★</span>`
+    :`<span class="star" style="color:#6b7a99;opacity:.5">☆</span>`;
+  const nameHtml=isMe
+    ?`Yaniv Itzhaki <span class="you">YOU</span>`
+    :n;
+  tr.innerHTML=`
+    <td class="rank">${i+1}</td>
+    <td class="star-col">${starHtml}</td>
+    <td>${nameHtml}</td>
+    <td class="pts">${pts[i]}</td>
+    <td>${winners[i]}</td>
+    <td class="arrow-col">→</td>`;
+  tbody.appendChild(tr);
+  if(isMe) myRow=tr;
+});
+
+// ── Auto-scroll on load + flash ──────────────────────────────────────────
+const lbWrap=document.getElementById("lbWrap");
+window.addEventListener("load",()=>{
+  setTimeout(()=>{
+    if(myRow){
+      myRow.scrollIntoView({behavior:"smooth",block:"center"});
+      myRow.style.animation="none";
+      myRow.offsetHeight; // reflow
+      myRow.style.animation="flashMe 1.4s ease-out forwards";
+    }
+  }, 400);
+});
+
+// ── FAB logic ─────────────────────────────────────────────────────────────
+const topChip=document.getElementById("topChip");
+const myFab=document.getElementById("myFab");
+const fabArrow=document.getElementById("fabArrow");
+
+function updateFabs(){
+  const st=lbWrap.scrollTop;
+  // show top chip only when scrolled down
+  topChip.style.opacity=st>30?"1":"0";
+  topChip.style.pointerEvents=st>30?"auto":"none";
+  // show my-form FAB always (demo: always visible)
+  if(myRow){
+    const wRect=lbWrap.getBoundingClientRect();
+    const mRect=myRow.getBoundingClientRect();
+    const above=mRect.top > wRect.bottom - 10;
+    fabArrow.textContent=above?"↓":"↑";
+  }
+}
+lbWrap.addEventListener("scroll",updateFabs);
+updateFabs();
+
+function scrollToTop(){
+  lbWrap.scrollTo({top:0,behavior:"smooth"});
+}
+function scrollToMe(){
+  if(myRow) myRow.scrollIntoView({behavior:"smooth",block:"center"});
+}
+</script>
+</body></html>

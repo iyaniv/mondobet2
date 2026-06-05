@@ -3433,6 +3433,33 @@ export default function App() {
     if(favHintKey){ try{ localStorage.setItem(favHintKey,"1"); }catch{} }
   },[favHintKey]);
   const [hoveredRow,setHoveredRow]=useState(null);
+  // Refs for scroll-to-my-row and floating action buttons.
+  const lbScrollRef = useRef(null);
+  const myLbRowRef  = useRef(null);
+  const [lbFabState,setLbFabState]=useState({showTop:false,showMe:false,meAbove:false});
+  // Inject the flash keyframe once (no CSS file in this project).
+  useEffect(()=>{
+    const id="lb-flash-style";
+    if(!document.getElementById(id)){
+      const s=document.createElement("style");
+      s.id=id;
+      s.textContent=`@keyframes lbFlash{0%{background:rgba(99,102,241,.4)}55%{background:rgba(99,102,241,.4)}100%{background:rgba(163,230,53,.08)}} .lb-flash{animation:lbFlash 1.6s ease-out forwards}`;
+      document.head.appendChild(s);
+    }
+  },[]);
+  // When the user lands on the leaderboard tab, scroll to their row and flash it.
+  useEffect(()=>{
+    if(tab!=="leaderboard") return;
+    const timer=setTimeout(()=>{
+      const row=myLbRowRef.current;
+      if(!row) return;
+      row.scrollIntoView({behavior:"smooth",block:"center"});
+      row.classList.remove("lb-flash");
+      void row.offsetHeight;
+      row.classList.add("lb-flash");
+    },350);
+    return ()=>clearTimeout(timer);
+  },[tab]);
   // Lifted so LeaderboardView (called inline, not mounted) can branch its
   // layout responsively without itself calling a hook conditionally.
   const isMobile = useIsMobile();
@@ -5163,19 +5190,45 @@ export default function App() {
               </div>
             )}
             {filteredLb.length>0&&(
-            <div className="lb-table-wrap" style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflowX:"auto"}}>
+            <div className="lb-table-wrap" ref={lbScrollRef}
+              onScroll={()=>{
+                const el=lbScrollRef.current; if(!el) return;
+                const st=el.scrollTop;
+                const maxSc=el.scrollHeight-el.clientHeight;
+                const canSc=maxSc>10;
+                const meAbove=myLbRowRef.current
+                  ?myLbRowRef.current.getBoundingClientRect().top>el.getBoundingClientRect().bottom-20
+                  :false;
+                setLbFabState({showTop:st>30,showMe:canSc,meAbove});
+              }}
+              style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:14,minWidth:320}}>
                 <thead><tr style={{background:C.panel2}}>
                   <th style={{padding:"8px 4px",width:40,textAlign:"center",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>#</th>
                   <th style={{padding:"8px 4px",width:40,textAlign:"center",borderBottom:`1px solid ${C.border}`}}>
-                    <span
-                      onClick={()=>setFavOnly(v=>!v)}
-                      title={favOnly?"Showing favorites only — click to show all":"Show favorites only"}
-                      style={{cursor:"pointer",fontSize:17,lineHeight:1,userSelect:"none",
-                        color:favOnly?C.accent:showFavHint?HINT_GOLD:C.muted,
-                        opacity:(favOnly||showFavHint)?1:0.7,transition:"all .15s"}}>
-                      {(favOnly||showFavHint)?"★":"☆"}
-                    </span>
+                    {(()=>{
+                      const otherFavCount=favorites.length;
+                      const hasFavs=otherFavCount>0;
+                      const starColor=favOnly?HINT_GOLD:hasFavs?C.accent:showFavHint?HINT_GOLD:C.muted;
+                      const starChar=(favOnly||hasFavs||showFavHint)?"★":"☆";
+                      return (
+                        <span onClick={()=>setFavOnly(v=>!v)}
+                          title={favOnly?"Showing favorites only — click to show all":"Show favorites only"}
+                          style={{cursor:"pointer",userSelect:"none",display:"inline-flex",flexDirection:"column",
+                            alignItems:"center",gap:1,position:"relative",verticalAlign:"middle"}}>
+                          <span style={{fontSize:17,lineHeight:1,color:starColor,transition:"color .2s"}}>{starChar}</span>
+                          {hasFavs&&!favOnly&&(
+                            <span style={{position:"absolute",top:-2,right:-4,width:7,height:7,borderRadius:"50%",
+                              background:HINT_GOLD,border:`1.5px solid ${C.panel2}`}}/>
+                          )}
+                          {hasFavs&&!favOnly&&(
+                            <span style={{fontSize:9,fontWeight:700,color:HINT_GOLD,lineHeight:1,marginTop:1}}>
+                              {otherFavCount}
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })()}
                   </th>
                   {["Name","Points","Winner pick"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Points"?"center":"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}
                   {canJumpToParticipant&&<th style={{padding:"8px 6px",width:28,borderBottom:`1px solid ${C.border}`}}/>}
@@ -5203,13 +5256,14 @@ export default function App() {
                     const hoverBg=isMe?"rgba(163,230,53,0.22)":isFav?"rgba(163,230,53,0.15)":"rgba(163,230,53,0.08)";
                     return (
                       <tr key={rowKey}
+                          ref={isMe?myLbRowRef:undefined}
                           onMouseEnter={canJumpToParticipant?()=>setHoveredRow(rowKey):undefined}
                           onMouseLeave={canJumpToParticipant?()=>setHoveredRow(null):undefined}
                           onClick={canJumpToParticipant?()=>jumpToParticipant(row):undefined}
                           title={canJumpToParticipant?"View this form's predictions":undefined}
                           style={{
                             background:(canJumpToParticipant&&isHovered)?hoverBg:baseBg,
-                            borderLeft: isMe ? `3px solid ${C.accent}` : isFav ? `3px solid ${C.accent}` : "3px solid transparent",
+                            borderLeft: isMe ? `3px solid ${C.indigo}` : isFav ? `3px solid ${C.accent}` : "3px solid transparent",
                             cursor:canJumpToParticipant?"pointer":"default",
                             transition:"background .12s",
                           }}>
@@ -5235,7 +5289,9 @@ export default function App() {
                             <span
                               onClick={(e)=>e.stopPropagation()}
                               title="Your own form — always in your favorites"
-                              style={{fontSize:16,lineHeight:1,userSelect:"none",cursor:"default",color:C.accent}}>
+                              style={{display:"inline-flex",alignItems:"center",justifyContent:"center",
+                                width:22,height:22,borderRadius:"50%",border:`2px solid ${C.indigo}`,
+                                fontSize:13,color:C.accent,userSelect:"none",cursor:"default"}}>
                               ★
                             </span>
                           ):(
@@ -5271,6 +5327,34 @@ export default function App() {
             )}
             </>
           )}
+        {/* Floating chips — scroll-to-top + scroll-to-my-row */}
+        {leaderboard.length>0&&(
+          <div style={{position:"fixed",bottom:20,left:0,right:0,
+            display:"flex",justifyContent:"space-between",padding:"0 18px",
+            pointerEvents:"none",zIndex:200}}>
+            <div onClick={()=>lbScrollRef.current?.scrollTo({top:0,behavior:"smooth"})}
+              style={{pointerEvents:lbFabState.showTop?"auto":"none",
+                opacity:lbFabState.showTop?1:0,transform:lbFabState.showTop?"translateY(0)":"translateY(10px)",
+                transition:"opacity .22s,transform .22s",
+                display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:600,cursor:"pointer",
+                borderRadius:22,padding:"8px 14px",boxShadow:"0 4px 18px rgba(0,0,0,.55)",
+                background:C.panel2,border:`1px solid ${C.border}`,color:C.muted}}>
+              ↑ Top
+            </div>
+            <div onClick={()=>{
+                const row=myLbRowRef.current;
+                if(row) row.scrollIntoView({behavior:"smooth",block:"center"});
+              }}
+              style={{pointerEvents:lbFabState.showMe?"auto":"none",
+                opacity:lbFabState.showMe?1:0,transform:lbFabState.showMe?"translateY(0)":"translateY(10px)",
+                transition:"opacity .22s,transform .22s",
+                display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:600,cursor:"pointer",
+                borderRadius:22,padding:"8px 14px",boxShadow:"0 4px 18px rgba(0,0,0,.55)",
+                background:C.panel2,border:`1px solid ${C.border}`,color:C.text}}>
+              {lbFabState.meAbove?"↓":"↑"} My form
+            </div>
+          </div>
+        )}
       </div>
     );
   }
