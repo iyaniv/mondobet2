@@ -5087,6 +5087,9 @@ export default function App() {
   // ── Leaderboard ───────────────────────────────────────────────────────────
   function LeaderboardView(){
     const winnerKnown=!!config.tournament_winner;
+    // Fair play: don't reveal other players' champions until stage 1 closes
+    // (a pick can still change while stage 1 is open). Your own row always shows.
+    const winnersRevealed=(config.current_stage||1)>1;
     // Favorites (favorites array + favOnly filter + toggleFavorite) are lifted to
     // App so the 10s leaderboard poll doesn't reset them. A row is favorited by
     // its key (entry_id, falling back to user_id).
@@ -5549,7 +5552,8 @@ export default function App() {
                     const i = globalRank - 1;
                     const rowBg=i===0?"rgba(163,230,53,0.12)":i===1?"rgba(163,230,53,0.07)":i===2?"rgba(163,230,53,0.03)":isFav?"rgba(163,230,53,0.05)":"transparent";
                     let winnerCell;
-                    if(winnerKnown)winnerCell=row.winner_pick?<>{withFlag(row.winner_pick)}{row.winner_bonus>0&&<span style={{color:C.green}}> +10</span>}</>:"—";
+                    if(!winnersRevealed && !isMe) winnerCell=<span style={{color:C.muted}} title="Champions are revealed once stage 1 closes">🔒</span>;
+                    else if(winnerKnown)winnerCell=row.winner_pick?<>{withFlag(row.winner_pick)}{row.winner_bonus>0&&<span style={{color:C.green}}> +10</span>}</>:"—";
                     else winnerCell=row.winner_pick?withFlag(row.winner_pick):"—";
                     const rowKey=row.entry_id||row.user_id;
                     const isHovered=hoveredRow===rowKey;
