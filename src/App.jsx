@@ -1719,9 +1719,10 @@ function kickoffParts(t, tz){
   if(!t) return null;
   const d=new Date(t); if(isNaN(d.getTime())) return null;
   const z=_resolveTz(tz);
-  const f=(o)=>new Intl.DateTimeFormat(undefined,{...o,timeZone:z}).format(d);
+  // Use "en-GB" locale: gives reliable 24h HH:MM output regardless of browser locale.
+  const f=(o)=>new Intl.DateTimeFormat("en-GB",{...o,timeZone:z}).format(d);
   return {
-    time:  f({hour:"2-digit",minute:"2-digit",hour12:false}),
+    time:  f({hour:"2-digit",minute:"2-digit"}),   // en-GB = 24h by default (e.g. "22:00")
     md:    f({month:"short",day:"numeric"}),
     short: f({weekday:"short",month:"short",day:"numeric"}),
     long:  f({weekday:"long", month:"long", day:"numeric"}),
@@ -2980,7 +2981,7 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
           ))}
         </select>
         <p style={{fontSize:12,color:C.muted,marginTop:8}}>
-          Affects kickoff times in the Tournament tab.
+          Affects kickoff times across all tabs immediately.
         </p>
       </div>
 
