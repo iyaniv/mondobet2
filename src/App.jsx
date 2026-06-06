@@ -1719,10 +1719,10 @@ function kickoffParts(t, tz){
   if(!t) return null;
   const d=new Date(t); if(isNaN(d.getTime())) return null;
   const z=_resolveTz(tz);
-  // Use "en-GB" locale: gives reliable 24h HH:MM output regardless of browser locale.
-  const f=(o)=>new Intl.DateTimeFormat("en-GB",{...o,timeZone:z}).format(d);
+  // hourCycle:"h23" forces 00-23 range on every locale/browser without exception.
+  const f=(o)=>new Intl.DateTimeFormat("en-GB",{...o,timeZone:z,hourCycle:"h23"}).format(d);
   return {
-    time:  f({hour:"2-digit",minute:"2-digit"}),   // en-GB = 24h by default (e.g. "22:00")
+    time:  f({hour:"2-digit",minute:"2-digit"}),   // always "HH:MM" e.g. "22:00"
     md:    f({month:"short",day:"numeric"}),
     short: f({weekday:"short",month:"short",day:"numeric"}),
     long:  f({weekday:"long", month:"long", day:"numeric"}),
