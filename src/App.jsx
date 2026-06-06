@@ -2681,7 +2681,7 @@ const HELP_CONTENT = {
       "Fill in scores for every match. They save automatically as you type.",
       "**Scoring** — **5 pts** if you call the direction right, **+3 bonus** for the exact score, **+1** if you got one side's score right, and **+10** for picking the tournament winner.",
       "Pick a **tournament winner** (+10 pts) — locked once stage 1 closes.",
-      "Hit **Submit** when a stage is complete. You can keep editing the current stage and re-submit until it closes.",
+      "Hit **Submit** when you're ready and have filled in all the matches for the stage. You can keep editing and re-submit as many times as you like until the stage closes.",
       "Stuck on multiple strategies? Click **+ Add form** to maintain another set of picks.",
       "**Rename a form** — click the ✏️ on a form's tab to give it a name (e.g. \"Risky\", \"Safe\").",
       "**Import CSV** — fill a whole stage from a spreadsheet (one line per match: `match number,home,away`). Tap the **?** beside the button for the full how-to.",
