@@ -2980,9 +2980,24 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
             <option key={t.value} value={t.value}>{t.label}</option>
           ))}
         </select>
-        <p style={{fontSize:12,color:C.muted,marginTop:8}}>
-          Affects kickoff times across all tabs immediately.
-        </p>
+        {/* Live preview — pick the first upcoming (or first overall) match */}
+        {(() => {
+          const sample = matches.find(m => !results[m.n]) || matches[0];
+          if (!sample) return null;
+          const k = kickoffParts(sample.t, tz);
+          if (!k) return null;
+          return (
+            <div style={{marginTop:10,padding:"8px 12px",background:C.bg,
+              border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,
+              display:"flex",alignItems:"center",gap:8}}>
+              <span style={{color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:".05em"}}>Preview</span>
+              <span style={{color:C.text}}>{flag(sample.a)} {sample.a} vs {sample.b} {flag(sample.b)}</span>
+              <span style={{marginLeft:"auto",fontWeight:700,color:C.accent,fontVariantNumeric:"tabular-nums"}}>
+                {k.short} · {k.time}
+              </span>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Help & onboarding — everyone */}
@@ -3324,6 +3339,88 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
                 <span style={{fontSize:11,color:C.muted}}>Deletes user account(s) entirely. Admin accounts survive.</span>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Backup & restore — admin-only */}
+      {user?.is_admin && (
+        <div style={sectionStyle}>
+          <h2 style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:6}}>💾 Backup &amp; restore</h2>
+          <p style={{margin:"0 0 16px",fontSize:13,color:C.muted}}>
+            Download a full snapshot of everything — users, forms, predictions, results,
+            winner picks and game settings — as a single JSON file, or restore one to roll
+            the whole game back to that point.
+          </p>
+
+          {/* Download backup */}
+          <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:12}}>
+            <button
+              onClick={async () => {
+                try {
+                  const backup = await api.adminBackup();
+                  const d = new Date();
+                  const pad = (n) => String(n).padStart(2, "0");
+                  const stamp = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+                  const blob = new Blob([JSON.stringify(backup, null, 2)], {type:"application/json"});
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url; a.download = `mondobet-backup-${stamp}.json`;
+                  document.body.appendChild(a); a.click(); a.remove();
+                  URL.revokeObjectURL(url);
+                  const c = backup.counts || {};
+                  showToast(`Backup downloaded — ${c.users||0} users, ${c.entries||0} forms`);
+                } catch(e) { showToast(e.message, "err"); }
+              }}
+              style={{padding:"7px 14px",borderRadius:6,fontSize:12,fontWeight:700,
+                border:`1px solid ${C.accent}`,background:"rgba(163,230,53,0.10)",color:C.accent,cursor:"pointer"}}>
+              ⬇️ Download backup
+            </button>
+            <span style={{fontSize:11,color:C.muted}}>Saves a timestamped <code>.json</code> file to your device. Contains all game data — keep it private.</span>
+          </div>
+
+          {/* Restore backup */}
+          <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+            <label
+              style={{padding:"7px 14px",borderRadius:6,fontSize:12,fontWeight:700,
+                border:`1px solid ${C.red}`,background:"transparent",color:C.red,cursor:"pointer",
+                display:"inline-block"}}>
+              ⬆️ Restore from file…
+              <input type="file" accept=".json,application/json" style={{display:"none"}}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";  // allow re-picking the same file later
+                  if (!file) return;
+                  let payload;
+                  try { payload = JSON.parse(await file.text()); }
+                  catch { showToast("Couldn't read that file as JSON", "err"); return; }
+                  if (!payload || payload.version !== 1 || !payload.counts) {
+                    showToast("That doesn't look like a MondoBet backup", "err"); return;
+                  }
+                  const c = payload.counts || {};
+                  const when = payload.created_at ? new Date(payload.created_at).toLocaleString() : "an unknown date";
+                  const ok1 = await confirmDialog({
+                    title: "Restore this backup?",
+                    message: `Backup from ${when} — ${c.users||0} users · ${c.entries||0} forms · ${c.predictions||0} predictions · ${c.results||0} results · ${c.winner_picks||0} winner picks. Restoring REPLACES all current data with this snapshot.`,
+                    confirmLabel: "Continue",
+                    danger: true,
+                  });
+                  if (!ok1) return;
+                  const ok2 = await confirmDialog({
+                    title: "Are you absolutely sure?",
+                    message: "Every current user, form, prediction, result and setting will be permanently overwritten by this backup. This cannot be undone. Your admin login is preserved.",
+                    confirmLabel: "Overwrite everything",
+                    danger: true,
+                  });
+                  if (!ok2) return;
+                  try {
+                    await api.adminRestore(payload);
+                    showToast("Backup restored — reloading…");
+                    setTimeout(() => window.location.reload(), 900);
+                  } catch(err) { showToast(err.message, "err"); }
+                }} />
+            </label>
+            <span style={{fontSize:11,color:C.muted}}>Replaces <b>all</b> current data with the file's snapshot. You'll confirm twice first.</span>
           </div>
         </div>
       )}
