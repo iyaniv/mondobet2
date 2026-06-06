@@ -419,6 +419,23 @@ function save(s) {
   try { localStorage.setItem(storageKeyForVariant(getVariant()), JSON.stringify(s)); } catch{}
 }
 
+// Row counts for a backup payload / state slice, keyed to match the production
+// /api/admin/backup `counts` (so the admin UI preview reads the same in both
+// modes). `src` may be a raw state ({users,preds,...}) or a backup's `.data`.
+function countsOf(src) {
+  const predictions = Object.values(src.predictions || {})
+    .reduce((n, p) => n + Object.keys(p || {}).length, 0);
+  return {
+    users:        Object.keys(src.users        || {}).length,
+    entries:      Object.keys(src.entries      || {}).length,
+    predictions,
+    winner_picks: Object.keys(src.winner_picks || {}).length,
+    results:      Object.keys(src.results      || {}).length,
+    live_matches: Object.keys(src.live         || {}).length,
+    game_config:  1,
+  };
+}
+
 let S = loadState();
 
 // One-time backfill (mirrors app/main.py): forms cleanly submitted for the
@@ -1026,6 +1043,49 @@ export const api = {
     S.config.tournament_winner = null;
     save(S);
     return {users_deleted, results_deleted, live_deleted};
+  },
+
+  // ── Backup / restore (admin) ──────────────────────────────────────────────
+  // Mirrors the production /api/admin endpoints. Returns the SAME envelope
+  // shape ({version, created_at, counts, data}) so the admin UI behaves
+  // identically; only the `data` internals differ (demo's in-memory keyed
+  // objects vs. the backend's table arrays). `demo:true` lets the UI warn if
+  // someone tries to cross-restore a demo file into production.
+  adminBackup: async () => {
+    await delay();
+    requireAdmin();
+    // Snapshot the WHOLE in-memory state (users, entries, predictions,
+    // winner_picks, results, live, config, next_*_id counters) so a restore is
+    // byte-for-byte faithful — don't cherry-pick keys.
+    const data = JSON.parse(JSON.stringify(S));
+    return {
+      version: 1,
+      created_at: new Date().toISOString(),
+      counts: countsOf(data),
+      data,
+      demo: true,
+    };
+  },
+
+  adminRestore: async (payload) => {
+    await delay();
+    requireAdmin();
+    if (!payload || typeof payload !== "object") throw new Error("Invalid backup: not an object");
+    if (payload.version !== 1) throw new Error("Unsupported backup version (expected 1)");
+    const data = payload.data;
+    if (!data || typeof data !== "object") throw new Error("Invalid backup: missing 'data'");
+    if (!data.users || !data.config) {
+      throw new Error("This file isn't a demo backup — restore demo backups in demo mode.");
+    }
+    S = JSON.parse(JSON.stringify(data));
+    // Guarantee the demo admin can still log in after any restore.
+    if (!S.users || !Object.values(S.users).some(u => u.is_admin)) {
+      S.users = S.users || {};
+      S.users[1] = {id:1,name:"Admin",email:"admin",password:"admin",phone:"",
+                    is_admin:true,has_paid:false,created_at:new Date().toISOString(),locked_winner:null};
+    }
+    save(S);
+    return {ok:true, restored: countsOf(S)};
   },
 
   getUsers: async () => {

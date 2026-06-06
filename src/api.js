@@ -101,6 +101,10 @@ export const api = {
     const qs = p.toString() ? `?${p}` : "";
     return request(`/api/results/reset-full-system${qs}`, { method: "POST" });
   },
+  // Backup / restore (admin) — adminBackup() returns the full snapshot object;
+  // adminRestore(payload) destructively replaces all data from one.
+  adminBackup:          ()       => request("/api/admin/backup"),
+  adminRestore:         (data)   => request("/api/admin/restore", { method: "POST", body: data }),
   getUsers:             ()       => request("/api/users/"),
   patchUser:            (uid, d) => request(`/api/users/${uid}`,             { method: "PATCH", body: d }),
   updateMe:             (d)      => request("/api/users/me",                 { method: "PATCH", body: d }),

@@ -717,6 +717,209 @@ async def reset_full_system(
     }
 
 
+# ── Backup / Restore ────────────────────────────────────────────────────────
+
+BACKUP_VERSION = 1
+
+
+def _iso(dt) -> Optional[str]:
+    return dt.isoformat() if dt is not None else None
+
+
+def _parse_dt(s):
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s)
+    except Exception:
+        return None
+
+
+async def export_all(db: AsyncSession) -> dict:
+    """Serialize every app table to a single JSON-able dict (full snapshot).
+
+    Shape: {version, created_at, counts, data:{users, entries, predictions,
+    winner_picks, results, live_matches, game_config}}. Used by the admin
+    "Download backup" feature; import_all() consumes the same shape.
+    """
+    users = (await db.execute(select(User))).scalars().all()
+    entries = (await db.execute(select(Entry))).scalars().all()
+    preds = (await db.execute(select(Prediction))).scalars().all()
+    wps = (await db.execute(select(WinnerPick))).scalars().all()
+    results = (await db.execute(select(Result))).scalars().all()
+    lives = (await db.execute(select(LiveMatch))).scalars().all()
+    cfg = await get_config(db)
+
+    rs = cfg.round_state
+    data = {
+        "users": [
+            {
+                "id": u.id, "name": u.name, "email": u.email,
+                "password_hash": u.password_hash, "is_admin": bool(u.is_admin),
+                "has_paid": bool(u.has_paid), "phone": u.phone or "",
+                "locked_winner": u.locked_winner, "help_seen": u.help_seen or {},
+                "created_at": _iso(u.created_at),
+            }
+            for u in users
+        ],
+        "entries": [
+            {
+                "id": e.id, "user_id": e.user_id, "name": e.name,
+                "created_at": _iso(e.created_at), "submitted_at": _iso(e.submitted_at),
+                "stages_submitted": e.stages_submitted or {},
+                "submitted_snapshot": e.submitted_snapshot,
+            }
+            for e in entries
+        ],
+        "predictions": [
+            {"entry_id": p.entry_id, "match_n": p.match_n,
+             "score_a": p.score_a, "score_b": p.score_b}
+            for p in preds
+        ],
+        "winner_picks": [{"entry_id": w.entry_id, "team": w.team} for w in wps],
+        "results": [
+            {"match_n": r.match_n, "score_a": r.score_a, "score_b": r.score_b,
+             "et_a": r.et_a, "et_b": r.et_b, "pen_a": r.pen_a, "pen_b": r.pen_b,
+             "winner": r.winner}
+            for r in results
+        ],
+        "live_matches": [
+            {"match_n": m.match_n, "score_a": m.score_a, "score_b": m.score_b,
+             "minute": m.minute, "is_live": bool(m.is_live),
+             "et_a": m.et_a, "et_b": m.et_b, "pen_a": m.pen_a, "pen_b": m.pen_b,
+             "winner": m.winner, "updated_at": _iso(m.updated_at)}
+            for m in lives
+        ],
+        "game_config": {
+            "round_state": rs.value if hasattr(rs, "value") else rs,
+            "tournament_winner": cfg.tournament_winner,
+            "data_source": cfg.data_source,
+            "current_stage": cfg.current_stage,
+            "stage_baseline": cfg.stage_baseline,
+        },
+    }
+    counts = {k: (len(v) if isinstance(v, list) else 1) for k, v in data.items()}
+    return {
+        "version": BACKUP_VERSION,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "counts": counts,
+        "data": data,
+    }
+
+
+async def import_all(db: AsyncSession, payload: dict) -> dict:
+    """Destructively replace ALL app data from a backup produced by export_all().
+
+    Atomic: wipes every table then re-inserts inside one transaction; rolls back
+    on any error. User ids are preserved (entries reference them) and the users
+    id-sequence is re-synced so future signups don't collide. After restore the
+    configured admin is guaranteed to exist & be able to log in, so a backup
+    that omits the current admin can never lock you out.
+    """
+    import os
+    from sqlalchemy import delete as sql_delete, text
+    from app.config import settings
+    from app.auth import verify_password
+
+    if not isinstance(payload, dict):
+        raise ValueError("Invalid backup: not an object")
+    if payload.get("version") != BACKUP_VERSION:
+        raise ValueError(f"Unsupported backup version (expected {BACKUP_VERSION})")
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        raise ValueError("Invalid backup: missing 'data'")
+
+    try:
+        # Wipe in FK-safe order.
+        await db.execute(sql_delete(Prediction))
+        await db.execute(sql_delete(WinnerPick))
+        await db.execute(sql_delete(Entry))
+        await db.execute(sql_delete(User))
+        await db.execute(sql_delete(Result))
+        await db.execute(sql_delete(LiveMatch))
+
+        for u in data.get("users", []):
+            db.add(User(
+                id=u["id"], name=u["name"], email=u["email"],
+                password_hash=u["password_hash"], is_admin=bool(u.get("is_admin")),
+                has_paid=bool(u.get("has_paid")), phone=u.get("phone", "") or "",
+                locked_winner=u.get("locked_winner"), help_seen=u.get("help_seen") or {},
+                created_at=_parse_dt(u.get("created_at")),
+            ))
+        await db.flush()
+
+        for e in data.get("entries", []):
+            db.add(Entry(
+                id=e["id"], user_id=e["user_id"], name=e["name"],
+                created_at=_parse_dt(e.get("created_at")),
+                submitted_at=_parse_dt(e.get("submitted_at")),
+                stages_submitted=e.get("stages_submitted") or {},
+                submitted_snapshot=e.get("submitted_snapshot"),
+            ))
+        await db.flush()
+
+        # Predictions: let the SERIAL id auto-assign (nothing references it).
+        for p in data.get("predictions", []):
+            db.add(Prediction(
+                entry_id=p["entry_id"], match_n=p["match_n"],
+                score_a=p.get("score_a"), score_b=p.get("score_b"),
+            ))
+        for w in data.get("winner_picks", []):
+            db.add(WinnerPick(entry_id=w["entry_id"], team=w["team"]))
+        for r in data.get("results", []):
+            db.add(Result(
+                match_n=r["match_n"], score_a=r["score_a"], score_b=r["score_b"],
+                et_a=r.get("et_a"), et_b=r.get("et_b"),
+                pen_a=r.get("pen_a"), pen_b=r.get("pen_b"), winner=r.get("winner"),
+            ))
+        for m in data.get("live_matches", []):
+            db.add(LiveMatch(
+                match_n=m["match_n"], score_a=m.get("score_a", 0),
+                score_b=m.get("score_b", 0), minute=m.get("minute", 0),
+                is_live=bool(m.get("is_live")), et_a=m.get("et_a"), et_b=m.get("et_b"),
+                pen_a=m.get("pen_a"), pen_b=m.get("pen_b"), winner=m.get("winner"),
+                updated_at=_parse_dt(m.get("updated_at")),
+            ))
+
+        # Overwrite the singleton game_config in place.
+        cfg = await get_config(db)
+        gc = data.get("game_config") or {}
+        rs = gc.get("round_state", "idle")
+        cfg.round_state = rs if isinstance(rs, RoundStateEnum) else RoundStateEnum(rs)
+        cfg.tournament_winner = gc.get("tournament_winner")
+        cfg.data_source = gc.get("data_source", "manual") or "manual"
+        cfg.current_stage = gc.get("current_stage", 1) or 1
+        cfg.stage_baseline = gc.get("stage_baseline")
+
+        await db.flush()
+
+        # Re-sync the users id sequence so future signups don't collide with
+        # restored ids.
+        await db.execute(text(
+            "SELECT setval(pg_get_serial_sequence('users','id'), "
+            "GREATEST((SELECT COALESCE(MAX(id), 1) FROM users), 1))"
+        ))
+
+        # Guarantee the configured admin can still log in.
+        admin = await get_user_by_email(db, settings.admin_email.lower())
+        if not admin:
+            await create_user(
+                db, name="Admin", email=settings.admin_email.lower(),
+                password=settings.admin_password, is_admin=True,
+            )
+        else:
+            env_pw = os.environ.get("ADMIN_PASSWORD")
+            if env_pw and not verify_password(env_pw, admin.password_hash):
+                admin.password_hash = hash_password(env_pw)
+
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+
+    return {k: (len(v) if isinstance(v, list) else 1) for k, v in data.items()}
+
+
 # ── Live matches ──────────────────────────────────────────────────────────────
 
 async def get_live_matches(db: AsyncSession) -> dict:
