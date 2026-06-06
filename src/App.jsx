@@ -5645,8 +5645,15 @@ export default function App() {
                         </td>
                         <td style={td}>{winnerCell}</td>
                         {canJumpToParticipant&&(
-                          <td style={{...td,textAlign:"right",color:isHovered?C.accent:C.muted,fontSize:16,opacity:isHovered?1:0.35,transition:"all .12s",width:28,paddingRight:12}}>
-                            →
+                          <td style={{...td,textAlign:"right",paddingRight:12,width:isMe?0:80}}>
+                            {!isMe&&(
+                              <span style={{display:"inline-flex",alignItems:"center",gap:4,
+                                color:C.accent,fontSize:11,fontWeight:700,whiteSpace:"nowrap",letterSpacing:".3px",
+                                opacity:isHovered?1:0,transform:isHovered?"translateX(0)":"translateX(6px)",
+                                transition:"opacity .15s,transform .15s"}}>
+                                Compare →
+                              </span>
+                            )}
                           </td>
                         )}
                       </tr>

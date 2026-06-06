@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>MondoBet — Compare hint mock</title>
+<style>
+  :root{--bg:#0b1020;--panel:#141c34;--panel2:#1a2547;--border:#2a3658;--text:#e7ecf3;
+    --muted:#6b7a99;--accent:#a3e635;--indigo:#6366f1;--gold:#facc15}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:14px}
+
+  .nav{display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid var(--border)}
+  .logo{font-weight:800;color:var(--accent);font-size:18px;margin-right:4px}
+  .tab{font-size:13px;color:var(--muted);padding:6px 12px;border:1px solid var(--border);border-radius:8px}
+  .tab.on{background:var(--accent);color:#0b1020;font-weight:700;border-color:var(--accent)}
+
+  .wrap{max-width:860px;margin:22px auto;padding:0 16px}
+  h2{font-size:16px;font-weight:700;margin-bottom:6px}
+  .note{font-size:12px;color:var(--muted);background:rgba(255,255,255,.03);border:1px solid var(--border);
+    border-radius:7px;padding:10px 13px;margin-bottom:16px;line-height:1.55}
+  .note b{color:var(--text)}
+
+  .variants{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px}
+  @media(max-width:600px){.variants{grid-template-columns:1fr}}
+
+  .vcard{background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+  .vcard-head{background:var(--panel2);padding:9px 14px;font-weight:700;font-size:13px;
+    border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+  .vtag{font-size:10px;border-radius:4px;padding:1px 6px;font-weight:600}
+  .vtag.before{background:#374151;color:#9ca3af}
+  .vtag.after{background:#0ea5e9;color:#fff}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead tr{background:var(--panel2)}
+  th{padding:8px 8px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);text-align:left}
+  td{padding:9px 8px;border-bottom:1px solid rgba(42,54,88,.45)}
+  tr:last-child td{border-bottom:none}
+  .rank{text-align:center;width:36px;font-weight:700}
+  .star-col{text-align:center;width:36px}
+  .star{font-size:15px;color:var(--muted);opacity:.45}
+  .star.fav{color:var(--accent);opacity:1}
+  .you{background:var(--indigo);color:#fff;font-size:10px;padding:1px 5px;border-radius:4px;margin-left:5px}
+  .pts{text-align:center;color:var(--accent);font-weight:700;font-family:monospace;font-size:16px}
+
+  /* arrow cell */
+  .arr{text-align:right;width:60px;padding-right:12px !important}
+
+  /* BEFORE: plain arrow, fades in on hover */
+  .row-before{cursor:pointer;transition:background .12s}
+  .row-before:hover{background:rgba(163,230,53,.08)}
+  .row-before .arrow-plain{font-size:16px;color:var(--muted);opacity:0;transition:all .12s}
+  .row-before:hover .arrow-plain{color:var(--accent);opacity:1}
+
+  /* AFTER: "Compare →" label slides in */
+  .row-after{cursor:pointer;transition:background .12s}
+  .row-after:hover{background:rgba(163,230,53,.08)}
+  .compare-hint{display:inline-flex;align-items:center;gap:5px;
+    opacity:0;transform:translateX(6px);transition:opacity .15s,transform .15s;
+    color:var(--accent);font-size:11px;font-weight:700;white-space:nowrap;letter-spacing:.3px}
+  .row-after:hover .compare-hint{opacity:1;transform:translateX(0)}
+
+  hr{border:none;border-top:1px solid var(--border);margin:24px 0}
+  .label{font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <span class="logo">MondoBet</span>
+  <span class="tab">🏟 Tournament</span>
+  <span class="tab on">Leaderboard</span>
+  <span class="tab">By participant</span>
+  <span class="tab">My predictions</span>
+  <span class="tab">⚙ Settings</span>
+</div>
+
+<div class="wrap">
+
+  <h2>Hover-hint: "Compare →" on leaderboard rows</h2>
+  <div class="note">
+    <b>Problem:</b> the → arrow appears on hover but gives no context — users don't know if clicking navigates, compares, or does something else.<br><br>
+    <b>Proposal:</b> replace the bare → with a small <b>"Compare →"</b> label that slides in on hover. Same accent color, slightly smaller font, slides in from the right. Clicking any non-YOU row opens the compare view.
+  </div>
+
+  <div class="variants">
+    <!-- BEFORE -->
+    <div class="vcard">
+      <div class="vcard-head"><span class="vtag before">BEFORE</span> Plain arrow — no context</div>
+      <table>
+        <thead><tr>
+          <th class="rank">#</th><th class="star-col">☆</th>
+          <th>Name</th><th class="pts" style="text-align:center">Pts</th>
+          <th class="arr"></th>
+        </tr></thead>
+        <tbody>
+          <tr class="row-before" style="background:rgba(163,230,53,0.12);border-left:3px solid #a3e635">
+            <td class="rank">1</td><td class="star-col"><span class="star">☆</span></td>
+            <td>Brunson</td><td class="pts">524</td>
+            <td class="arr"><span class="arrow-plain">→</span></td>
+          </tr>
+          <tr class="row-before" style="border-left:3px solid transparent">
+            <td class="rank">2</td><td class="star-col"><span class="star">☆</span></td>
+            <td>Diana</td><td class="pts">515</td>
+            <td class="arr"><span class="arrow-plain">→</span></td>
+          </tr>
+          <tr class="row-before" style="background:rgba(163,230,53,0.08);border-left:3px solid var(--indigo)">
+            <td class="rank">4</td>
+            <td class="star-col"><span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;border:2px solid var(--indigo);font-size:12px;color:var(--accent)">★</span></td>
+            <td>Yaniv — A <span class="you">YOU</span></td><td class="pts">464</td>
+            <td class="arr"><span class="arrow-plain">→</span></td>
+          </tr>
+          <tr class="row-before" style="border-left:3px solid transparent">
+            <td class="rank">5</td><td class="star-col"><span class="star">☆</span></td>
+            <td>Grace</td><td class="pts">459</td>
+            <td class="arr"><span class="arrow-plain">→</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- AFTER -->
+    <div class="vcard">
+      <div class="vcard-head"><span class="vtag after">AFTER</span> "Compare →" slides in</div>
+      <table>
+        <thead><tr>
+          <th class="rank">#</th><th class="star-col">☆</th>
+          <th>Name</th><th class="pts" style="text-align:center">Pts</th>
+          <th class="arr"></th>
+        </tr></thead>
+        <tbody>
+          <tr class="row-after" style="background:rgba(163,230,53,0.12);border-left:3px solid #a3e635">
+            <td class="rank">1</td><td class="star-col"><span class="star">☆</span></td>
+            <td>Brunson</td><td class="pts">524</td>
+            <td class="arr"><span class="compare-hint">Compare →</span></td>
+          </tr>
+          <tr class="row-after" style="border-left:3px solid transparent">
+            <td class="rank">2</td><td class="star-col"><span class="star">☆</span></td>
+            <td>Diana</td><td class="pts">515</td>
+            <td class="arr"><span class="compare-hint">Compare →</span></td>
+          </tr>
+          <tr class="row-after" style="background:rgba(163,230,53,0.08);border-left:3px solid var(--indigo)">
+            <td class="rank">4</td>
+            <td class="star-col"><span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;border:2px solid var(--indigo);font-size:12px;color:var(--accent)">★</span></td>
+            <td>Yaniv — A <span class="you">YOU</span></td><td class="pts">464</td>
+            <!-- YOU row: no compare hint since it's your own form -->
+            <td class="arr"></td>
+          </tr>
+          <tr class="row-after" style="border-left:3px solid transparent">
+            <td class="rank">5</td><td class="star-col"><span class="star">☆</span></td>
+            <td>Grace</td><td class="pts">459</td>
+            <td class="arr"><span class="compare-hint">Compare →</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- design notes -->
+  <div class="label">Design notes</div>
+  <div class="note">
+    <b>Label:</b> "Compare →" — verb + direction. Immediately communicates the action.<br>
+    <b>Appearance:</b> slides in 6 px from the right, fades to full opacity over 150 ms. Disappears instantly on mouse-out.<br>
+    <b>YOU rows:</b> no compare hint — clicking your own form does nothing, so the hint is omitted.<br>
+    <b>Mobile:</b> hint is always visible (no hover state on touch). Could show as a small "⇄" icon instead of text, or stay hidden and rely on the tap action itself.
+  </div>
+
+</div>
+</body></html>
