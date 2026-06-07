@@ -5154,7 +5154,11 @@ export default function App() {
                       🎲 Random Results
                     </button>
                   )}
-                  {isCurrent && editable && !(activeEntry?.stages_submitted||{})[s.n] && (
+                  {/* Import CSV stays available for the whole time the stage is
+                      open — even after you've submitted — so you can re-import a
+                      revised file. Importing re-opens the affected stage for
+                      editing (clears its submission), so you just Submit again. */}
+                  {isCurrent && editable && (
                     <>
                       <label
                         onClick={(ev)=>ev.stopPropagation()}
