@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>MondoBet — "Reset form" options</title>
+<style>
+  :root{--bg:#0b1020;--panel:#141c34;--panel2:#1a2547;--border:#2a3658;--text:#e7ecf3;
+    --muted:#6b7a99;--accent:#a3e635;--green:#10b981;--red:#ef4444;--indigo:#6366f1;--gold:#facc15}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:26px 18px 90px}
+  h1{color:var(--accent);font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 26px;line-height:1.5}
+  .wrap{max-width:760px;margin:0 auto}
+  .opt{margin-bottom:34px}
+  .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--accent);background:rgba(163,230,53,.10);border:1px solid rgba(163,230,53,.3);padding:3px 9px;border-radius:999px}
+  .otitle{font-size:15px;font-weight:700;margin:8px 0 2px}
+  .odesc{font-size:12.5px;color:var(--muted);margin:0 0 14px;line-height:1.5}
+
+  /* App-ish surfaces */
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px}
+  .h2{font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+
+  /* Form selector pills */
+  .forms{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .pill{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);background:var(--panel2);
+    color:var(--text);font-size:13px;font-weight:600;padding:6px 11px;border-radius:999px;cursor:pointer;position:relative}
+  .pill.on{border-color:var(--indigo);background:rgba(99,102,241,.16);color:#c7ccff}
+  .pill .kebab{color:var(--muted);font-weight:800;letter-spacing:1px;padding-left:2px}
+  .pill.add{border-style:dashed;color:var(--muted);background:transparent}
+
+  /* Action bar */
+  .bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:12px;margin-top:4px}
+  .status{font-size:12px;color:var(--muted);margin-right:auto}
+  .btn{font-size:12px;font-weight:700;padding:6px 12px;border-radius:7px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text)}
+  .btn.ghost{color:var(--accent);border-color:var(--accent);background:transparent}
+  .btn.danger{color:var(--red);border-color:var(--red);background:transparent}
+  .btn.primary{background:var(--accent);color:#0b1020;border-color:var(--accent)}
+
+  /* Kebab menu */
+  .menu{position:absolute;top:38px;right:0;z-index:5;background:var(--panel);border:1px solid var(--border);
+    border-radius:10px;min-width:178px;box-shadow:0 14px 40px rgba(0,0,0,.5);overflow:hidden;padding:4px}
+  .menu button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;font-size:13px;font-weight:600;
+    padding:8px 10px;border:0;background:transparent;color:var(--text);cursor:pointer;border-radius:7px}
+  .menu button:hover{background:var(--panel2)}
+  .menu button.danger{color:var(--red)}
+  .menu .div{height:1px;background:var(--border);margin:4px 2px}
+
+  /* mini predictions preview */
+  .rows{margin-top:14px;display:flex;flex-direction:column;gap:6px}
+  .row{display:grid;grid-template-columns:1fr 88px 1fr;gap:8px;align-items:center;font-size:13px;
+    background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:7px 10px}
+  .row .t{font-weight:600}.row .t.r{text-align:right}
+  .score{display:flex;align-items:center;justify-content:center;gap:6px}
+  .box{width:30px;height:28px;border:1px solid var(--border);border-radius:6px;background:var(--panel);
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-family:monospace;font-size:14px}
+  .box.empty{color:var(--muted)}
+  .champ{margin-top:12px;display:flex;align-items:center;gap:8px;font-size:13px}
+  .champ .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--panel2);border-radius:999px;padding:5px 11px;font-weight:700}
+
+  /* Confirm dialog */
+  .scrim{background:rgba(5,8,18,.72);border:1px solid var(--border);border-radius:12px;padding:26px 16px;display:flex;justify-content:center}
+  .dlg{background:var(--panel);border:1px solid var(--border);border-radius:14px;max-width:420px;width:100%;padding:20px;box-shadow:0 24px 70px rgba(0,0,0,.6)}
+  .dlg h3{margin:0 0 8px;font-size:17px;color:var(--text)}
+  .dlg p{margin:0 0 8px;font-size:13px;color:var(--muted);line-height:1.55}
+  .dlg .warnbox{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.35);border-radius:9px;padding:10px 12px;font-size:12.5px;color:#fca5a5;margin:12px 0 16px}
+  .dlg .actions{display:flex;justify-content:flex-end;gap:10px}
+  .note{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5}
+  .kbd{font-family:monospace;background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:11px}
+</style></head>
+<body>
+<div class="wrap">
+  <h1>"Reset form" — clear a form to a blank slate</h1>
+  <p class="sub">User-facing, in <b>My predictions</b>. Resetting clears <b>every match score + the champion pick</b> on the
+  selected form (the form and its name stay; it becomes a fresh blank to refill). Since the form is no longer complete,
+  it drops back to <b>draft</b> and will need re-submitting. Two placement options below — pick one.</p>
+
+  <!-- OPTION A -->
+  <div class="opt">
+    <span class="tag">Option A · Recommended</span>
+    <div class="otitle">Inside a per-form "⋯" menu on the active form</div>
+    <p class="odesc">A small kebab (⋯) on the selected form pill opens form-level actions — Rename, Reset, Delete — grouped together. Keeps the prediction action bar uncluttered and puts destructive form ops in one obvious place.</p>
+    <div class="card">
+      <div class="h2">My predictions</div>
+      <div class="forms">
+        <span class="pill on">Alice — main <span class="kebab">⋯</span>
+          <span class="menu">
+            <button>✏️ Rename form</button>
+            <button>🧹 Reset form…</button>
+            <div class="div"></div>
+            <button class="danger">🗑️ Delete form</button>
+          </span>
+        </span>
+        <span class="pill">Alice — backup</span>
+        <span class="pill add">＋ Add form</span>
+      </div>
+      <div class="bar">
+        <span class="status">72 / 104 filled · ✓ submitted · 🏆 France</span>
+        <span class="btn ghost">⬆ Import CSV</span>
+        <span class="btn primary">Submit</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPTION B -->
+  <div class="opt">
+    <span class="tag">Option B</span>
+    <div class="otitle">A "Reset form" button in the action bar</div>
+    <p class="odesc">A dedicated danger-ghost button sits in the form's action bar next to Import CSV / Submit. More discoverable, but adds a destructive button to the row you use constantly.</p>
+    <div class="card">
+      <div class="h2">My predictions</div>
+      <div class="forms">
+        <span class="pill on">Alice — main</span>
+        <span class="pill">Alice — backup</span>
+        <span class="pill add">＋ Add form</span>
+      </div>
+      <div class="bar">
+        <span class="status">72 / 104 filled · ✓ submitted · 🏆 France</span>
+        <span class="btn danger">🧹 Reset form</span>
+        <span class="btn ghost">⬆ Import CSV</span>
+        <span class="btn primary">Submit</span>
+      </div>
+      <div class="rows">
+        <div class="row"><span class="t r">France</span><span class="score"><span class="box">2</span>–<span class="box">1</span></span><span class="t">Mexico</span></div>
+        <div class="row"><span class="t r">Brazil</span><span class="score"><span class="box">1</span>–<span class="box">0</span></span><span class="t">Croatia</span></div>
+        <div class="row"><span class="t r">Spain</span><span class="score"><span class="box">3</span>–<span class="box">1</span></span><span class="t">Japan</span></div>
+      </div>
+      <div class="champ">🏆 Champion pick: <span class="chip">🇫🇷 France</span></div>
+    </div>
+  </div>
+
+  <!-- CONFIRM DIALOG -->
+  <div class="opt">
+    <span class="tag">Confirmation (both options)</span>
+    <div class="otitle">One destructive confirm before clearing</div>
+    <p class="odesc">Resetting can't be undone, so it asks once with the exact scope. (After reset, the three rows above go blank and the champion chip clears.)</p>
+    <div class="scrim">
+      <div class="dlg">
+        <h3>Reset "Alice — main"?</h3>
+        <p>This clears <b>all 104 match predictions</b> and your <b>champion pick</b> on this form. The form itself stays — it just becomes blank, ready to fill in again.</p>
+        <div class="warnbox">⚠️ Because the form will no longer be complete, it drops back to <b>draft</b> — you'll need to fill it in and Submit again. This can't be undone.</div>
+        <div class="actions">
+          <span class="btn">Cancel</span>
+          <span class="btn danger">🧹 Clear form</span>
+        </div>
+      </div>
+    </div>
+    <p class="note">Your other forms (e.g. <b>Alice — backup</b>) are untouched. Only the selected form is cleared.</p>
+  </div>
+
+</div>
+</body></html>
