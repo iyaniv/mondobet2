@@ -5017,7 +5017,7 @@ export default function App() {
                       {statsOpen&&(
                         <>
                           <div onClick={()=>setStatsOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
-                          <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,width:"min(340px, calc(100vw - 40px))",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}}>
+                          <div style={isMobile?{position:"fixed",bottom:80,left:10,right:10,width:"auto",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}:{position:"absolute",top:"calc(100% + 8px)",right:0,width:"min(340px, calc(100vw - 40px))",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}}>
                             <div style={{fontSize:11,color:C.text,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
                               <span style={{background:"rgba(163,230,53,0.1)",color:C.accent,border:`1px solid rgba(163,230,53,0.25)`,borderRadius:999,padding:"2px 9px",fontSize:11,fontWeight:700}}>{myLbEntry.name}</span>
                               <span>{myLbEntry.scored_matches} matches with results</span>
@@ -5511,7 +5511,7 @@ export default function App() {
                   {groupStatsOpen&&(
                     <>
                       <div onClick={()=>setGroupStatsOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
-                      <div style={{position:"absolute",top:"calc(100% + 8px)",left:0,width:"min(320px, calc(100vw - 40px))",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}}>
+                      <div style={isMobile?{position:"fixed",bottom:80,left:10,right:10,width:"auto",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}:{position:"absolute",top:"calc(100% + 8px)",left:0,width:"min(320px, calc(100vw - 40px))",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}}>
                         <div style={{fontSize:11,color:C.text,marginBottom:10}}>{stageLabel} · {leaderboard.length} participants</div>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:10}}>
                           <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
@@ -5894,7 +5894,7 @@ export default function App() {
                   {userStatsOpen&&(
                     <>
                       <div onClick={()=>setUserStatsOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
-                      <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,width:"min(300px, calc(100vw - 40px))",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}}>
+                      <div style={isMobile?{position:"fixed",bottom:80,left:10,right:10,width:"auto",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}:{position:"absolute",top:"calc(100% + 8px)",right:0,width:"min(300px, calc(100vw - 40px))",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}}>
                         <div style={{fontSize:11,color:C.text,marginBottom:10}}>
                           {user.name} · {myRows.length} form{myRows.length!==1?"s":""} · {totalScored} matches
                         </div>
