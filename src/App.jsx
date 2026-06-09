@@ -806,7 +806,7 @@ function scorePrediction(pred, eff) {
 }
 
 // MatchRow — outside App so localA/localB survive App re-renders
-function MatchRow({ match, pred, result, liveData, editable, adminResult, roundState, onSave, onResultSave }) {
+function MatchRow({ match, pred, result, liveData, editable, adminResult, roundState, onSave, onResultSave, tz }) {
   const [localA, setLocalA] = useState(pred?.[0]!=null?String(pred[0]):"");
   const [localB, setLocalB] = useState(pred?.[1]!=null?String(pred[1]):"");
   const [resA,   setResA]   = useState(result?.[0]!=null?String(result[0]):"");
@@ -937,8 +937,6 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
       : total>=8 ? GREEN8 : total>=6 ? GREEN6 : GREEN5;
     if (goalsMatched===1) partialMatchSide = p1===r1 ? 0 : 1;
     ptsEl=<span style={{background:chipPalette.bg,color:chipPalette.fg,border:`1px solid ${chipPalette.border}`,padding:"1px 6px",borderRadius:4,fontWeight:700,fontFamily:"monospace",fontSize:11}}>+{total}</span>;
-  } else if(roundState==="closed"&&!effectiveScore){
-    ptsEl=<span style={{color:C.muted,fontSize:11}}>awaiting</span>;
   }
   const renderResultDigits = (r) => {
     if (partialMatchSide===null) return `${r[0]}:${r[1]}`;
@@ -1066,14 +1064,24 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
             {match.b} {flag(match.b)}
           </span>
         </div>
-        {/* Line 2: actual result chip + pts */}
-        {(effectiveScore!=null || ptsEl) && (
-          <div style={{display:"flex",gap:5,justifyContent:"flex-end",
-            alignItems:"center",marginTop:4}}>
-            {resultChip}
-            {ptsEl}
-          </div>
-        )}
+        {/* Line 2: result/pts when played, or date/time when upcoming */}
+        {(effectiveScore!=null || ptsEl)
+          ? <div style={{display:"flex",gap:5,justifyContent:"flex-end",
+              alignItems:"center",marginTop:4}}>
+              {resultChip}
+              {ptsEl}
+            </div>
+          : (!editable&&!adminResult&&(()=>{
+              const k=kickoffParts(match.t,tz);
+              return k
+                ? <div style={{display:"flex",justifyContent:"flex-end",marginTop:4}}>
+                    <span style={{fontSize:11,color:C.muted}}>
+                      <span style={{fontWeight:700,color:C.text}}>{k.time}</span> · {k.md}
+                    </span>
+                  </div>
+                : null;
+            })())
+        }
       </div>
     );
   }
@@ -1124,8 +1132,15 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
       <div style={{display:"flex",gap:4,alignItems:"center",justifyContent:"flex-end",minWidth:96}}>
         {effectiveScore!=null
           ? resultChip
-          : (!editable&&!adminResult&&
-              <span style={{color:C.muted,fontSize:11,fontFamily:"monospace"}}>vs</span>)
+          : (!editable&&!adminResult&&(()=>{
+              const k=kickoffParts(match.t,tz);
+              return k
+                ? <span style={{textAlign:"right",lineHeight:1.25}}>
+                    <span style={{display:"block",fontSize:12,fontWeight:700,color:C.text,whiteSpace:"nowrap"}}>{k.time}</span>
+                    <span style={{display:"block",fontSize:10,color:C.muted,whiteSpace:"nowrap"}}>{k.md}</span>
+                  </span>
+                : <span style={{color:C.muted,fontSize:11,fontFamily:"monospace"}}>vs</span>;
+            })())
         }
         {ptsEl}
       </div>
@@ -1913,6 +1928,7 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user, t
           results={results}
           liveMatches={liveMatches}
           currentStage={effectiveStage}
+          tz={tz}
         />
       )}
     </div>
@@ -1923,7 +1939,7 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user, t
 // ─────────────────────────────────────────────────────────────────────────────
 // KNOCKOUT BRACKET — bracket view for stages 2+
 // ─────────────────────────────────────────────────────────────────────────────
-function KnockoutBracket({ matches, results, liveMatches={}, currentStage }) {
+function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz }) {
   const wrapRef = useRef(null);
   const knockoutStages = STAGES.filter(s => s.n >= 2);
 
@@ -1991,6 +2007,7 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage }) {
       minWidth:18,textAlign:'right',
       color: won===true ? C.accent : isDone ? C.muted : C.muted});
 
+    const koParts = pending ? kickoffParts(m.t, tz) : null;
     return (
       <div data-matchup={m.n} style={{background:C.panel,border,borderRadius:8,overflow:'hidden',opacity:pending?0.6:1,margin:'0 3px'}}>
           <div style={rowA}>
@@ -2007,6 +2024,13 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage }) {
               ? <span className="live-dot" style={{width:6,height:6}}/>
               : <span style={scoreStyle(winA===false)}>{scoreB != null ? scoreB : '–'}</span>}
           </div>
+          {koParts && (
+            <div style={{padding:'3px 8px 4px',fontSize:10,fontWeight:600,color:C.muted,
+              borderTop:`1px solid ${C.border}`,textAlign:'center',whiteSpace:'nowrap',
+              letterSpacing:'.01em'}}>
+              {koParts.md} · {koParts.time}
+            </div>
+          )}
         </div>
     );
   }
@@ -3442,7 +3466,7 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
 function CompareView({ matches, results, liveMatches, isMobile,
                        myName, myPreds, myTotal, myRank, myWinner,
                        theirKey, theirName, theirPreds, theirTotal, theirRank, theirWinner, winnersRevealed,
-                       forms, loading, onBack, onPick }) {
+                       forms, loading, onBack, onPick, tz }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
   const searchRef = useRef(null);
@@ -3538,6 +3562,7 @@ function CompareView({ matches, results, liveMatches, isMobile,
         <span style={{color:ws===1?C.accent:C.text,fontWeight:ws===1?700:400}}>{m.b} {flag(m.b)}</span>
       </span>
     );
+    const cmpKo = !eff ? kickoffParts(m.t, tz) : null;
     rowEls.push(isMobile ? (
       // Mobile: two lines — match + result on top, your pick vs their pick below.
       <div key={m.n} ref={isLive?liveRef:undefined} style={{background:rowBg,border:rowBorder,borderRadius:7,padding:"7px 10px",marginBottom:5}}>
@@ -3546,13 +3571,22 @@ function CompareView({ matches, results, liveMatches, isMobile,
           <span style={{display:"inline-flex",alignItems:"center",gap:6}}>{ptsChip(myPreds[m.n],eff)}{predBox(myPreds[m.n],eff)}</span>
           <span style={{display:"inline-flex",alignItems:"center",gap:6}}>{predBox(theirPreds[m.n],eff)}{ptsChip(theirPreds[m.n],eff)}</span>
         </div>
+        {cmpKo && <div style={{fontSize:10,color:C.muted,textAlign:"center",marginTop:5,paddingTop:5,borderTop:`1px solid ${C.border}`}}>
+          <span style={{fontWeight:700,color:C.text}}>{cmpKo.time}</span> · {cmpKo.md}
+        </div>}
       </div>
     ) : (
       <div key={m.n} ref={isLive?liveRef:undefined} style={{display:"grid",gridTemplateColumns:GRID,alignItems:"center",gap:6,
         background:rowBg,border:rowBorder,borderRadius:7,padding:"6px 8px",marginBottom:4}}>
         <span style={{textAlign:"right"}}>{ptsChip(myPreds[m.n],eff)}</span>
         <span style={{display:"flex",justifyContent:"flex-end"}}>{predBox(myPreds[m.n],eff)}</span>
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,minWidth:0}}>{teams}{resChip(eff,live)}</div>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,minWidth:0}}>
+          {teams}
+          {resChip(eff,live)}
+          {cmpKo && <span style={{fontSize:10,color:C.muted,whiteSpace:"nowrap"}}>
+            <span style={{fontWeight:700,color:C.text}}>{cmpKo.time}</span> · {cmpKo.md}
+          </span>}
+        </div>
         <span style={{display:"flex",justifyContent:"flex-start"}}>{predBox(theirPreds[m.n],eff)}</span>
         <span style={{textAlign:"left"}}>{ptsChip(theirPreds[m.n],eff)}</span>
       </div>
@@ -4062,7 +4096,9 @@ export default function App() {
     if (!user) { tabInitForUserRef.current = null; return; }
     if (tabInitForUserRef.current === user.id) return;
     if (user.is_admin) { setTab("results"); tabInitForUserRef.current = user.id; return; }
-    setTab(config.round_state === "closed" ? "leaderboard" : "predictions");
+    // In demo mode always land on predictions so date/time is immediately visible.
+    const isDemoMode = import.meta.env.MODE === "demo";
+    setTab(!isDemoMode && config.round_state === "closed" ? "leaderboard" : "predictions");
     tabInitForUserRef.current = user.id;
   }, [user?.id, config.round_state]);
 
@@ -5199,7 +5235,8 @@ export default function App() {
                         adminResult={false}
                         roundState={config.round_state}
                         onSave={savePred}
-                        onResultSave={()=>{}}/>
+                        onResultSave={()=>{}}
+                        tz={tz}/>
                     </Fragment>
                   ))}
                 </div>
@@ -5270,7 +5307,8 @@ export default function App() {
             theirKey={compareKey} theirName={themRow?themRow.name:"—"}
             theirPreds={comparePreds} theirTotal={themRow?themRow.total:0} theirRank={themRank} theirWinner={compareWinner} winnersRevealed={(config.current_stage||1)>1}
             forms={compareForms} loading={compareLoading}
-            onBack={()=>setCompareKey(null)} onPick={(k)=>setCompareKey(k)}/>
+            onBack={()=>setCompareKey(null)} onPick={(k)=>setCompareKey(k)}
+            tz={tz}/>
         </div>
       );
     }

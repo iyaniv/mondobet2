@@ -253,7 +253,8 @@ function genPreds(seed, skill) {
 
 // ── Initial state ────────────────────────────────────────────────────────────
 // Stage 1 (Group Stage, matches 1–72) COMPLETE
-// Stage 2 (Round of 32, matches 73–88) IN PROGRESS — 8 of 16 results entered
+// Stage 2 (Round of 32, matches 73–88) IN PROGRESS — 4 results done, 2 live, 10 upcoming
+// This gives a rich mixed view: finished rows, live rows, and date/time rows all visible.
 const SEED_RESULTS = {
   // Group Stage — all 72 matches
   1:[2,1],2:[1,1],3:[2,0],4:[1,2],5:[0,3],6:[1,1],7:[3,1],8:[0,2],
@@ -265,11 +266,14 @@ const SEED_RESULTS = {
   49:[0,2],50:[2,1],51:[1,2],52:[2,1],53:[2,0],54:[2,0],55:[0,2],56:[1,2],
   57:[2,1],58:[0,2],59:[0,2],60:[1,0],61:[0,2],62:[2,0],63:[1,1],64:[0,2],
   65:[1,2],66:[2,1],67:[0,2],68:[1,0],69:[1,2],70:[0,2],71:[1,2],72:[0,2],
-  // Round of 32 — first 8 of 16 results entered
+  // Round of 32 — first 4 of 16 results entered; 77 & 78 are LIVE (see SEED_LIVE); 79–88 upcoming
   73:[2,1],74:[0,1],75:[3,0],76:[1,2],
-  77:[2,0],78:[1,2],79:[2,1],80:[2,0],
 };
-const SEED_LIVE = {}; // No live matches — mid-stage pause between match days
+// Two live R32 matches — shows the live badge + running score in the date/time slot
+const SEED_LIVE = {
+  77:{score_a:1,score_b:0,minute:67,is_live:true},
+  78:{score_a:0,score_b:0,minute:34,is_live:true},
+};
 
 // Determine who advanced: penalties → extra time → 90-min score.
 // Returns "a", "b", or null (tied / undecided). Mirrors crud.derive_winner.
@@ -400,8 +404,8 @@ function buildFreshState() {
 // each.
 const VARIANT_KEY = "mb_demo_variant";
 const STORAGE_KEYS = {
-  current: "mb_demo_v7",
-  fresh:   "mb_demo_v7_fresh",
+  current: "mb_demo_v8",
+  fresh:   "mb_demo_v8_fresh",
 };
 function getVariant() {
   const v = localStorage.getItem(VARIANT_KEY);
@@ -468,7 +472,7 @@ function backfillSnapshots(state) {
 backfillSnapshots(S);
 
 window._resetDemo = () => {
-  ["mb_demo_v1","mb_demo_v2","mb_demo_v3","mb_demo_v4","mb_demo_v5","mb_demo_v5_fresh","mb_demo_v6","mb_demo_v6_fresh","wc2026_token","mb_demo_variant"].forEach(k=>localStorage.removeItem(k));
+  ["mb_demo_v1","mb_demo_v2","mb_demo_v3","mb_demo_v4","mb_demo_v5","mb_demo_v5_fresh","mb_demo_v6","mb_demo_v6_fresh","mb_demo_v7","mb_demo_v7_fresh","mb_demo_v8","mb_demo_v8_fresh","wc2026_token","mb_demo_variant"].forEach(k=>localStorage.removeItem(k));
   location.reload();
 };
 window._switchDemo = (variant) => {
