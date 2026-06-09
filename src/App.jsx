@@ -1071,7 +1071,7 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
               {resultChip}
               {ptsEl}
             </div>
-          : (!editable&&!adminResult&&(()=>{
+          : (!adminResult&&(()=>{
               const k=kickoffParts(match.t,tz);
               return k
                 ? <div style={{display:"flex",justifyContent:"flex-end",marginTop:4}}>
@@ -1132,7 +1132,7 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
       <div style={{display:"flex",gap:4,alignItems:"center",justifyContent:"flex-end",minWidth:96}}>
         {effectiveScore!=null
           ? resultChip
-          : (!editable&&!adminResult&&(()=>{
+          : (!adminResult&&(()=>{
               const k=kickoffParts(match.t,tz);
               return k
                 ? <span style={{textAlign:"right",lineHeight:1.25}}>
