@@ -4979,7 +4979,7 @@ export default function App() {
               background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,
               borderRadius:10,padding:"9px 12px",boxShadow:"0 6px 18px rgba(0,0,0,0.35)",
               ...(isMobile
-                ? {display:"flex",flexWrap:"wrap",alignItems:"stretch",gap:10,justifyContent:"center"}
+                ? {display:"flex",flexDirection:"column",gap:8}
                 : {display:"grid",gridTemplateColumns:"1fr auto 1fr",alignItems:"center",gap:12}),
             }}>
               {/* LEFT — progress + champion */}
@@ -5009,10 +5009,11 @@ export default function App() {
                 )}
               </div>
 
-              {/* CENTER — Rank · Points, aligned over the score column. The bar's
-                  1fr·auto·1fr grid centers this group on the page, but each match
-                  row's score block sits ~34px left of page-center (the row's right
-                  controls column is wider than its left # column), so nudge to match. */}
+              {/* CENTER + RIGHT — on mobile these merge into one row */}
+              <div style={isMobile
+                ? {display:"flex",alignItems:"center",gap:8,justifyContent:"space-between"}
+                : {display:"contents"}}>
+              {/* CENTER — Rank · Points */}
               <div style={{justifySelf:"center", display:"flex", alignItems:"stretch", gap:8, transform: isMobile?undefined:"translateX(-34px)"}}>
                 <div style={tileBase}>
                   <span style={tileLabel}>Rank</span>
@@ -5025,7 +5026,7 @@ export default function App() {
               </div>
 
               {/* RIGHT — Stats 📊 + Delete + Submit/badge. */}
-              <div style={{display:"flex",alignItems:"center",gap:10,justifyContent:"flex-end",flexWrap:"nowrap",minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,justifyContent:"flex-end",flexWrap:"nowrap",minWidth:0}}>
                 {/* ── Form-level stats 📊 ── */}
                 {myLbEntry&&(()=>{
                   const leader=leaderboard[0];
@@ -5111,6 +5112,7 @@ export default function App() {
                   </button>
                 ) : null}
               </div>
+              </div>{/* end mobile CENTER+RIGHT wrapper */}
             </div>
             {/* Reset draft strip — appears when the form has un-submitted edits
                 (a submission snapshot exists + current stage not submitted). */}
