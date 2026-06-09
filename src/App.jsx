@@ -109,6 +109,37 @@ function resolvedMatch(m, results, allMatches) {
 
 // "?" help icon next to the Import CSV button — a click pops a small panel
 // with the full how-to (replaces the long button tooltip).
+// Hook: returns a ref to attach to the trigger element, plus a style object
+// for the popup that keeps it within the viewport using position:fixed.
+// position:fixed escapes any overflow:hidden ancestor that would clip an
+// absolute popup, while still rendering visually near the trigger button.
+function useAnchoredPopup({ open, preferLeft=false, width=340 }) {
+  const triggerRef = useRef(null);
+  const [rect, setRect] = useState(null);
+  useEffect(() => {
+    if (open && triggerRef.current) {
+      setRect(triggerRef.current.getBoundingClientRect());
+    }
+    if (!open) setRect(null);
+  }, [open]);
+  let popupStyle = null;
+  if (open && rect) {
+    const vw = window.innerWidth;
+    const popW = Math.min(width, vw - 20);
+    const left = preferLeft
+      ? Math.max(10, Math.min(rect.left, vw - popW - 10))
+      : Math.max(10, Math.min(rect.right - popW, vw - popW - 10));
+    popupStyle = {
+      position:"fixed",
+      top: rect.bottom + 8,
+      left,
+      width: popW,
+      zIndex:99,
+    };
+  }
+  return { triggerRef, popupStyle };
+}
+
 function CsvHelp() {
   const [open, setOpen] = useState(false);
   const stop = (e) => e.stopPropagation();
@@ -3909,7 +3940,10 @@ export default function App() {
   const [statsOpen,setStatsOpen]=useState(false);
   const [userStatsOpen,setUserStatsOpen]=useState(false);
   const [groupStatsOpen,setGroupStatsOpen]=useState(false);
-  const [groupStatsData,setGroupStatsData]=useState(null); // {top3_scores:[{score,count}]}
+  const [groupStatsData,setGroupStatsData]=useState(null);
+  const statsPopup      = useAnchoredPopup({open:statsOpen,      preferLeft:false, width:340});
+  const userStatsPopup  = useAnchoredPopup({open:userStatsOpen,  preferLeft:false, width:300});
+  const groupStatsPopup = useAnchoredPopup({open:groupStatsOpen, preferLeft:true,  width:320}); // {top3_scores:[{score,count}]}
   // The active form is always available via myPreds — seed it into the cache
   // so picking the active form costs no fetch.
   useEffect(()=>{
@@ -5009,7 +5043,7 @@ export default function App() {
                     {label:"Exact scores",value:`${myLbEntry.exact}/${myLbEntry.scored_matches}`,sub:`${myLbEntry.scored_matches>0?Math.round(myLbEntry.exact/myLbEntry.scored_matches*100):0}% of matches`,border:C.accent,icon:"🎯"},
                   ];
                   return (
-                    <div style={{position:"relative"}}>
+                    <div ref={statsPopup.triggerRef} style={{position:"relative"}}>
                       <button onClick={()=>setStatsOpen(o=>!o)} title="Form stats"
                         style={{background:statsOpen?"rgba(163,230,53,0.08)":"transparent",border:`1px solid ${statsOpen?C.accent:"transparent"}`,borderRadius:8,padding:"4px 8px",cursor:"pointer",color:statsOpen?C.accent:C.muted,display:"flex",alignItems:"center",fontSize:18,lineHeight:1,fontFamily:"inherit",transition:"all .15s"}}>
                         📊
@@ -5017,7 +5051,7 @@ export default function App() {
                       {statsOpen&&(
                         <>
                           <div onClick={()=>setStatsOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
-                          <div style={isMobile?{position:"fixed",bottom:80,left:10,right:10,width:"auto",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}:{position:"absolute",top:"calc(100% + 8px)",right:0,width:"min(340px, calc(100vw - 40px))",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}}>
+                          <div style={{...statsPopup.popupStyle??{position:"absolute",top:"calc(100% + 8px)",right:0,width:"min(340px, calc(100vw - 40px))"},background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}>
                             <div style={{fontSize:11,color:C.text,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
                               <span style={{background:"rgba(163,230,53,0.1)",color:C.accent,border:`1px solid rgba(163,230,53,0.25)`,borderRadius:999,padding:"2px 9px",fontSize:11,fontWeight:700}}>{myLbEntry.name}</span>
                               <span>{myLbEntry.scored_matches} matches with results</span>
@@ -5503,7 +5537,7 @@ export default function App() {
                 });
               };
               return (
-                <div style={{position:"relative"}}>
+                <div ref={groupStatsPopup.triggerRef} style={{position:"relative"}}>
                   <button onClick={handleOpen} title="Group stats"
                     style={{background:groupStatsOpen?"rgba(163,230,53,0.08)":"transparent",border:`1px solid ${groupStatsOpen?C.accent:"transparent"}`,borderRadius:8,padding:"4px 6px",cursor:"pointer",color:groupStatsOpen?C.accent:C.muted,display:"flex",alignItems:"center",fontSize:18,lineHeight:1,fontFamily:"inherit",transition:"all .15s"}}>
                     📊
@@ -5511,7 +5545,7 @@ export default function App() {
                   {groupStatsOpen&&(
                     <>
                       <div onClick={()=>setGroupStatsOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
-                      <div style={isMobile?{position:"fixed",bottom:80,left:10,right:10,width:"auto",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}:{position:"absolute",top:"calc(100% + 8px)",left:0,width:"min(320px, calc(100vw - 40px))",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}}>
+                      <div style={{...groupStatsPopup.popupStyle??{position:"absolute",top:"calc(100% + 8px)",left:0,width:"min(320px, calc(100vw - 40px))"},background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}>
                         <div style={{fontSize:11,color:C.text,marginBottom:10}}>{stageLabel} · {leaderboard.length} participants</div>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:10}}>
                           <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
@@ -5886,7 +5920,7 @@ export default function App() {
               Object.values(allPreds).forEach(p=>{if(p&&p[0]!=null&&p[1]!=null){const k=`${p[0]}:${p[1]}`;freq[k]=(freq[k]||0)+1;}});
               const top3=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,3);
               return (
-                <div style={{position:"relative"}}>
+                <div ref={userStatsPopup.triggerRef} style={{position:"relative"}}>
                   <button onClick={()=>setUserStatsOpen(o=>!o)} title="My stats across all forms"
                     style={{background:userStatsOpen?"rgba(163,230,53,0.08)":"transparent",border:`1px solid ${userStatsOpen?C.accent:"transparent"}`,borderRadius:8,padding:"4px 6px",cursor:"pointer",color:userStatsOpen?C.accent:C.muted,display:"flex",alignItems:"center",fontSize:16,lineHeight:1,fontFamily:"inherit",transition:"all .15s"}}>
                     📊
@@ -5894,7 +5928,7 @@ export default function App() {
                   {userStatsOpen&&(
                     <>
                       <div onClick={()=>setUserStatsOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
-                      <div style={isMobile?{position:"fixed",bottom:80,left:10,right:10,width:"auto",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}:{position:"absolute",top:"calc(100% + 8px)",right:0,width:"min(300px, calc(100vw - 40px))",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:99}}>
+                      <div style={{...userStatsPopup.popupStyle??{position:"absolute",top:"calc(100% + 8px)",right:0,width:"min(300px, calc(100vw - 40px))"},background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}>
                         <div style={{fontSize:11,color:C.text,marginBottom:10}}>
                           {user.name} · {myRows.length} form{myRows.length!==1?"s":""} · {totalScored} matches
                         </div>
