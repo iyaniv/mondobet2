@@ -2137,7 +2137,7 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
 // ─────────────────────────────────────────────────────────────────────────────
 // ADMIN MATCH ROW — handles pending / live / final states; outside App
 // ─────────────────────────────────────────────────────────────────────────────
-function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpdateLive, onFinalize }) {
+function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpdateLive, onFinalize, tz }) {
   const hasScore   = !!liveData;                  // any in-motion score saved
   const isShownLive= !!(liveData && liveData.is_live);  // admin clicked LIVE
   const isFinal    = !!result;
@@ -2367,6 +2367,12 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
         <span style={{width:8,height:8,borderRadius:"50%",background:C.green,display:"inline-block"}}
               title="Final result"/>
       )}
+      {!hasScore && !isFinal && (()=>{
+        const k = kickoffParts(match.t, tz);
+        return k ? <span style={{fontSize:11,color:C.muted,whiteSpace:"nowrap"}}>
+          <span style={{fontWeight:700,color:C.text}}>{k.time}</span> · {k.md}
+        </span> : null;
+      })()}
     </div>
   );
 
@@ -2426,7 +2432,7 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
 // Defining it inside App would create a new function reference on every render,
 // causing React to unmount+remount the whole tree and reset AdminMatchRow inputs.
 // ─────────────────────────────────────────────────────────────────────────────
-function AdminResults({ config, matches, results, liveMatches, setResults, setLiveMatches, refreshLb, refreshLive, showToast }) {
+function AdminResults({ config, matches, results, liveMatches, setResults, setLiveMatches, refreshLb, refreshLive, showToast, tz }) {
   const currentStage = config.current_stage || 1;
   // All stages except current start collapsed
   const [collapsedStages, setCollapsedStages] = useState(
@@ -2561,6 +2567,7 @@ function AdminResults({ config, matches, results, liveMatches, setResults, setLi
                       onGoLive={goLive}
                       onUpdateLive={updateLive}
                       onFinalize={finalizeLive}
+                      tz={tz}
                     />
                   </Fragment>
                 ))}
@@ -5106,27 +5113,34 @@ export default function App() {
           if (stageMatches.length === 0) return null;
           const isCollapsed = collapsedStages.has(s.n);
 
-          // Locked stage: non-interactive header only
+          // Locked stage: show fixtures with dates, collapsed by default
           if (s.n > openStage) {
+            const lockedCollapsed = collapsedStages.has(s.n);
             return (
               <div key={s.n}>
-                <div style={{
+                <div onClick={()=>toggleStage(s.n)} style={{
                   background:C.panel2,padding:"8px 12px",borderRadius:6,
                   margin:"16px 0 6px",fontWeight:600,color:C.muted,fontSize:14,
-                  display:"flex",alignItems:"center",justifyContent:"space-between",
+                  cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",
+                  userSelect:"none",
                 }}>
                   <span>
                     <span style={{marginRight:6}}>🔒</span>
                     Stage {s.n}: {s.name}
                     <span style={{marginLeft:8,fontSize:12,fontWeight:400}}>locked</span>
                   </span>
+                  <span style={{fontSize:13,color:C.muted,lineHeight:1}}>{lockedCollapsed?"▸":"▾"}</span>
                 </div>
-                <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,
-                  padding:"10px 14px",marginBottom:8,fontSize:13,color:C.muted,
-                  display:"flex",alignItems:"center",gap:8}}>
-                  <span style={{fontSize:16}}>🔒</span>
-                  <span>Stage {s.n} predictions open after admin advances the tournament.</span>
-                </div>
+                {!lockedCollapsed && (
+                  <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden",marginBottom:8}}>
+                    {stageMatches.map(m=>(
+                      <MatchRow key={m.n} match={resolvedMatch(m,results,matches)}
+                        pred={null} result={null} liveData={null}
+                        editable={false} adminResult={false} roundState="closed"
+                        onSave={null} onResultSave={null} tz={tz}/>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           }
@@ -5983,7 +5997,7 @@ export default function App() {
         )}
         {user&&tab==="results"&&<AdminResults
           config={config} matches={matches} results={results} liveMatches={liveMatches}
-          setResults={setResults} setLiveMatches={setLiveMatches} refreshLb={refreshLb} refreshLive={refreshLive} showToast={showToast}
+          setResults={setResults} setLiveMatches={setLiveMatches} refreshLb={refreshLb} refreshLive={refreshLive} showToast={showToast} tz={tz}
         />}
         {user&&tab==="tournament"&&<Tournament matches={matches} results={effResults} liveMatches={liveMatches} myPreds={myPreds} config={config} user={user} tz={tz}/>}
         {user&&tab==="settings"&&<SettingsView user={user} leaderboard={leaderboard} onLogout={doLogout} onNameUpdate={u=>{setUser(u);showToast("Name updated ✓");}} showToast={showToast} config={config} setConfig={setConfig} matches={matches} results={results} setResults={setResults} liveMatches={liveMatches} refreshLive={refreshLive} refreshLb={refreshLb} onResetOnboarding={resetOnboarding} tz={tz} onTzChange={saveTz}/>}
