@@ -1260,7 +1260,8 @@ export const initApi = {
       const preds = S.predictions[entry.id] || {};
       Object.values(preds).forEach(p => {
         if (p && p[0] != null && p[1] != null) {
-          const k = `${p[0]}:${p[1]}`; freq[k] = (freq[k] || 0) + 1;
+          const [lo, hi] = [Math.min(p[0], p[1]), Math.max(p[0], p[1])];
+          const k = `${lo}:${hi}`; freq[k] = (freq[k] || 0) + 1;
         }
       });
     });

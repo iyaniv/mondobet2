@@ -5034,7 +5034,7 @@ export default function App() {
                   const closestFav=favRows.length?favRows.reduce((a,b)=>Math.abs(b.total-myLbEntry.total)<Math.abs(a.total-myLbEntry.total)?b:a):null;
                   const gapFav=closestFav?myLbEntry.total-closestFav.total:null;
                   const freq={};
-                  Object.values(myPreds).forEach(p=>{if(p&&p[0]!=null&&p[1]!=null){const k=`${p[0]}:${p[1]}`;freq[k]=(freq[k]||0)+1;}});
+                  Object.values(myPreds).forEach(p=>{if(p&&p[0]!=null&&p[1]!=null){const [lo,hi]=[Math.min(p[0],p[1]),Math.max(p[0],p[1])];const k=`${lo}:${hi}`;freq[k]=(freq[k]||0)+1;}});
                   const top3scores=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,3);
                   const cards=[
                     {label:"From leader",value:gapLeader===0?"+0":(gapLeader>0?`+${gapLeader}`:gapLeader),sub:(leader?.name||"")+" · "+(leader?.total||0)+" pts",border:gapLeader>=0?C.green:C.red,icon:"📉"},
@@ -5492,7 +5492,7 @@ export default function App() {
                         {/* top 3 most-predicted scores for this form */}
                         {(()=>{
                           const freq={};
-                          Object.values(myPreds).forEach(p=>{if(p&&p[0]!=null&&p[1]!=null){const k=`${p[0]}:${p[1]}`;freq[k]=(freq[k]||0)+1;}});
+                          Object.values(myPreds).forEach(p=>{if(p&&p[0]!=null&&p[1]!=null){const [lo,hi]=[Math.min(p[0],p[1]),Math.max(p[0],p[1])];const k=`${lo}:${hi}`;freq[k]=(freq[k]||0)+1;}});
                           const top3=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,3);
                           if(!top3.length) return null;
                           return (
@@ -5917,7 +5917,7 @@ export default function App() {
               const allPreds={...myPreds};
               Object.values(simPredsByEntry).forEach(ep=>Object.assign(allPreds,ep));
               const freq={};
-              Object.values(allPreds).forEach(p=>{if(p&&p[0]!=null&&p[1]!=null){const k=`${p[0]}:${p[1]}`;freq[k]=(freq[k]||0)+1;}});
+              Object.values(allPreds).forEach(p=>{if(p&&p[0]!=null&&p[1]!=null){const [lo,hi]=[Math.min(p[0],p[1]),Math.max(p[0],p[1])];const k=`${lo}:${hi}`;freq[k]=(freq[k]||0)+1;}});
               const top3=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,3);
               return (
                 <div ref={userStatsPopup.triggerRef} style={{position:"relative"}}>
