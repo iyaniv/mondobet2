@@ -104,6 +104,17 @@ async def sync_live_from_api(db: AsyncSession) -> None:
     if not settings.football_data_api_key:
         return
 
+    # Master switch: only sync when the admin has chosen the realtime feed.
+    # In "manual" mode the admin drives the whole match lifecycle by hand and
+    # we make no external calls or writes.
+    try:
+        cfg = await crud.get_config(db)
+        if cfg.data_source != "realtime":
+            return
+    except Exception as exc:
+        log.warning("could not read config for live sync: %s", exc)
+        return
+
     now = time.monotonic()
     if now - _last_sync_ts < CACHE_TTL_SECONDS:
         return
@@ -157,10 +168,19 @@ async def sync_live_from_api(db: AsyncSession) -> None:
         is_live = status in _LIVE_STATUSES
 
         try:
+            # Full automation within realtime mode:
+            #   IN_PLAY/PAUSED → write the running score + flip to LIVE
+            #   FINISHED       → write the final score, then finalize (move to
+            #                    the results table = FINAL, locked thereafter)
             await crud.upsert_live_match(
                 db, match_n,
                 score_a=sa, score_b=sb,
                 minute=minute, is_live=is_live,
             )
+            if status in _DONE_STATUSES:
+                # finalize reads the live row's score, writes it to results,
+                # and deletes the live row. Next sync sees it in `finalized`
+                # and skips it, so this runs exactly once per match.
+                await crud.finalize_live_match(db, match_n)
         except Exception as exc:
-            log.warning("upsert_live_match failed for #%s: %s", match_n, exc)
+            log.warning("live sync write failed for #%s: %s", match_n, exc)

@@ -3098,7 +3098,7 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
             {
               value:"realtime",
               label:"Realtime data feed",
-              desc:<>Live matches auto-progress every 4 seconds — minutes advance, occasional goals, and matches finish automatically past minute 90.<br/><em style={{color:C.muted}}>In production this would connect to a real football API (e.g. football-data.org); in the demo it's simulated.</em></>,
+              desc:<>Matches move to LIVE and to FINAL automatically — no admin action needed.<br/><em style={{color:C.muted}}>In production this syncs live scores from football-data.org; in the demo it's simulated (auto-progresses every 4 seconds).</em></>,
             },
           ].map((opt,i)=>(
             <label key={opt.value} style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",marginBottom:i===0?12:0}}>
