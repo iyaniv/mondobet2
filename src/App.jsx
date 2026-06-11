@@ -1546,6 +1546,7 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
                         <td style={{...td,paddingLeft:6}}>
                           <div style={{fontWeight:600,color:C.text}}>{u.name}</div>
                           <div style={{fontSize:11,color:C.muted,marginTop:1}}>{u.email}</div>
+                          {u.phone&&<div style={{fontSize:11,color:C.muted,marginTop:1}}>📞 <a href={`tel:${u.phone}`} style={{color:C.muted,textDecoration:"none"}}>{u.phone}</a></div>}
                         </td>
                         <td style={td}>
                           {uEntries.length===0
@@ -1609,6 +1610,7 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
                       <td style={td}>
                         <div style={{fontWeight:600}}>{u.name}</div>
                         <div style={{fontSize:11,color:C.muted}}>{u.email}</div>
+                        {u.phone&&<div style={{fontSize:11,color:C.muted}}>📞 <a href={`tel:${u.phone}`} style={{color:C.muted,textDecoration:"none"}}>{u.phone}</a></div>}
                       </td>
                       <td style={td}>{entry?.winner_pick?withFlag(entry.winner_pick):"—"}</td>
                       <td style={{...td,textAlign:"right",color:C.accent,fontWeight:700,fontFamily:"monospace"}}>{entry?.total??0}</td>
@@ -4066,7 +4068,7 @@ export default function App() {
       }
       if(isAdmin&&d.participants){
         setAdminParticipants(d.participants);
-        setParticipants(d.users||d.participants.map(p=>({id:p.id,name:p.name,email:p.email,has_paid:p.has_paid,is_admin:false})));
+        setParticipants(d.users||d.participants.map(p=>({id:p.id,name:p.name,email:p.email,phone:p.phone||"",has_paid:p.has_paid,is_admin:false})));
       }else if(isAdmin&&d.users){
         setParticipants(d.users);
       }

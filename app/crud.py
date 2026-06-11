@@ -615,6 +615,7 @@ async def get_participants_with_entries(db: AsyncSession) -> list[dict]:
             "id": user.id,
             "name": user.name,
             "email": user.email,
+            "phone": user.phone,
             "has_paid": user.has_paid,
             "locked_winner": user.locked_winner,
             "entries": entries_data,

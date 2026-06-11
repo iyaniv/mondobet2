@@ -616,7 +616,7 @@ function computeAdminParticipants() {
     const submittedCount = userEntries.filter(e=>e.submitted_at).length;
     const draftCount = userEntries.length - submittedCount;
     const bestTotal = Math.max(0,...entriesData.filter(e=>e.points!=null).map(e=>e.points),0);
-    return {id:user.id,name:user.name,email:user.email,has_paid:user.has_paid,locked_winner:user.locked_winner||null,entries:entriesData,submitted_count:submittedCount,draft_count:draftCount,best_total:bestTotal};
+    return {id:user.id,name:user.name,email:user.email,phone:user.phone||"",has_paid:user.has_paid,locked_winner:user.locked_winner||null,entries:entriesData,submitted_count:submittedCount,draft_count:draftCount,best_total:bestTotal};
   }).sort((a,b)=>a.name.localeCompare(b.name));
 }
 
