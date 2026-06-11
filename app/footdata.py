@@ -79,8 +79,14 @@ _DONE_STATUSES = {"FINISHED"}
 
 
 def _extract_score(score: dict):
-    """Current home/away goals from an API score block, or (None, None)."""
-    for key in ("fullTime", "regularTime", "halfTime"):
+    """Current home/away goals from an API score block, or (None, None).
+
+    During play football-data keeps the running score in `fullTime` (it
+    updates live); `halfTime` is a defensive fallback. This tier exposes no
+    separate regulation/extra-time/penalty breakdown — see the duration-based
+    freeze in sync_live_from_api for how the 90-min score is preserved.
+    """
+    for key in ("fullTime", "halfTime"):
         block = score.get(key) or {}
         if block.get("home") is not None and block.get("away") is not None:
             return block["home"], block["away"]
@@ -153,11 +159,15 @@ async def sync_live_from_api(db: AsyncSession) -> None:
         if match_n in finalized:
             continue  # admin finalized this match — leave it locked
 
-        sa, sb = _extract_score(m.get("score") or {})
-        if sa is None:
+        score = m.get("score") or {}
+        # duration: REGULAR (decided in 90'), EXTRA_TIME, or PENALTY_SHOOTOUT.
+        duration = score.get("duration") or "REGULAR"
+
+        cur_a, cur_b = _extract_score(score)
+        if cur_a is None:
             continue
         if flip:
-            sa, sb = sb, sa
+            cur_a, cur_b = cur_b, cur_a
 
         minute = m.get("minute")
         try:
@@ -168,19 +178,36 @@ async def sync_live_from_api(db: AsyncSession) -> None:
         is_live = status in _LIVE_STATUSES
 
         try:
-            # Full automation within realtime mode:
-            #   IN_PLAY/PAUSED → write the running score + flip to LIVE
-            #   FINISHED       → write the final score, then finalize (move to
-            #                    the results table = FINAL, locked thereafter)
-            await crud.upsert_live_match(
-                db, match_n,
-                score_a=sa, score_b=sb,
-                minute=minute, is_live=is_live,
-            )
-            if status in _DONE_STATUSES:
-                # finalize reads the live row's score, writes it to results,
-                # and deletes the live row. Next sync sees it in `finalized`
-                # and skips it, so this runs exactly once per match.
-                await crud.finalize_live_match(db, match_n)
+            if duration == "REGULAR":
+                # Regulation: the running score IS the 90-min score. Write it to
+                # score_a/score_b so the 90-min points track live, and at
+                # full-time finalize (move to results = FINAL, locked).
+                await crud.upsert_live_match(
+                    db, match_n,
+                    score_a=cur_a, score_b=cur_b,
+                    minute=minute, is_live=is_live,
+                )
+                if status in _DONE_STATUSES:
+                    # finalize reads the live row's score, writes it to results,
+                    # and deletes the live row. Next sync sees it in `finalized`
+                    # and skips it, so this runs exactly once per match.
+                    await crud.finalize_live_match(db, match_n)
+            else:
+                # Extra time / penalties (knockout only — group matches never
+                # get here). The feed folds ET goals into the same score field
+                # and gives no separate 90-min snapshot, so we FREEZE the 90-min
+                # score (score_a/score_b already stored from the regulation
+                # syncs — left untouched here) and write the evolving total into
+                # et_a/et_b purely for the live display. Points stay pegged to
+                # the 90-min score, exactly like manual mode.
+                #
+                # We deliberately do NOT auto-finalize: this free tier doesn't
+                # cleanly separate the penalty-shootout result, so the admin
+                # confirms the final 90-min / ET / pens by hand.
+                await crud.upsert_live_match(
+                    db, match_n,
+                    minute=minute, is_live=is_live,
+                    et_a=cur_a, et_b=cur_b,
+                )
         except Exception as exc:
             log.warning("live sync write failed for #%s: %s", match_n, exc)
