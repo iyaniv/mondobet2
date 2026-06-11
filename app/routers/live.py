@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import crud
 from app.auth import require_admin
 from app.database import get_db
+from app.footdata import sync_live_from_api
 from app.matches import MATCH_INDEX
 from app.schemas import LiveMatchIn, LiveMatchOut
 
@@ -12,6 +13,11 @@ router = APIRouter(prefix="/live", tags=["live"])
 
 @router.get("/", response_model=list[LiveMatchOut])
 async def list_live(db: AsyncSession = Depends(get_db)):
+    # Best-effort: pull fresh World Cup scores from football-data.org into the
+    # live_matches table before reading it back. A 10s in-process cache gates
+    # the external call, and any failure is swallowed — so this never slows or
+    # breaks the poll, and is a no-op entirely when no API key is configured.
+    await sync_live_from_api(db)
     live = await crud.get_live_matches(db)
     return [LiveMatchOut(match_n=n, **v) for n, v in live.items()]
 

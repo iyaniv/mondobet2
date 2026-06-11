@@ -9,6 +9,12 @@ class Settings(BaseSettings):
     admin_email: str = "admin"
     admin_password: str = "Admin"
 
+    # football-data.org API key. When set, the GET /live/ poll auto-syncs
+    # World Cup scores from the external feed into the live_matches table.
+    # Empty string = feature disabled (no external calls), so local/dev and
+    # the demo build behave exactly as before.
+    football_data_api_key: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 
