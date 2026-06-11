@@ -1779,6 +1779,7 @@ function kickoffParts(t, tz){
   };
 }
 function todayKey(tz){ return new Intl.DateTimeFormat("en-CA",{year:"numeric",month:"2-digit",day:"2-digit",timeZone:_resolveTz(tz)}).format(new Date()); }
+function yesterdayKey(tz){ return new Intl.DateTimeFormat("en-CA",{year:"numeric",month:"2-digit",day:"2-digit",timeZone:_resolveTz(tz)}).format(new Date(Date.now()-86400000)); }
 function todayLabel(tz){ return new Intl.DateTimeFormat(undefined,{weekday:"long",month:"long",day:"numeric",timeZone:_resolveTz(tz)}).format(new Date()); }
 
 // ── "Today's Games" panel — pinned at the top of the Tournament & Leaderboard
@@ -1786,9 +1787,17 @@ function todayLabel(tz){ return new Intl.DateTimeFormat(undefined,{weekday:"long
 // LIVE / FULL TIME / UPCOMING, with kickoff time in the user's timezone.
 function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
   const tKey = todayKey(tz);
+  const yKey = yesterdayKey(tz);
   const all = matches.map(m=>({m,k:kickoffParts(m.t,tz)}));
   const list = all
-    .filter(({m,k}) => (k && k.dayKey===tKey) || !!(liveMatches[m.n]&&liveMatches[m.n].is_live))
+    .filter(({m,k}) => {
+      if(liveMatches[m.n]&&liveMatches[m.n].is_live) return true;   // currently live, any day
+      if(!k) return false;
+      if(k.dayKey===tKey) return true;                             // everything kicking off today
+      // Yesterday's games, but only the ones that are actually over (have a score).
+      if(k.dayKey===yKey) return !!results[m.n] || !!liveMatches[m.n];
+      return false;
+    })
     .sort((a,b)=>(a.k?.at||0)-(b.k?.at||0));
   const liveCount = list.filter(({m})=>liveMatches[m.n]&&liveMatches[m.n].is_live).length;
 
