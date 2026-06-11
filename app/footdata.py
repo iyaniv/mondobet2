@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import crud
 from app.config import settings
+from app.espn import sync_live_from_espn
 from app.matches import MATCHES
 
 log = logging.getLogger("footdata")
@@ -101,14 +102,13 @@ _last_sync_ts: float = -1e9
 
 
 async def sync_live_from_api(db: AsyncSession) -> None:
-    """Best-effort: pull WC scores and upsert them into live_matches.
+    """Best-effort realtime sync orchestrator. Never raises.
 
-    No-op when the API key is unset or the cache is still warm. Never raises.
+    ESPN (keyless, near-real-time) is the PRIMARY source; football-data.org is
+    the keyed fallback used only when ESPN fails. No-op outside realtime mode or
+    while the shared cache is still warm.
     """
     global _last_sync_ts
-
-    if not settings.football_data_api_key:
-        return
 
     # Master switch: only sync when the admin has chosen the realtime feed.
     # In "manual" mode the admin drives the whole match lifecycle by hand and
@@ -128,6 +128,18 @@ async def sync_live_from_api(db: AsyncSession) -> None:
     # of concurrent polls each fire their own request.
     _last_sync_ts = now
 
+    # Primary: ESPN (no key required). Only fall back to football-data.org if
+    # ESPN failed AND a key is configured.
+    if await sync_live_from_espn(db):
+        return
+    if settings.football_data_api_key:
+        await _sync_footballdata(db)
+
+
+async def _sync_footballdata(db: AsyncSession) -> None:
+    """Fallback feed: pull WC scores from football-data.org and upsert them into
+    live_matches. Assumes the caller already gated on realtime mode + cache and
+    that a key is configured. Never raises."""
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
             resp = await client.get(
