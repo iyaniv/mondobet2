@@ -1808,8 +1808,11 @@ function todayLabel(tz){ return new Intl.DateTimeFormat(undefined,{weekday:"long
 // tabs. Shows games kicking off today (plus any currently-live match), flagged
 // LIVE / FULL TIME / UPCOMING, with kickoff time in the user's timezone.
 function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
+  const z = _resolveTz(tz);
   const tKey = todayKey(tz);
   const yKey = yesterdayKey(tz);
+  const tomorrowKey = new Intl.DateTimeFormat("en-CA",{year:"numeric",month:"2-digit",day:"2-digit",timeZone:z}).format(new Date(Date.now()+86400000));
+  const koHour = (t) => parseInt(new Intl.DateTimeFormat("en-US",{hour:"numeric",hour12:false,timeZone:z}).format(new Date(t)));
   const all = matches.map(m=>({m,k:kickoffParts(m.t,tz)}));
   const list = all
     .filter(({m,k}) => {
@@ -1818,6 +1821,8 @@ function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
       if(k.dayKey===tKey) return true;                             // everything kicking off today
       // Yesterday's games, but only the ones that are actually over (have a score).
       if(k.dayKey===yKey) return !!results[m.n] || !!liveMatches[m.n];
+      // Tomorrow's games that kick off before noon (first 12 h of the next day)
+      if(k.dayKey===tomorrowKey && koHour(m.t)<12) return true;
       return false;
     })
     .sort((a,b)=>(a.k?.at||0)-(b.k?.at||0));
@@ -5429,7 +5434,7 @@ export default function App() {
       const compareForms = leaderboard
         .filter(e=>(e.entry_id||e.user_id)!==myLbKey)
         .map(e=>({key:e.entry_id||e.user_id, name:e.name, rank:leaderboard.indexOf(e)+1, fav:isFavForm(e)}))
-        .sort((a,b)=>(b.fav?1:0)-(a.fav?1:0));
+        .sort((a,b)=>(b.fav?1:0)-(a.fav?1:0) || a.name.localeCompare(b.name));
       return (
         <div>
           <TodaysGames matches={matches} results={results} liveMatches={liveMatches} tz={tz}/>
@@ -5503,7 +5508,7 @@ export default function App() {
       .map(m=>({m, ko:(()=>{const d=new Date(m.t).getTime();return isNaN(d)?0:d;})(),
         a:resolveTeamDeep(m.a,results,matches), b:resolveTeamDeep(m.b,results,matches),
         live:isLiveM(m), ended:!!results[m.n], viewable:matchViewable(m)}))
-      .sort((x,y)=> (y.live?1:0)-(x.live?1:0) || y.ko-x.ko || x.m.n-y.m.n);
+      .sort((x,y)=> x.ko-y.ko || x.m.n-y.m.n);
 
     // Per-form picker chips (only when the user owns 2+ forms). Shared between
     // the desktop (slide-in beside the toggle) and mobile (wrap below) layouts.
