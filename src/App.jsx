@@ -5953,8 +5953,9 @@ export default function App() {
                           //    1 pt  — one score right, wrong result → orange
                           //    0 pts — complete miss → red
                           //   no pick → dashed —
-                          // Any individually-correct goal is rendered green so a
-                          // partial (orange) pick visibly shows which side it nailed.
+                          // Each digit is green if it matched, red if not — same
+                          // as renderPredDigits in the compare view — so the box
+                          // signals overall points and the digits tell the exact story.
                           let bd=C.border,bg=C.bg,tick=null,g0=false,g1=false;
                           if(pred){
                             const sg=(x)=>x===0?0:x>0?1:-1;
@@ -5972,9 +5973,9 @@ export default function App() {
                               {pred?(
                                 <span style={{display:"inline-flex",alignItems:"center",gap:1,fontFamily:"monospace",fontSize:15,fontWeight:700,
                                   padding:"2px 8px",borderRadius:7,border:`1px solid ${bd}`,background:bg}}>
-                                  <span style={{color:g0?C.green:C.text}}>{pred[0]}</span>
+                                  <span style={{color:g0?C.green:C.red}}>{pred[0]}</span>
                                   <span style={{color:C.muted}}>–</span>
-                                  <span style={{color:g1?C.green:C.text}}>{pred[1]}</span>
+                                  <span style={{color:g1?C.green:C.red}}>{pred[1]}</span>
                                   {tick&&<span style={{fontSize:10,marginLeft:3,color:C.green}}>{tick}</span>}
                                 </span>
                               ):(
