@@ -217,3 +217,39 @@ async def user_predictions(
             all_preds = [p for p in all_preds if p.match_n not in open_match_ns]
 
     return all_preds
+
+
+@router.get("/match/{match_n}")
+async def match_predictions(
+    match_n: int,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, list[int]]:
+    """Every submitted form's pick for one match — {entry_id: [score_a, score_b]}.
+
+    Powers the leaderboard "Match picks" column when the user pins it to a
+    specific game. Same privacy rule as /user/{id}: non-admins can't see picks
+    for a match in the currently-open stage while the round is open (everyone's
+    still betting). Returns {} in that case; a played/closed-stage match is open
+    to all. Only fully-filled picks are included.
+    """
+    if match_n not in MATCH_INDEX:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Match not found.")
+
+    if not current_user.is_admin:
+        cfg = await crud.get_config(db)
+        if cfg.round_state == RoundStateEnum.open and MATCH_INDEX[match_n].get("s") == (cfg.current_stage or 1):
+            return {}
+
+    all_preds = await crud.get_all_predictions(db)          # {entry_id: {match_n: [a, b]}}
+    all_entries = await crud.get_all_entries_by_user(db)    # {user_id: [entries]}
+    submitted_ids = {e.id for ents in all_entries.values() for e in ents if e.submitted_at is not None}
+
+    out: dict[str, list[int]] = {}
+    for entry_id, preds in all_preds.items():
+        if entry_id not in submitted_ids:
+            continue
+        v = preds.get(match_n)
+        if v and v[0] is not None and v[1] is not None:
+            out[entry_id] = [v[0], v[1]]
+    return out

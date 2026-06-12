@@ -956,6 +956,25 @@ export const api = {
     return allPreds;
   },
 
+  // Every submitted form's pick for one match — {entry_id: [a,b]} (privacy-gated)
+  getMatchPredictions: async (n) => {
+    await delay();
+    const caller = getUser();
+    if (!caller) throw new Error("Not authenticated");
+    const mn = Number(n);
+    if (!caller.is_admin && S.config.round_state === "open") {
+      const m = MATCHES.find(x => x.n === mn);
+      if (m && m.s === (S.config.current_stage || 1)) return {};
+    }
+    const out = {};
+    for (const entry of Object.values(S.entries)) {
+      if (!entry.submitted_at) continue;
+      const p = (S.predictions[entry.id] || {})[mn];
+      if (p && p[0] != null && p[1] != null) out[entry.id] = [p[0], p[1]];
+    }
+    return out;
+  },
+
   // ── Admin
   updateConfig: async (d) => {
     await delay();

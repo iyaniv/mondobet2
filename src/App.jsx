@@ -42,6 +42,28 @@ function resolveTeam(name, results, matches) {
   return type === 'W' ? (w === 'a' ? src.a : src.b) : (w === 'a' ? src.b : src.a);
 }
 
+// Which match the "Match picks" column follows by default (Auto). The current
+// game = a live game (pick the lowest-numbered if several run in parallel), else
+// the most-recently-kicked-off finished game — but once we're within 10 minutes
+// of the next viewable game's kickoff, jump ahead to it so its picks are up
+// before kickoff. `viewable(m)` excludes games whose picks are still hidden
+// (the open betting stage). Returns a match number, or null if nothing applies.
+const MATCH_PICK_LOOKAHEAD_MS = 10 * 60 * 1000;
+function computeAutoMatchN(matches, results, liveMatches, nowMs, viewable) {
+  const koAt = (m) => { const d = new Date(m.t).getTime(); return isNaN(d) ? 0 : d; };
+  const isLive = (m) => !!(liveMatches[m.n] && liveMatches[m.n].is_live);
+  const live = matches.filter(isLive).sort((a, b) => a.n - b.n);
+  if (live.length) return live[0].n;
+  const ended = matches.filter(m => results[m.n]).sort((a, b) => koAt(b) - koAt(a) || b.n - a.n);
+  const upcoming = matches
+    .filter(m => viewable(m) && !results[m.n] && !isLive(m) && koAt(m) > nowMs)
+    .sort((a, b) => koAt(a) - koAt(b) || a.n - b.n);
+  const next = upcoming[0];
+  if (next && nowMs >= koAt(next) - MATCH_PICK_LOOKAHEAD_MS) return next.n;
+  if (ended.length) return ended[0].n;
+  return null;
+}
+
 // Recursive variant: resolves through multiple rounds using any scores map
 // (results or sim preds). Also resolves Stage-2 slot labels: "1st A" / "2nd B"
 // (from group standings) and "Best 3rd (N)" (Nth best 3rd-place across groups).
@@ -3900,6 +3922,43 @@ export default function App() {
   const toggleLivePreds=useCallback(()=>{
     setShowLivePreds(v=>{ const n=!v; try{ localStorage.setItem("mb_show_live_preds",n?"1":"0"); }catch{} return n; });
   },[]);
+  // "Match picks" game selection. The column follows the current game by default
+  // (Auto), but the user can PIN it to any game via the header dropdown.
+  // pinnedMatchN===null ⇒ Auto. Persisted per device.
+  const [pinnedMatchN,setPinnedMatchN]=useState(()=>{
+    try { const v=localStorage.getItem("mb_pinned_match"); return v!=null&&v!==""?Number(v):null; } catch { return null; }
+  });
+  const setPinned=useCallback((n)=>{
+    setPinnedMatchN(n);
+    try { if(n==null) localStorage.removeItem("mb_pinned_match"); else localStorage.setItem("mb_pinned_match",String(n)); } catch {}
+  },[]);
+  // Dropdown (game selector) UI state — lifted here so the 10s leaderboard poll
+  // doesn't reset it (LeaderboardView is rendered inline).
+  const [gameMenuOpen,setGameMenuOpen]=useState(false);
+  const [gameSearch,setGameSearch]=useState("");
+  const gameBtnRef=useRef(null);
+  // A match's picks are viewable unless it's in the still-open betting stage.
+  const matchViewable=useCallback((m)=>!(config.round_state==="open"&&m.s===(config.current_stage||1)),[config.round_state,config.current_stage]);
+  // Auto target (recomputed each render so the −10min look-ahead fires on the
+  // 10s poll). Selected = the pinned game if it's still valid, else Auto.
+  const autoMatchN=computeAutoMatchN(matches,results,liveMatches,Date.now(),matchViewable);
+  const selectedMatchN=(pinnedMatchN!=null&&matches.some(m=>m.n===pinnedMatchN))?pinnedMatchN:autoMatchN;
+  // Cache of {match_n: {entry_id:[a,b]}} for games not covered by the rows'
+  // spotlight_preds (i.e. a pinned/older game). Fetched on demand.
+  const [matchPicks,setMatchPicks]=useState({});
+  useEffect(()=>{
+    if(selectedMatchN==null||!showLivePreds) return;
+    const selM=matches.find(m=>m.n===selectedMatchN);
+    if(selM&&!matchViewable(selM)) return;                  // locked — nothing to fetch
+    if(matchPicks[selectedMatchN]) return;                  // already cached
+    // Covered by the leaderboard payload (the auto/live game)? then no fetch.
+    if(leaderboard.some(r=>r.spotlight_preds&&(String(selectedMatchN) in r.spotlight_preds))) return;
+    let cancelled=false;
+    api.getMatchPredictions(selectedMatchN)
+      .then(d=>{ if(!cancelled) setMatchPicks(p=>({...p,[selectedMatchN]:d||{}})); })
+      .catch(()=>{});
+    return ()=>{cancelled=true;};
+  },[selectedMatchN,showLivePreds,leaderboard,matchViewable,matchPicks]);
   // Favorites = leaderboard rows (forms) the user starred, persisted per user
   // in localStorage. Keyed by row id (entry_id, falling back to user_id) so two
   // forms from the same player can be favorited independently. Selected right on
@@ -5416,33 +5475,35 @@ export default function App() {
       && config.stage_baseline.stage === (config.current_stage || 1))
       ? config.stage_baseline.ranks : null;
 
-    // "Match picks" columns — inserted right of the Points column, showing every
-    // form's prediction for the spotlight match(es). The spotlight is: all the
-    // in-play games while any are live (so multiple concurrent live games each
-    // get a column); otherwise the most-recently-kicked-off finished game(s),
-    // which stay on the board until the next match starts (then it goes live and
-    // takes over). Mirrors crud.get_leaderboard's spotlight_ns. Each column
-    // header shows the matchup + score (running, with the minute, while live;
-    // final, with an FT badge, once finished); each cell shows that form's pick
-    // (from row.spotlight_preds), tinted by how it's doing vs that score. Gated
-    // behind the per-user showLivePreds toggle; the chip only shows when there's
-    // a spotlight match.
-    const koAt = (m)=>{ const d=new Date(m.t).getTime(); return isNaN(d)?0:d; };
+    // "Match picks" — a single column (right of Points) showing every form's
+    // prediction for ONE game, chosen via the header dropdown. By default the
+    // column follows the current game (Auto: live → latest-finished → next game
+    // 10min before kickoff; see computeAutoMatchN); the user can pin any game.
+    // Played/live games tint each pick by points (digits green/red, box by
+    // total); upcoming games just list the picks. Gated behind showLivePreds.
     const isLiveM = (m)=> !!(liveMatches[m.n] && liveMatches[m.n].is_live);
-    const liveNowCols = matches.filter(isLiveM).sort((a,b)=> koAt(a)-koAt(b) || a.n-b.n);
-    let focusCols = [];
-    if (liveNowCols.length) {
-      focusCols = liveNowCols;
-    } else {
-      const finished = matches.filter(m => results[m.n]);
-      if (finished.length) {
-        const latest = Math.max(...finished.map(koAt));
-        focusCols = finished.filter(m => koAt(m)===latest).sort((a,b)=> a.n-b.n);
-      }
-    }
-    const anyFocusLive = focusCols.some(isLiveM);
-    const hasFocus = focusCols.length > 0;
+    const selMatch = selectedMatchN!=null ? matches.find(m=>m.n===selectedMatchN) : null;
+    const selLive = !!(selMatch && isLiveM(selMatch));
+    const selRes = selMatch ? results[selMatch.n] : null;
+    const selLiveData = selMatch ? liveMatches[selMatch.n] : null;
+    const selScore = selMatch
+      ? (selLive ? [selLiveData.score_a, selLiveData.score_b] : (selRes ? [selRes[0], selRes[1]] : null))
+      : null;
+    const selKoParts = selMatch ? kickoffParts(selMatch.t, tz) : null;
+    const selPinned = pinnedMatchN!=null && selMatch && pinnedMatchN===selMatch.n;
+    const hasFocus = !!selMatch;
     const showFocusCols = showLivePreds && hasFocus && !simMode;
+    // Per-row pick for the selected game: the leaderboard payload covers the
+    // auto/live game (spotlight_preds); a pinned/older game comes from the
+    // on-demand matchPicks cache.
+    const pickFor = (row)=> (matchPicks[selectedMatchN]?.[row.entry_id]) ?? row.spotlight_preds?.[selectedMatchN];
+    // Games offered in the dropdown: all matches, newest-relevant first
+    // (live, then by kickoff descending), resolved to real team codes.
+    const gameOptions = matches
+      .map(m=>({m, ko:(()=>{const d=new Date(m.t).getTime();return isNaN(d)?0:d;})(),
+        a:resolveTeamDeep(m.a,results,matches), b:resolveTeamDeep(m.b,results,matches),
+        live:isLiveM(m), ended:!!results[m.n], viewable:matchViewable(m)}))
+      .sort((x,y)=> (y.live?1:0)-(x.live?1:0) || y.ko-x.ko || x.m.n-y.m.n);
 
     // Per-form picker chips (only when the user owns 2+ forms). Shared between
     // the desktop (slide-in beside the toggle) and mobile (wrap below) layouts.
@@ -5660,7 +5721,7 @@ export default function App() {
             {hasFocus&&(
               <span onClick={toggleLivePreds}
                 role="switch" aria-checked={showLivePreds}
-                title={showLivePreds?"Hide each form's pick for the spotlight match":(anyFocusLive?"Show each form's pick for the live game(s)":"Show each form's pick for the latest game")}
+                title={showLivePreds?"Hide the Match picks column":"Show what every form predicted for a game"}
                 style={{display:"inline-flex",alignItems:"center",gap:7,cursor:"pointer",userSelect:"none",
                   background:showLivePreds?"rgba(163,230,53,0.08)":C.panel,
                   border:`1px solid ${showLivePreds?C.accent:C.border}`,borderRadius:999,
@@ -5668,6 +5729,7 @@ export default function App() {
                   color:showLivePreds?C.accent:C.muted,transition:"all .15s",whiteSpace:"nowrap"}}>
                 <span style={{fontSize:13,lineHeight:1}}>👁</span>
                 Match picks
+                {selLive&&<span className="live-dot" style={{width:5,height:5}}/>}
                 <span style={{position:"relative",width:30,height:17,borderRadius:999,flex:"0 0 auto",
                   background:showLivePreds?"rgba(163,230,53,0.25)":C.panel2,
                   border:`1px solid ${showLivePreds?C.accent:C.border}`,transition:"all .15s"}}>
@@ -5675,15 +5737,6 @@ export default function App() {
                     background:showLivePreds?C.accent:C.muted,
                     transform:showLivePreds?"translateX(13px)":"translateX(0)",transition:"all .15s"}}/>
                 </span>
-                {anyFocusLive
-                  ?<span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:9,fontWeight:800,color:C.red,background:"rgba(239,68,68,0.12)",
-                    border:`1px solid rgba(239,68,68,0.35)`,borderRadius:999,padding:"0 6px",lineHeight:"15px"}}>
-                    <span className="live-dot" style={{width:5,height:5}}/>{focusCols.length}
-                  </span>
-                  :<span style={{fontSize:9,fontWeight:800,color:C.green,background:"rgba(16,185,129,0.12)",
-                    border:`1px solid rgba(16,185,129,0.35)`,borderRadius:999,padding:"0 6px",lineHeight:"15px"}}>
-                    FT
-                  </span>}
               </span>
             )}
             {canSim&&(
@@ -5831,32 +5884,86 @@ export default function App() {
                     })()}
                   </th>
                   {["Name","Points"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Points"?"center":"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}
-                  {showFocusCols&&focusCols.map(m=>{
-                    const live=isLiveM(m);
-                    const lv=liveMatches[m.n], res=results[m.n];
-                    const sa=live?lv.score_a:res[0], sb=live?lv.score_b:res[1];
-                    const ca=resolveTeamDeep(m.a,results,matches), cb=resolveTeamDeep(m.b,results,matches);
+                  {showFocusCols&&(()=>{
+                    const ca=resolveTeamDeep(selMatch.a,results,matches), cb=resolveTeamDeep(selMatch.b,results,matches);
+                    const badge = selLive
+                      ? <span style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:9,fontWeight:800,color:C.red,background:"rgba(239,68,68,0.12)",border:`1px solid rgba(239,68,68,0.35)`,borderRadius:999,padding:"1px 6px"}}>{selPinned&&"📌"}<span className="live-dot"/>{selLiveData.minute!=null?`${selLiveData.minute}'`:"LIVE"}</span>
+                      : selRes
+                        ? <span style={{fontSize:9,fontWeight:800,color:C.green,background:"rgba(16,185,129,0.12)",border:`1px solid rgba(16,185,129,0.35)`,borderRadius:999,padding:"1px 6px"}}>{selPinned&&"📌 "}FT</span>
+                        : <span style={{fontSize:9,fontWeight:800,color:C.muted,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:999,padding:"1px 6px"}}>{selPinned&&"📌 "}{selKoParts?selKoParts.time:"—"}</span>;
+                    const r=gameBtnRef.current?.getBoundingClientRect();
+                    const menuStyle = r
+                      ? {position:"fixed",top:r.bottom+5,left:Math.max(8,Math.min(r.left+r.width/2-124,(typeof window!=="undefined"?window.innerWidth:1000)-256))}
+                      : {position:"absolute",top:"100%",left:0};
                     return (
-                      <th key={`fh${m.n}`} style={{padding:"6px 8px",textAlign:"center",color:C.text,fontWeight:600,
-                        borderBottom:`1px solid ${C.border}`,borderLeft:`1px solid ${C.border}`,
-                        background:live?"rgba(239,68,68,0.06)":"rgba(16,185,129,0.05)",whiteSpace:"nowrap"}}>
-                        <div style={{display:"inline-flex",flexDirection:"column",alignItems:"center",gap:3}}>
-                          <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:12}}>
-                            {flag(ca)}<b style={{fontFamily:"monospace",fontSize:14}}>{sa}–{sb}</b>{flag(cb)}
-                          </span>
-                          {live
-                            ?<span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:9,fontWeight:800,letterSpacing:".5px",
-                              color:C.red,background:"rgba(239,68,68,0.12)",border:`1px solid rgba(239,68,68,0.35)`,borderRadius:999,padding:"1px 7px"}}>
-                              <span className="live-dot"/>{lv.minute!=null?`${lv.minute}'`:"LIVE"}
-                            </span>
-                            :<span style={{fontSize:9,fontWeight:800,letterSpacing:".5px",
-                              color:C.green,background:"rgba(16,185,129,0.12)",border:`1px solid rgba(16,185,129,0.35)`,borderRadius:999,padding:"1px 7px"}}>
-                              FT
-                            </span>}
-                        </div>
-                      </th>
+                    <th style={{padding:"6px 8px",textAlign:"center",color:C.text,fontWeight:600,
+                      borderBottom:`1px solid ${C.border}`,borderLeft:`1px solid ${C.border}`,
+                      background:selLive?"rgba(239,68,68,0.05)":"rgba(99,102,241,0.05)",whiteSpace:"nowrap",position:"relative"}}>
+                      <button ref={gameBtnRef} onClick={(e)=>{e.stopPropagation();setGameMenuOpen(o=>!o);}}
+                        title="Pick which game's predictions to show"
+                        style={{display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer",border:0,background:"transparent",
+                          padding:0,margin:0,fontFamily:"inherit",color:C.text}}>
+                        <span style={{fontSize:14}}>{flag(ca)}</span>
+                        {selScore
+                          ? <b style={{fontFamily:"monospace",fontSize:14}}>{selScore[0]}–{selScore[1]}</b>
+                          : <span style={{color:C.muted,fontSize:11,fontWeight:600}}>v</span>}
+                        <span style={{fontSize:14}}>{flag(cb)}</span>
+                        {badge}
+                        <span style={{fontSize:8,color:gameMenuOpen?C.accent:C.muted}}>▾</span>
+                      </button>
+                      {gameMenuOpen&&(
+                        <>
+                          <div onClick={()=>setGameMenuOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
+                          <div onClick={e=>e.stopPropagation()} style={{...menuStyle,width:248,zIndex:99,
+                            background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,boxShadow:"0 12px 34px rgba(0,0,0,0.55)",overflow:"hidden",textAlign:"left"}}>
+                            <div style={{display:"flex",alignItems:"center",gap:7,padding:"7px 10px",borderBottom:`1px solid ${C.border}`}}>
+                              <span style={{color:C.muted,fontSize:12}}>🔍</span>
+                              <input autoFocus value={gameSearch} onChange={e=>setGameSearch(e.target.value)} placeholder="Search games…"
+                                style={{border:0,outline:0,background:"transparent",color:C.text,fontSize:12,flex:1,fontFamily:"inherit"}}/>
+                              {gameSearch&&<button onClick={()=>setGameSearch("")} style={{background:"none",border:0,color:C.muted,cursor:"pointer",fontSize:12,padding:0,fontFamily:"inherit"}}>✕</button>}
+                            </div>
+                            <div style={{maxHeight:264,overflowY:"auto",padding:3}}>
+                              {!gameSearch&&(
+                                <div onClick={()=>{setPinned(null);setGameMenuOpen(false);}}
+                                  style={{display:"flex",alignItems:"center",gap:8,padding:"6px 9px",margin:3,borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:700,
+                                    border:`1px dashed ${C.indigo}`,color:pinnedMatchN==null?C.accent:C.indigo,background:pinnedMatchN==null?"rgba(163,230,53,0.08)":"transparent"}}>
+                                  <span style={{flex:1}}>⟳ Auto — follow the current game</span>
+                                  {pinnedMatchN==null&&<span style={{color:C.accent}}>●</span>}
+                                </div>
+                              )}
+                              {(()=>{
+                                const q=gameSearch.toLowerCase();
+                                const opts=gameOptions.filter(o=>!q||`${o.a} ${o.b}`.toLowerCase().includes(q));
+                                if(!opts.length) return <div style={{padding:14,textAlign:"center",color:C.muted,fontSize:12}}>No games found</div>;
+                                return opts.map(o=>{
+                                  const isSel=o.m.n===selectedMatchN;
+                                  const locked=!o.viewable;
+                                  return (
+                                    <div key={o.m.n}
+                                      onClick={locked?undefined:()=>{setPinned(o.m.n);setGameMenuOpen(false);setGameSearch("");}}
+                                      title={locked?"Hidden until this stage closes":undefined}
+                                      style={{display:"flex",alignItems:"center",gap:7,padding:"6px 9px",borderRadius:6,fontSize:12,fontWeight:isSel?700:600,
+                                        cursor:locked?"default":"pointer",opacity:locked?0.5:1,
+                                        background:isSel?"rgba(163,230,53,0.10)":"transparent",color:isSel?C.accent:C.text}}>
+                                      <span style={{flex:1,display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                                        <span>{flag(o.a)}</span><span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{o.a}</span>
+                                        <span style={{color:C.muted,fontWeight:400}}>v</span>
+                                        <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{o.b}</span><span>{flag(o.b)}</span>
+                                      </span>
+                                      {o.live&&<span className="live-dot" style={{width:5,height:5,flexShrink:0}}/>}
+                                      {locked&&<span style={{flexShrink:0,fontSize:11}}>🔒</span>}
+                                      {isSel&&<span style={{color:C.accent,flexShrink:0}}>●</span>}
+                                    </div>
+                                  );
+                                });
+                              })()}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </th>
                     );
-                  })}
+                  })()}
                   <th style={{padding:"8px 10px",textAlign:"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>Winner pick</th>
                   {canJumpToParticipant&&<th style={{padding:"8px 6px",width:28,borderBottom:`1px solid ${C.border}`}}/>}
                 </tr></thead>
@@ -5940,24 +6047,18 @@ export default function App() {
                           {row.total}
                           {hasSimDiff&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}>{simDiff>0?"+":""}{simDiff} sim</span>}
                         </td>
-                        {showFocusCols&&focusCols.map(m=>{
-                          const live=isLiveM(m);
-                          const lv=liveMatches[m.n], res=results[m.n];
-                          const sa=live?lv.score_a:res[0], sb=live?lv.score_b:res[1];
-                          const pred=row.spotlight_preds?.[m.n];
-                          // Tint the pick by the points it earns vs the score
-                          // (the running live score, or the final once played),
-                          // matching matchScore / the prediction palette used
-                          // elsewhere in the app (see PredCell):
-                          //   ≥5 pts — right result (incl. exact) → green (✓ on exact)
-                          //    1 pt  — one score right, wrong result → orange
-                          //    0 pts — complete miss → red
-                          //   no pick → dashed —
-                          // Each digit is green if it matched, red if not — same
-                          // as renderPredDigits in the compare view — so the box
-                          // signals overall points and the digits tell the exact story.
-                          let bd=C.border,bg=C.bg,tick=null,g0=false,g1=false;
-                          if(pred){
+                        {showFocusCols&&(()=>{
+                          const pred=pickFor(row);
+                          // Played/live game: tint by points (digits green if
+                          // matched / red if not, box by total — matching
+                          // matchScore & the compare view's renderPredDigits):
+                          //   ≥5 pts (right result, incl. exact) → green (✓ exact)
+                          //    1 pt  (one score right, wrong result) → orange
+                          //    0 pts → red.  Upcoming game (no score yet): show
+                          //  the pick un-tinted. No pick → dashed —.
+                          let bd=C.border,bg=C.bg,tick=null,g0=false,g1=false,plain=!selScore;
+                          if(pred&&selScore){
+                            const sa=selScore[0],sb=selScore[1];
                             const sg=(x)=>x===0?0:x>0?1:-1;
                             const dir=sg(pred[0]-pred[1])===sg(sa-sb)?5:0;
                             g0=pred[0]===sa; g1=pred[1]===sb;
@@ -5968,14 +6069,14 @@ export default function App() {
                             else {bd=C.red;bg="rgba(239,68,68,0.10)";}
                           }
                           return (
-                            <td key={`fc${m.n}`} style={{...td,textAlign:"center",borderLeft:`1px solid ${C.border}`,
-                              background:live?"rgba(239,68,68,0.02)":"rgba(16,185,129,0.02)"}}>
+                            <td style={{...td,textAlign:"center",borderLeft:`1px solid ${C.border}`,
+                              background:selLive?"rgba(239,68,68,0.02)":"rgba(99,102,241,0.02)"}}>
                               {pred?(
                                 <span style={{display:"inline-flex",alignItems:"center",gap:1,fontFamily:"monospace",fontSize:15,fontWeight:700,
-                                  padding:"2px 8px",borderRadius:7,border:`1px solid ${bd}`,background:bg}}>
-                                  <span style={{color:g0?C.green:C.red}}>{pred[0]}</span>
+                                  padding:"2px 8px",borderRadius:7,border:`1px solid ${plain?C.border:bd}`,background:plain?C.bg:bg}}>
+                                  <span style={{color:plain?C.text:(g0?C.green:C.red)}}>{pred[0]}</span>
                                   <span style={{color:C.muted}}>–</span>
-                                  <span style={{color:g1?C.green:C.red}}>{pred[1]}</span>
+                                  <span style={{color:plain?C.text:(g1?C.green:C.red)}}>{pred[1]}</span>
                                   {tick&&<span style={{fontSize:10,marginLeft:3,color:C.green}}>{tick}</span>}
                                 </span>
                               ):(
@@ -5983,7 +6084,7 @@ export default function App() {
                               )}
                             </td>
                           );
-                        })}
+                        })()}
                         <td style={td}>{winnerCell}</td>
                         {canJumpToParticipant&&(
                           <td style={{...td,textAlign:"right",paddingRight:12,width:isMe?0:80}}>

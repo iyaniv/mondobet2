@@ -80,6 +80,9 @@ export const api = {
   getUserPredictions: (uid, entryId) =>
     request(`/api/predictions/user/${uid}${entryId ? `?entry_id=${entryId}` : ""}`),
 
+  // Every form's pick for one match — {entry_id: [a,b]} (privacy-gated)
+  getMatchPredictions: (n) => request(`/api/predictions/match/${n}`),
+
   // Group prediction stats (stage closed only)
   getGroupStats: (stage) =>
     request(`/api/stats/group${stage != null ? `?stage=${stage}` : ""}`),
