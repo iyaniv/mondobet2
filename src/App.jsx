@@ -1848,10 +1848,10 @@ function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
           const k=kickoffParts(m.t,tz);
           const winA=score?(score[0]>score[1]?true:score[1]>score[0]?false:(res&&res[2]==='a'?true:res&&res[2]==='b'?false:null)):null;
           const badge = isLive
-            ? <span style={{display:"inline-flex",alignItems:"center",gap:5,color:C.red,fontWeight:800,letterSpacing:".5px"}}><span className="live-dot"/> LIVE {live.minute!=null?`${live.minute}'`:""}</span>
+            ? <span style={{display:"inline-flex",alignItems:"center",gap:5,color:C.red,fontWeight:800,letterSpacing:".5px",whiteSpace:"nowrap",flexShrink:0}}><span className="live-dot"/> LIVE {live.minute!=null?`${live.minute}'`:""}</span>
             : finished
-              ? <span style={{color:C.green,fontWeight:800,letterSpacing:".5px"}}>✓ FULL TIME</span>
-              : <span style={{color:C.accent,fontWeight:800,letterSpacing:".5px"}}>◷ UPCOMING</span>;
+              ? <span style={{color:C.green,fontWeight:800,letterSpacing:".5px",whiteSpace:"nowrap",flexShrink:0}}>✓ FULL TIME</span>
+              : <span style={{color:C.accent,fontWeight:800,letterSpacing:".5px",whiteSpace:"nowrap",flexShrink:0}}>◷ UPCOMING</span>;
           const teamRow=(name,won,sc)=>(
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
               <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:14,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
@@ -1865,7 +1865,7 @@ function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
             </div>
           );
           return (
-            <div key={m.n} style={{flex:"0 0 162px",background:C.bg,
+            <div key={m.n} style={{flex:"0 0 178px",background:C.bg,
               border:`1px solid ${isLive?"rgba(239,68,68,0.45)":C.border}`,
               ...(isLive?{background:"rgba(239,68,68,0.05)"}:{}),
               borderRadius:10,padding:"7px 10px",display:"flex",flexDirection:"column",gap:6}}>
@@ -1873,7 +1873,7 @@ function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
                 {badge}
                 {/* A live game whose scheduled day isn't today keeps its original
                     date + time so it's clear when it was actually played. */}
-                <span style={{color:C.muted,fontWeight:600,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>
+                <span style={{color:C.muted,fontWeight:600,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",minWidth:0,overflow:"hidden",textOverflow:"ellipsis"}}>
                   {k ? (k.dayKey!==tKey ? `${k.md} · ${k.time}` : k.time) : ""}
                 </span>
               </div>
