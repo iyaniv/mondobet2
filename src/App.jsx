@@ -5945,25 +5945,37 @@ export default function App() {
                           const lv=liveMatches[m.n], res=results[m.n];
                           const sa=live?lv.score_a:res[0], sb=live?lv.score_b:res[1];
                           const pred=row.spotlight_preds?.[m.n];
-                          // Tint the pick by how it does against the score (the
-                          // running live score, or the final once played):
-                          // exact (green), right result (amber), off (muted), or
-                          // no pick (dashed —).
-                          let bd=C.border,fg=C.text,bg=C.bg,tick=null;
+                          // Tint the pick by the points it earns vs the score
+                          // (the running live score, or the final once played),
+                          // matching matchScore / the prediction palette used
+                          // elsewhere in the app (see PredCell):
+                          //   ≥5 pts — right result (incl. exact) → green (✓ on exact)
+                          //    1 pt  — one score right, wrong result → orange
+                          //    0 pts — complete miss → red
+                          //   no pick → dashed —
+                          // Any individually-correct goal is rendered green so a
+                          // partial (orange) pick visibly shows which side it nailed.
+                          let bd=C.border,bg=C.bg,tick=null,g0=false,g1=false;
                           if(pred){
-                            const exact=pred[0]===sa&&pred[1]===sb;
-                            const sp=Math.sign(pred[0]-pred[1]), sr=Math.sign(sa-sb);
-                            if(exact){bd=C.green;fg=C.green;bg="rgba(16,185,129,0.12)";tick="✓";}
-                            else if(sp===sr){bd=C.amber||"#f59e0b";fg=C.amber||"#f59e0b";bg="rgba(245,158,11,0.10)";}
-                            else {bd=C.border;fg=C.muted;bg=C.bg;}
+                            const sg=(x)=>x===0?0:x>0?1:-1;
+                            const dir=sg(pred[0]-pred[1])===sg(sa-sb)?5:0;
+                            g0=pred[0]===sa; g1=pred[1]===sb;
+                            const goals=(g0?1:0)+(g1?1:0);
+                            const total=dir+(goals===2?3:goals===1?1:0);
+                            if(total>=5){bd=C.green;bg="rgba(16,185,129,0.12)";if(goals===2)tick="✓";}
+                            else if(total===1){bd="#f59e0b";bg="rgba(245,158,11,0.12)";}
+                            else {bd=C.red;bg="rgba(239,68,68,0.10)";}
                           }
                           return (
                             <td key={`fc${m.n}`} style={{...td,textAlign:"center",borderLeft:`1px solid ${C.border}`,
                               background:live?"rgba(239,68,68,0.02)":"rgba(16,185,129,0.02)"}}>
                               {pred?(
-                                <span style={{display:"inline-flex",alignItems:"center",gap:4,fontFamily:"monospace",fontSize:15,fontWeight:700,
-                                  padding:"2px 8px",borderRadius:7,border:`1px solid ${bd}`,background:bg,color:fg}}>
-                                  {pred[0]}–{pred[1]}{tick&&<span style={{fontSize:10}}>{tick}</span>}
+                                <span style={{display:"inline-flex",alignItems:"center",gap:1,fontFamily:"monospace",fontSize:15,fontWeight:700,
+                                  padding:"2px 8px",borderRadius:7,border:`1px solid ${bd}`,background:bg}}>
+                                  <span style={{color:g0?C.green:C.text}}>{pred[0]}</span>
+                                  <span style={{color:C.muted}}>–</span>
+                                  <span style={{color:g1?C.green:C.text}}>{pred[1]}</span>
+                                  {tick&&<span style={{fontSize:10,marginLeft:3,color:C.green}}>{tick}</span>}
                                 </span>
                               ):(
                                 <span style={{color:C.muted,fontSize:13}}>—</span>
