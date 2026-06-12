@@ -5416,18 +5416,33 @@ export default function App() {
       && config.stage_baseline.stage === (config.current_stage || 1))
       ? config.stage_baseline.ranks : null;
 
-    // "Live picks" columns — one per currently in-play match, inserted right of
-    // the Points column. Derived from liveMatches[n].is_live, so they appear and
-    // vanish with the games on the 10s poll. Ordered by kickoff. Each column
-    // header shows the matchup + the running live score; each cell shows that
-    // form's pick (from row.live_preds), tinted by how it's doing so far. The
-    // whole feature is gated behind the per-user showLivePreds toggle, and the
-    // toggle chip only shows when there's at least one live game.
-    const liveCols = matches
-      .filter(m => liveMatches[m.n] && liveMatches[m.n].is_live)
-      .sort((a,b)=> (a.t||0)-(b.t||0) || a.n-b.n);
-    const hasLiveGames = liveCols.length > 0;
-    const showLiveCols = showLivePreds && hasLiveGames && !simMode;
+    // "Match picks" columns — inserted right of the Points column, showing every
+    // form's prediction for the spotlight match(es). The spotlight is: all the
+    // in-play games while any are live (so multiple concurrent live games each
+    // get a column); otherwise the most-recently-kicked-off finished game(s),
+    // which stay on the board until the next match starts (then it goes live and
+    // takes over). Mirrors crud.get_leaderboard's spotlight_ns. Each column
+    // header shows the matchup + score (running, with the minute, while live;
+    // final, with an FT badge, once finished); each cell shows that form's pick
+    // (from row.spotlight_preds), tinted by how it's doing vs that score. Gated
+    // behind the per-user showLivePreds toggle; the chip only shows when there's
+    // a spotlight match.
+    const koAt = (m)=>{ const d=new Date(m.t).getTime(); return isNaN(d)?0:d; };
+    const isLiveM = (m)=> !!(liveMatches[m.n] && liveMatches[m.n].is_live);
+    const liveNowCols = matches.filter(isLiveM).sort((a,b)=> koAt(a)-koAt(b) || a.n-b.n);
+    let focusCols = [];
+    if (liveNowCols.length) {
+      focusCols = liveNowCols;
+    } else {
+      const finished = matches.filter(m => results[m.n]);
+      if (finished.length) {
+        const latest = Math.max(...finished.map(koAt));
+        focusCols = finished.filter(m => koAt(m)===latest).sort((a,b)=> a.n-b.n);
+      }
+    }
+    const anyFocusLive = focusCols.some(isLiveM);
+    const hasFocus = focusCols.length > 0;
+    const showFocusCols = showLivePreds && hasFocus && !simMode;
 
     // Per-form picker chips (only when the user owns 2+ forms). Shared between
     // the desktop (slide-in beside the toggle) and mobile (wrap below) layouts.
@@ -5642,17 +5657,17 @@ export default function App() {
             })()}
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-            {hasLiveGames&&(
+            {hasFocus&&(
               <span onClick={toggleLivePreds}
                 role="switch" aria-checked={showLivePreds}
-                title={showLivePreds?"Hide each form's pick for the live games":"Show each form's pick for the live games"}
+                title={showLivePreds?"Hide each form's pick for the spotlight match":(anyFocusLive?"Show each form's pick for the live game(s)":"Show each form's pick for the latest game")}
                 style={{display:"inline-flex",alignItems:"center",gap:7,cursor:"pointer",userSelect:"none",
                   background:showLivePreds?"rgba(163,230,53,0.08)":C.panel,
                   border:`1px solid ${showLivePreds?C.accent:C.border}`,borderRadius:999,
                   padding:"4px 11px 4px 9px",fontSize:12,fontWeight:600,
                   color:showLivePreds?C.accent:C.muted,transition:"all .15s",whiteSpace:"nowrap"}}>
                 <span style={{fontSize:13,lineHeight:1}}>👁</span>
-                Live picks
+                Match picks
                 <span style={{position:"relative",width:30,height:17,borderRadius:999,flex:"0 0 auto",
                   background:showLivePreds?"rgba(163,230,53,0.25)":C.panel2,
                   border:`1px solid ${showLivePreds?C.accent:C.border}`,transition:"all .15s"}}>
@@ -5660,10 +5675,15 @@ export default function App() {
                     background:showLivePreds?C.accent:C.muted,
                     transform:showLivePreds?"translateX(13px)":"translateX(0)",transition:"all .15s"}}/>
                 </span>
-                <span style={{fontSize:9,fontWeight:800,color:C.red,background:"rgba(239,68,68,0.12)",
-                  border:`1px solid rgba(239,68,68,0.35)`,borderRadius:999,padding:"0 6px",lineHeight:"15px"}}>
-                  {liveCols.length}
-                </span>
+                {anyFocusLive
+                  ?<span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:9,fontWeight:800,color:C.red,background:"rgba(239,68,68,0.12)",
+                    border:`1px solid rgba(239,68,68,0.35)`,borderRadius:999,padding:"0 6px",lineHeight:"15px"}}>
+                    <span className="live-dot" style={{width:5,height:5}}/>{focusCols.length}
+                  </span>
+                  :<span style={{fontSize:9,fontWeight:800,color:C.green,background:"rgba(16,185,129,0.12)",
+                    border:`1px solid rgba(16,185,129,0.35)`,borderRadius:999,padding:"0 6px",lineHeight:"15px"}}>
+                    FT
+                  </span>}
               </span>
             )}
             {canSim&&(
@@ -5811,20 +5831,28 @@ export default function App() {
                     })()}
                   </th>
                   {["Name","Points"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Points"?"center":"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}
-                  {showLiveCols&&liveCols.map(m=>{
-                    const lv=liveMatches[m.n];
+                  {showFocusCols&&focusCols.map(m=>{
+                    const live=isLiveM(m);
+                    const lv=liveMatches[m.n], res=results[m.n];
+                    const sa=live?lv.score_a:res[0], sb=live?lv.score_b:res[1];
                     const ca=resolveTeamDeep(m.a,results,matches), cb=resolveTeamDeep(m.b,results,matches);
                     return (
-                      <th key={`lh${m.n}`} style={{padding:"6px 8px",textAlign:"center",color:C.text,fontWeight:600,
-                        borderBottom:`1px solid ${C.border}`,borderLeft:`1px solid ${C.border}`,background:"rgba(239,68,68,0.06)",whiteSpace:"nowrap"}}>
+                      <th key={`fh${m.n}`} style={{padding:"6px 8px",textAlign:"center",color:C.text,fontWeight:600,
+                        borderBottom:`1px solid ${C.border}`,borderLeft:`1px solid ${C.border}`,
+                        background:live?"rgba(239,68,68,0.06)":"rgba(16,185,129,0.05)",whiteSpace:"nowrap"}}>
                         <div style={{display:"inline-flex",flexDirection:"column",alignItems:"center",gap:3}}>
                           <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:12}}>
-                            {flag(ca)}<b style={{fontFamily:"monospace",fontSize:14}}>{lv.score_a}–{lv.score_b}</b>{flag(cb)}
+                            {flag(ca)}<b style={{fontFamily:"monospace",fontSize:14}}>{sa}–{sb}</b>{flag(cb)}
                           </span>
-                          <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:9,fontWeight:800,letterSpacing:".5px",
-                            color:C.red,background:"rgba(239,68,68,0.12)",border:`1px solid rgba(239,68,68,0.35)`,borderRadius:999,padding:"1px 7px"}}>
-                            <span className="live-dot"/>{lv.minute!=null?`${lv.minute}'`:"LIVE"}
-                          </span>
+                          {live
+                            ?<span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:9,fontWeight:800,letterSpacing:".5px",
+                              color:C.red,background:"rgba(239,68,68,0.12)",border:`1px solid rgba(239,68,68,0.35)`,borderRadius:999,padding:"1px 7px"}}>
+                              <span className="live-dot"/>{lv.minute!=null?`${lv.minute}'`:"LIVE"}
+                            </span>
+                            :<span style={{fontSize:9,fontWeight:800,letterSpacing:".5px",
+                              color:C.green,background:"rgba(16,185,129,0.12)",border:`1px solid rgba(16,185,129,0.35)`,borderRadius:999,padding:"1px 7px"}}>
+                              FT
+                            </span>}
                         </div>
                       </th>
                     );
@@ -5912,22 +5940,26 @@ export default function App() {
                           {row.total}
                           {hasSimDiff&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}>{simDiff>0?"+":""}{simDiff} sim</span>}
                         </td>
-                        {showLiveCols&&liveCols.map(m=>{
-                          const lv=liveMatches[m.n];
-                          const pred=row.live_preds?.[m.n];
-                          // Tint the pick by how it's doing against the running
-                          // live score: exact (green), right result (amber),
-                          // off (muted), or no pick (dashed —).
+                        {showFocusCols&&focusCols.map(m=>{
+                          const live=isLiveM(m);
+                          const lv=liveMatches[m.n], res=results[m.n];
+                          const sa=live?lv.score_a:res[0], sb=live?lv.score_b:res[1];
+                          const pred=row.spotlight_preds?.[m.n];
+                          // Tint the pick by how it does against the score (the
+                          // running live score, or the final once played):
+                          // exact (green), right result (amber), off (muted), or
+                          // no pick (dashed —).
                           let bd=C.border,fg=C.text,bg=C.bg,tick=null;
                           if(pred){
-                            const exact=pred[0]===lv.score_a&&pred[1]===lv.score_b;
-                            const sp=Math.sign(pred[0]-pred[1]), sl=Math.sign(lv.score_a-lv.score_b);
+                            const exact=pred[0]===sa&&pred[1]===sb;
+                            const sp=Math.sign(pred[0]-pred[1]), sr=Math.sign(sa-sb);
                             if(exact){bd=C.green;fg=C.green;bg="rgba(16,185,129,0.12)";tick="✓";}
-                            else if(sp===sl){bd=C.amber||"#f59e0b";fg=C.amber||"#f59e0b";bg="rgba(245,158,11,0.10)";}
+                            else if(sp===sr){bd=C.amber||"#f59e0b";fg=C.amber||"#f59e0b";bg="rgba(245,158,11,0.10)";}
                             else {bd=C.border;fg=C.muted;bg=C.bg;}
                           }
                           return (
-                            <td key={`lc${m.n}`} style={{...td,textAlign:"center",borderLeft:`1px solid ${C.border}`,background:"rgba(239,68,68,0.02)"}}>
+                            <td key={`fc${m.n}`} style={{...td,textAlign:"center",borderLeft:`1px solid ${C.border}`,
+                              background:live?"rgba(239,68,68,0.02)":"rgba(16,185,129,0.02)"}}>
                               {pred?(
                                 <span style={{display:"inline-flex",alignItems:"center",gap:4,fontFamily:"monospace",fontSize:15,fontWeight:700,
                                   padding:"2px 8px",borderRadius:7,border:`1px solid ${bd}`,background:bg,color:fg}}>

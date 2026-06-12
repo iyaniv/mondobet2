@@ -559,6 +559,22 @@ function computeLeaderboard(resultsOverride=null, tournamentWinnerOverride=null,
   const roundOpen = S.config.round_state === "open";
   const simResults = resultsOverride ? {...S.results, ...resultsOverride} : S.results;
   const simWinner  = tournamentWinnerOverride ?? S.config.tournament_winner;
+  // Spotlight matches for the "Match picks" columns: in-play games while any are
+  // live, otherwise the most-recently-finished game(s) (kept until the next
+  // match starts). Mirrors crud.get_leaderboard. ISO kickoff strings sort
+  // lexicographically.
+  const liveNs = Object.keys(S.live).filter(n=>S.live[n]&&S.live[n].is_live).map(Number);
+  let spotlightNs;
+  if (liveNs.length) {
+    spotlightNs = new Set(liveNs);
+  } else {
+    const ko = Object.fromEntries(MATCHES.map(m=>[m.n,m.t||""]));
+    const finished = Object.keys(S.results).map(Number);
+    if (finished.length) {
+      const latest = finished.reduce((mx,n)=>{const t=ko[n]||"";return t>mx?t:mx;},"");
+      spotlightNs = new Set(latest ? finished.filter(n=>(ko[n]||"")===latest) : []);
+    } else spotlightNs = new Set();
+  }
   const rows = [];
   for (const user of Object.values(S.users)) {
     if (user.is_admin) continue;
@@ -574,12 +590,12 @@ function computeLeaderboard(resultsOverride=null, tournamentWinnerOverride=null,
       const wp    = S.winner_picks[entry.id]||null;
       const t     = calcTotals(preds,effectiveResults,S.live,wp,effectiveWinner);
       const filled = Object.values(preds).filter(p=>p[0]!=null&&p[1]!=null).length;
-      // This form's picks for the in-play matches (opt-in "Live picks" columns).
-      // Only fully-filled picks for is_live matches are included.
-      const livePreds = {};
-      for (const [n,lm] of Object.entries(S.live)) {
+      // This form's picks for the spotlight matches (opt-in "Match picks"
+      // columns). Only fully-filled picks are included.
+      const spotlightPreds = {};
+      for (const n of spotlightNs) {
         const p = preds[n];
-        if (lm && lm.is_live && p && p[0]!=null && p[1]!=null) livePreds[Number(n)] = [p[0],p[1]];
+        if (p && p[0]!=null && p[1]!=null) spotlightPreds[n] = [p[0],p[1]];
       }
       rows.push({
         entry_id:entry.id, user_id:user.id, name:entry.name,
@@ -587,7 +603,7 @@ function computeLeaderboard(resultsOverride=null, tournamentWinnerOverride=null,
         scored_matches:t.scored_matches, winner_pick:wp, winner_bonus:t.winner_bonus,
         has_paid:user.has_paid, submitted_count:filled,
         live_points:t.live_points, live_matches_count:t.live_matches_count,
-        live_preds:livePreds,
+        spotlight_preds:spotlightPreds,
       });
     }
   }

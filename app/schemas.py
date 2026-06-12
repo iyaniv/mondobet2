@@ -167,12 +167,14 @@ class LeaderboardEntry(BaseModel):
     submitted_count: int
     live_points: int
     live_matches_count: int
-    # This form's picks for the currently in-play matches, keyed by match number:
-    # {match_n: [score_a, score_b]}. Only matches with is_live set are included,
-    # and only when this form has a (fully filled) prediction for them. Powers the
-    # opt-in "Live picks" columns on the leaderboard. Safe to expose: a match only
-    # goes live after its stage has closed, so these picks are already public.
-    live_preds: dict[int, list[int]] = {}
+    # This form's picks for the "spotlight" matches, keyed by match number:
+    # {match_n: [score_a, score_b]}. The spotlight is the in-play games while any
+    # are live, otherwise the most-recently-finished game(s) (kept until the next
+    # match starts). Only fully-filled picks are included. Powers the opt-in
+    # "Match picks" columns on the leaderboard. Safe to expose: a match only
+    # reaches the spotlight after its stage has closed, so these picks are already
+    # public.
+    spotlight_preds: dict[int, list[int]] = {}
 
 
 # ── Live matches ──────────────────────────────────────────────────────────────

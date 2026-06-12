@@ -507,6 +507,23 @@ async def get_leaderboard(
 
     round_open = cfg.round_state == RoundStateEnum.open
 
+    # Spotlight matches for the leaderboard prediction columns: while any games
+    # are in play, all of them (so multiple concurrent live games each get a
+    # column); otherwise the most-recently-kicked-off finished game(s), which
+    # stay on the board until the next match starts (then those become live and
+    # take over). Bounded to a handful of matches. ISO kickoff strings compare
+    # lexicographically, so max() finds the latest.
+    live_ns = {n for n, lm in live_map.items() if lm.get("is_live")}
+    if live_ns:
+        spotlight_ns = live_ns
+    else:
+        kickoff = {m["n"]: m.get("t", "") for m in MATCHES}
+        if all_results:
+            latest = max(kickoff.get(n, "") for n in all_results)
+            spotlight_ns = {n for n in all_results if kickoff.get(n, "") == latest and latest}
+        else:
+            spotlight_ns = set()
+
     # Build the simulated results (real results win; sim fills unplayed matches).
     sim_results_map = dict(all_results)
     sim_tournament_winner = cfg.tournament_winner
@@ -538,13 +555,12 @@ async def get_leaderboard(
             submitted_count = sum(
                 1 for v in preds.values() if v[0] is not None and v[1] is not None
             )
-            # This form's picks for the in-play matches (opt-in "Live picks"
-            # columns). Only fully-filled picks for is_live matches are included.
-            live_preds = {
+            # This form's picks for the spotlight matches (opt-in "Match picks"
+            # columns). Only fully-filled picks are included.
+            spotlight_preds = {
                 n: [v[0], v[1]]
-                for n, lm in live_map.items()
-                if lm.get("is_live")
-                and (v := preds.get(n)) is not None
+                for n in spotlight_ns
+                if (v := preds.get(n)) is not None
                 and v[0] is not None and v[1] is not None
             }
             rows.append(LeaderboardEntry(
@@ -561,7 +577,7 @@ async def get_leaderboard(
                 submitted_count=submitted_count,
                 live_points=totals["live_points"],
                 live_matches_count=totals["live_matches_count"],
-                live_preds=live_preds,
+                spotlight_preds=spotlight_preds,
             ))
 
     return sorted(rows, key=lambda e: e.total, reverse=True)
