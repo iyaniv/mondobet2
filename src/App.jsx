@@ -3890,6 +3890,16 @@ export default function App() {
   // by the 10s poll (setLeaderboard), which reset the Simulate / Favorites toggles
   // back to "Actual" after a few seconds.
   const [favOnly,setFavOnly]=useState(false);
+  // "Live picks" — opt-in leaderboard columns showing every form's prediction
+  // for the currently in-play matches. Per-user view preference (device-local,
+  // like the theme/timezone), OFF by default. The toggle chip only surfaces
+  // while ≥1 match is live; the columns themselves come and go with the games.
+  const [showLivePreds,setShowLivePreds]=useState(()=>{
+    try { return localStorage.getItem("mb_show_live_preds")==="1"; } catch { return false; }
+  });
+  const toggleLivePreds=useCallback(()=>{
+    setShowLivePreds(v=>{ const n=!v; try{ localStorage.setItem("mb_show_live_preds",n?"1":"0"); }catch{} return n; });
+  },[]);
   // Favorites = leaderboard rows (forms) the user starred, persisted per user
   // in localStorage. Keyed by row id (entry_id, falling back to user_id) so two
   // forms from the same player can be favorited independently. Selected right on
@@ -4854,7 +4864,7 @@ export default function App() {
                                   border:`1px solid ${C.red}`,fontSize:16}}>●</span>
                             );
                           })()}
-                          {openStage===1&&(
+                          {openStage===1&&config.round_state==="open"&&(
                             <span onClick={ev=>startRename(ev,e)} title="Rename form" style={{
                               fontSize:13,opacity:isActive?0.65:0.35,cursor:"pointer",lineHeight:1,
                               padding:"1px 4px",borderRadius:3,flexShrink:0,
@@ -5313,9 +5323,11 @@ export default function App() {
   // ── Leaderboard ───────────────────────────────────────────────────────────
   function LeaderboardView(){
     const winnerKnown=!!config.tournament_winner;
-    // Fair play: don't reveal other players' champions until stage 1 closes
-    // (a pick can still change while stage 1 is open). Your own row always shows.
-    const winnersRevealed=(config.current_stage||1)>1;
+    // Fair play: don't reveal other players' champions while stage 1 is still
+    // open (a pick can still change then). Once stage 1 closes — i.e. round 1
+    // has started (round_state "closed") or the admin has advanced past it —
+    // every pick is locked, so it's safe to reveal to all. Your own always shows.
+    const winnersRevealed=config.round_state==="closed"||(config.current_stage||1)>1;
     // Favorites (favorites array + favOnly filter + toggleFavorite) are lifted to
     // App so the 10s leaderboard poll doesn't reset them. A row is favorited by
     // its key (entry_id, falling back to user_id).
@@ -5366,7 +5378,7 @@ export default function App() {
             matches={matches} results={results} liveMatches={liveMatches} isMobile={isMobile}
             myName={myLbRow?myLbRow.name:"Your form"} myPreds={myPreds} myTotal={myLbRow?myLbRow.total:0} myRank={myRank} myWinner={myWinner}
             theirKey={compareKey} theirName={themRow?themRow.name:"—"}
-            theirPreds={comparePreds} theirTotal={themRow?themRow.total:0} theirRank={themRank} theirWinner={compareWinner} winnersRevealed={(config.current_stage||1)>1}
+            theirPreds={comparePreds} theirTotal={themRow?themRow.total:0} theirRank={themRank} theirWinner={compareWinner} winnersRevealed={config.round_state==="closed"||(config.current_stage||1)>1}
             forms={compareForms} loading={compareLoading}
             onBack={()=>setCompareKey(null)} onPick={(k)=>setCompareKey(k)}
             tz={tz}/>
@@ -5403,6 +5415,19 @@ export default function App() {
     const baselineRanks = (config.stage_baseline
       && config.stage_baseline.stage === (config.current_stage || 1))
       ? config.stage_baseline.ranks : null;
+
+    // "Live picks" columns — one per currently in-play match, inserted right of
+    // the Points column. Derived from liveMatches[n].is_live, so they appear and
+    // vanish with the games on the 10s poll. Ordered by kickoff. Each column
+    // header shows the matchup + the running live score; each cell shows that
+    // form's pick (from row.live_preds), tinted by how it's doing so far. The
+    // whole feature is gated behind the per-user showLivePreds toggle, and the
+    // toggle chip only shows when there's at least one live game.
+    const liveCols = matches
+      .filter(m => liveMatches[m.n] && liveMatches[m.n].is_live)
+      .sort((a,b)=> (a.t||0)-(b.t||0) || a.n-b.n);
+    const hasLiveGames = liveCols.length > 0;
+    const showLiveCols = showLivePreds && hasLiveGames && !simMode;
 
     // Per-form picker chips (only when the user owns 2+ forms). Shared between
     // the desktop (slide-in beside the toggle) and mobile (wrap below) layouts.
@@ -5617,6 +5642,30 @@ export default function App() {
             })()}
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            {hasLiveGames&&(
+              <span onClick={toggleLivePreds}
+                role="switch" aria-checked={showLivePreds}
+                title={showLivePreds?"Hide each form's pick for the live games":"Show each form's pick for the live games"}
+                style={{display:"inline-flex",alignItems:"center",gap:7,cursor:"pointer",userSelect:"none",
+                  background:showLivePreds?"rgba(163,230,53,0.08)":C.panel,
+                  border:`1px solid ${showLivePreds?C.accent:C.border}`,borderRadius:999,
+                  padding:"4px 11px 4px 9px",fontSize:12,fontWeight:600,
+                  color:showLivePreds?C.accent:C.muted,transition:"all .15s",whiteSpace:"nowrap"}}>
+                <span style={{fontSize:13,lineHeight:1}}>👁</span>
+                Live picks
+                <span style={{position:"relative",width:30,height:17,borderRadius:999,flex:"0 0 auto",
+                  background:showLivePreds?"rgba(163,230,53,0.25)":C.panel2,
+                  border:`1px solid ${showLivePreds?C.accent:C.border}`,transition:"all .15s"}}>
+                  <span style={{position:"absolute",top:1.5,left:1.5,width:12,height:12,borderRadius:"50%",
+                    background:showLivePreds?C.accent:C.muted,
+                    transform:showLivePreds?"translateX(13px)":"translateX(0)",transition:"all .15s"}}/>
+                </span>
+                <span style={{fontSize:9,fontWeight:800,color:C.red,background:"rgba(239,68,68,0.12)",
+                  border:`1px solid rgba(239,68,68,0.35)`,borderRadius:999,padding:"0 6px",lineHeight:"15px"}}>
+                  {liveCols.length}
+                </span>
+              </span>
+            )}
             {canSim&&(
               // Option B layout: classic Actual / Simulate toggle. When the
               // user has 2+ forms AND Simulate is ON, indigo pill-chips slide
@@ -5761,7 +5810,26 @@ export default function App() {
                       );
                     })()}
                   </th>
-                  {["Name","Points","Winner pick"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Points"?"center":"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}
+                  {["Name","Points"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Points"?"center":"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}
+                  {showLiveCols&&liveCols.map(m=>{
+                    const lv=liveMatches[m.n];
+                    const ca=resolveTeamDeep(m.a,results,matches), cb=resolveTeamDeep(m.b,results,matches);
+                    return (
+                      <th key={`lh${m.n}`} style={{padding:"6px 8px",textAlign:"center",color:C.text,fontWeight:600,
+                        borderBottom:`1px solid ${C.border}`,borderLeft:`1px solid ${C.border}`,background:"rgba(239,68,68,0.06)",whiteSpace:"nowrap"}}>
+                        <div style={{display:"inline-flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                          <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:12}}>
+                            {flag(ca)}<b style={{fontFamily:"monospace",fontSize:14}}>{lv.score_a}–{lv.score_b}</b>{flag(cb)}
+                          </span>
+                          <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:9,fontWeight:800,letterSpacing:".5px",
+                            color:C.red,background:"rgba(239,68,68,0.12)",border:`1px solid rgba(239,68,68,0.35)`,borderRadius:999,padding:"1px 7px"}}>
+                            <span className="live-dot"/>{lv.minute!=null?`${lv.minute}'`:"LIVE"}
+                          </span>
+                        </div>
+                      </th>
+                    );
+                  })}
+                  <th style={{padding:"8px 10px",textAlign:"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>Winner pick</th>
                   {canJumpToParticipant&&<th style={{padding:"8px 6px",width:28,borderBottom:`1px solid ${C.border}`}}/>}
                 </tr></thead>
                 <tbody>
@@ -5844,6 +5912,33 @@ export default function App() {
                           {row.total}
                           {hasSimDiff&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}>{simDiff>0?"+":""}{simDiff} sim</span>}
                         </td>
+                        {showLiveCols&&liveCols.map(m=>{
+                          const lv=liveMatches[m.n];
+                          const pred=row.live_preds?.[m.n];
+                          // Tint the pick by how it's doing against the running
+                          // live score: exact (green), right result (amber),
+                          // off (muted), or no pick (dashed —).
+                          let bd=C.border,fg=C.text,bg=C.bg,tick=null;
+                          if(pred){
+                            const exact=pred[0]===lv.score_a&&pred[1]===lv.score_b;
+                            const sp=Math.sign(pred[0]-pred[1]), sl=Math.sign(lv.score_a-lv.score_b);
+                            if(exact){bd=C.green;fg=C.green;bg="rgba(16,185,129,0.12)";tick="✓";}
+                            else if(sp===sl){bd=C.amber||"#f59e0b";fg=C.amber||"#f59e0b";bg="rgba(245,158,11,0.10)";}
+                            else {bd=C.border;fg=C.muted;bg=C.bg;}
+                          }
+                          return (
+                            <td key={`lc${m.n}`} style={{...td,textAlign:"center",borderLeft:`1px solid ${C.border}`,background:"rgba(239,68,68,0.02)"}}>
+                              {pred?(
+                                <span style={{display:"inline-flex",alignItems:"center",gap:4,fontFamily:"monospace",fontSize:15,fontWeight:700,
+                                  padding:"2px 8px",borderRadius:7,border:`1px solid ${bd}`,background:bg,color:fg}}>
+                                  {pred[0]}–{pred[1]}{tick&&<span style={{fontSize:10}}>{tick}</span>}
+                                </span>
+                              ):(
+                                <span style={{color:C.muted,fontSize:13}}>—</span>
+                              )}
+                            </td>
+                          );
+                        })}
                         <td style={td}>{winnerCell}</td>
                         {canJumpToParticipant&&(
                           <td style={{...td,textAlign:"right",paddingRight:12,width:isMe?0:80}}>

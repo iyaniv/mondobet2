@@ -538,6 +538,15 @@ async def get_leaderboard(
             submitted_count = sum(
                 1 for v in preds.values() if v[0] is not None and v[1] is not None
             )
+            # This form's picks for the in-play matches (opt-in "Live picks"
+            # columns). Only fully-filled picks for is_live matches are included.
+            live_preds = {
+                n: [v[0], v[1]]
+                for n, lm in live_map.items()
+                if lm.get("is_live")
+                and (v := preds.get(n)) is not None
+                and v[0] is not None and v[1] is not None
+            }
             rows.append(LeaderboardEntry(
                 entry_id=entry.id,
                 user_id=user.id,
@@ -552,6 +561,7 @@ async def get_leaderboard(
                 submitted_count=submitted_count,
                 live_points=totals["live_points"],
                 live_matches_count=totals["live_matches_count"],
+                live_preds=live_preds,
             ))
 
     return sorted(rows, key=lambda e: e.total, reverse=True)

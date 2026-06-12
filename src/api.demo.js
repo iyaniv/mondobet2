@@ -574,12 +574,20 @@ function computeLeaderboard(resultsOverride=null, tournamentWinnerOverride=null,
       const wp    = S.winner_picks[entry.id]||null;
       const t     = calcTotals(preds,effectiveResults,S.live,wp,effectiveWinner);
       const filled = Object.values(preds).filter(p=>p[0]!=null&&p[1]!=null).length;
+      // This form's picks for the in-play matches (opt-in "Live picks" columns).
+      // Only fully-filled picks for is_live matches are included.
+      const livePreds = {};
+      for (const [n,lm] of Object.entries(S.live)) {
+        const p = preds[n];
+        if (lm && lm.is_live && p && p[0]!=null && p[1]!=null) livePreds[Number(n)] = [p[0],p[1]];
+      }
       rows.push({
         entry_id:entry.id, user_id:user.id, name:entry.name,
         total:t.total, exact:t.exact, correct_dir:t.correct_dir,
         scored_matches:t.scored_matches, winner_pick:wp, winner_bonus:t.winner_bonus,
         has_paid:user.has_paid, submitted_count:filled,
         live_points:t.live_points, live_matches_count:t.live_matches_count,
+        live_preds:livePreds,
       });
     }
   }
@@ -713,6 +721,10 @@ export const api = {
     const user = requireUser();
     const entry = S.entries[id];
     if (!entry||entry.user_id!==user.id) throw new Error("Entry not found");
+    // Form name follows the winner-pick lock: editable only while stage 1 is
+    // the open betting stage; frozen once round 1 has started.
+    if (S.config.round_state !== "open") throw new Error("Round is not open");
+    if ((S.config.current_stage || 1) > 1) throw new Error("Form name locked — stage 1 has closed");
     const newName = d.name.trim();
     if (!newName) throw new Error("Name required");
     // Reject if another form of this user already uses that name
