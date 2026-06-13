@@ -3976,6 +3976,38 @@ export default function App() {
   // 10s poll). Selected = the pinned game if it's still valid, else Auto.
   const autoMatchN=computeAutoMatchN(matches,results,liveMatches,Date.now(),matchViewable);
   const selectedMatchN=(pinnedMatchN!=null&&matches.some(m=>m.n===pinnedMatchN))?pinnedMatchN:autoMatchN;
+  // When a game STARTS, snap the Match picks selection back onto the live game
+  // — once — overriding whatever the user had pinned. A "start" = a game newly
+  // entering the in-play set: it just went live, or it crossed into the 10-min
+  // pre-kickoff look-ahead window (the same window computeAutoMatchN jumps to).
+  // We track that set and act only when a NEW number appears, so a game ENDING
+  // (leaving the set) never overrides a pin. Clearing the pin lets the column
+  // follow Auto onto the started game; the user can re-pin afterward and we
+  // won't override again until the NEXT game starts. The ref skips the initial
+  // mount so a saved pin survives a reload.
+  const startingSet=(()=>{
+    const now=Date.now(), s=[];
+    for(const m of matches){
+      const lv=liveMatches[m.n];
+      if(lv&&lv.is_live){ s.push(m.n); continue; }
+      if(results[m.n]||!matchViewable(m)) continue;
+      const ko=new Date(m.t).getTime();
+      if(!isNaN(ko)&&ko>now&&ko-now<=MATCH_PICK_LOOKAHEAD_MS) s.push(m.n);
+    }
+    return s;
+  })();
+  const startingKey=startingSet.join(",");
+  const startingSetRef=useRef(null);
+  useEffect(()=>{
+    if(!matches.length) return;                    // data not loaded yet — don't baseline on the empty render
+    const prev=startingSetRef.current;
+    startingSetRef.current=startingSet;
+    if(prev===null) return;                        // first real observation — baseline only, never override on load
+    const prevSet=new Set(prev);
+    if(startingSet.some(n=>!prevSet.has(n))) setPinned(null);
+  // keyed on the set contents (+ matches load); startingSet/setPinned read fresh via closure
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[startingKey,matches.length]);
   // Cache of {match_n: {entry_id:[a,b]}} for games not covered by the rows'
   // spotlight_preds (i.e. a pinned/older game). Fetched on demand.
   const [matchPicks,setMatchPicks]=useState({});
