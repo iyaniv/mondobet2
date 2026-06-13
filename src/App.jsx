@@ -3638,7 +3638,9 @@ function CompareView({ matches, results, liveMatches, isMobile,
       {isLive&&<span className="live-dot" style={{marginRight:4}}/>}{!isLive&&"✓ "}{eff[0]}:{eff[1]}{isLive&&<span style={{marginLeft:4,fontSize:10}}>{live.minute}′</span>}</span>;
   };
 
-  const displayMatches = matches.filter(m => myPreds[m.n]?.[0]!=null || theirPreds[m.n]?.[0]!=null || results[m.n]!=null || liveMatches[m.n]!=null);
+  const displayMatches = matches
+    .filter(m => myPreds[m.n]?.[0]!=null || theirPreds[m.n]?.[0]!=null || results[m.n]!=null || liveMatches[m.n]!=null)
+    .sort((a,b)=>{ const sa=matchStageObj(a.n).n,sb=matchStageObj(b.n).n; if(sa!==sb)return sa-sb; return a.t<b.t?-1:a.t>b.t?1:a.n-b.n; });
   const gap = myTotal - theirTotal;
   const tileBox={display:"inline-flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,minWidth:62,padding:"5px 12px",borderRadius:8,background:C.bg,border:`1px solid ${C.border}`};
   const tileLabel={fontSize:9,letterSpacing:".6px",textTransform:"uppercase",color:C.muted,fontWeight:700};
@@ -5312,7 +5314,7 @@ export default function App() {
         )}
 
         {STAGES.map(s => {
-          const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last);
+          const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last).sort((a,b)=>a.t<b.t?-1:a.t>b.t?1:a.n-b.n);
           if (stageMatches.length === 0) return null;
           const isCollapsed = collapsedStages.has(s.n);
 
