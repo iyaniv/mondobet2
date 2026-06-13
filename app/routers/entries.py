@@ -56,6 +56,14 @@ async def rename_entry(
     entry = await crud.get_entry(db, entry_id)
     if not entry or entry.user_id != user.id:
         raise HTTPException(404, "Entry not found.")
+    # Form name is locked on the same schedule as the winner pick: editable
+    # only while stage 1 is the current open betting stage. Once round 1 has
+    # started (stage 1 closed) the name is frozen for the rest of the game.
+    cfg = await crud.get_config(db)
+    if cfg.round_state != RoundStateEnum.open:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Betting round is not open.")
+    if (cfg.current_stage or 1) > 1:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Form name locked — stage 1 has closed.")
     try:
         return await crud.rename_entry(db, entry_id, data.name)
     except crud.DuplicateEntryName as e:
