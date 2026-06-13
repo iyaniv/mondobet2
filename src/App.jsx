@@ -1080,7 +1080,7 @@ function MatchRow({ match, pred, result, liveData, editable, adminResult, roundS
       {isLiveBadge&&<span className="live-dot" style={{marginRight:4}}/>}
       {!isLiveBadge&&!isPreliminary&&"✓ "}
       {effectiveScore[0]}:{effectiveScore[1]}
-      {isLiveBadge&&<span style={{marginLeft:4,fontSize:10}}>{liveData.minute}′</span>}
+      {isLiveBadge&&<span style={{marginLeft:4,fontSize:10}}>{liveData.minute===45?"HT":`${liveData.minute}′`}</span>}
     </span>
   ) : null;
 
@@ -1903,7 +1903,7 @@ function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
           const k=kickoffParts(m.t,tz);
           const winA=score?(score[0]>score[1]?true:score[1]>score[0]?false:(res&&res[2]==='a'?true:res&&res[2]==='b'?false:null)):null;
           const badge = isLive
-            ? <span style={{display:"inline-flex",alignItems:"center",gap:5,color:C.red,fontWeight:800,letterSpacing:".5px",whiteSpace:"nowrap",flexShrink:0}}><span className="live-dot"/> LIVE {live.minute!=null?`${live.minute}'`:""}</span>
+            ? <span style={{display:"inline-flex",alignItems:"center",gap:5,color:C.red,fontWeight:800,letterSpacing:".5px",whiteSpace:"nowrap",flexShrink:0}}><span className="live-dot"/> LIVE {live.minute===45?"HT":live.minute!=null?`${live.minute}'`:""}</span>
             : finished
               ? <span style={{color:C.green,fontWeight:800,letterSpacing:".5px",whiteSpace:"nowrap",flexShrink:0}}>✓ FULL TIME</span>
               : <span style={{color:C.accent,fontWeight:800,letterSpacing:".5px",whiteSpace:"nowrap",flexShrink:0}}>◷ UPCOMING</span>;
@@ -2696,7 +2696,7 @@ function LiveNowSection({ liveMatches, matches }) {
         <div style={{display:"flex",justifyContent:"space-between",marginBottom:6,fontSize:10}}>
           <span style={{color:accent,fontWeight:700,display:"flex",alignItems:"center",gap:4}}>
             {shownLive
-              ? <><span className="live-dot"/> LIVE {ld.minute}'</>
+              ? <><span className="live-dot"/> LIVE {ld.minute===45?"HT":`${ld.minute}'`}</>
               : <>● IN PROGRESS</>}
           </span>
           <span style={{color:C.muted}}>#{m.n}{m.g?` · ${m.g}`:""}</span>
@@ -3635,7 +3635,7 @@ function CompareView({ matches, results, liveMatches, isMobile,
     const isLive=!!(live&&live.is_live);
     return <span style={{fontFamily:"monospace",fontWeight:700,fontSize:11,padding:"1px 7px",borderRadius:4,whiteSpace:"nowrap",
       background:isLive?"rgba(239,68,68,0.10)":"rgba(48,209,88,0.14)",border:`1px solid ${isLive?"rgba(239,68,68,0.4)":"rgba(48,209,88,0.4)"}`,color:isLive?RED:GREEN}}>
-      {isLive&&<span className="live-dot" style={{marginRight:4}}/>}{!isLive&&"✓ "}{eff[0]}:{eff[1]}{isLive&&<span style={{marginLeft:4,fontSize:10}}>{live.minute}′</span>}</span>;
+      {isLive&&<span className="live-dot" style={{marginRight:4}}/>}{!isLive&&"✓ "}{eff[0]}:{eff[1]}{isLive&&<span style={{marginLeft:4,fontSize:10}}>{live.minute===45?"HT":`${live.minute}′`}</span>}</span>;
   };
 
   const displayMatches = matches
