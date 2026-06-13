@@ -1828,6 +1828,34 @@ function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
     .sort((a,b)=>(a.k?.at||0)-(b.k?.at||0));
   const liveCount = list.filter(({m})=>liveMatches[m.n]&&liveMatches[m.n].is_live).length;
 
+  // Auto-focus the strip on the most relevant game: the live one if any, else
+  // the latest game that's already over (the rightmost finished). Keeps the
+  // action in view on first paint without the user having to scroll past
+  // earlier/older cards — on both mobile and web.
+  const focusN = (()=>{
+    const liveItem = list.find(({m})=>liveMatches[m.n]&&liveMatches[m.n].is_live);
+    if(liveItem) return liveItem.m.n;
+    let lastFin=null;
+    for(const {m} of list){
+      const live=liveMatches[m.n], res=results[m.n];
+      const isLive=!!(live&&live.is_live);
+      const hasScore=res?true:!!(live&&live.score_a!=null);
+      if(!isLive&&hasScore) lastFin=m.n;
+    }
+    return lastFin;
+  })();
+  const stripRef = useRef(null);
+  useEffect(()=>{
+    if(focusN==null) return;
+    const strip=stripRef.current; if(!strip) return;
+    const card=strip.querySelector(`[data-mn="${focusN}"]`);
+    if(!card) return;
+    const delta=(card.getBoundingClientRect().left - strip.getBoundingClientRect().left) - 12;
+    strip.scrollTo({left: strip.scrollLeft + delta, behavior: "smooth"});
+  // Only re-scrolls when the focus game changes (or cards are added) — so a
+  // user's manual scroll between polls isn't yanked back every 10s.
+  },[focusN, list.length]);
+
   const panel = {
     background:C.panel, border:`1px solid ${C.border}`, borderTop:`2px solid ${C.accent}`,
     borderRadius:12, padding:"14px 16px 16px", marginBottom:16, boxShadow:"0 6px 18px rgba(0,0,0,0.35)",
@@ -1864,7 +1892,7 @@ function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
   return (
     <div style={panel}>
       {head}
-      <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:4}}>
+      <div ref={stripRef} style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:4}}>
         {list.map(({m})=>{
           const rm=resolvedMatch(m,results,matches);
           const live=liveMatches[m.n];
@@ -1892,7 +1920,7 @@ function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
             </div>
           );
           return (
-            <div key={m.n} style={{flex:"0 0 178px",background:C.bg,
+            <div key={m.n} data-mn={m.n} style={{flex:"0 0 178px",background:C.bg,
               border:`1px solid ${isLive?"rgba(239,68,68,0.45)":C.border}`,
               ...(isLive?{background:"rgba(239,68,68,0.05)"}:{}),
               borderRadius:10,padding:"7px 10px",display:"flex",flexDirection:"column",gap:6}}>
@@ -4352,6 +4380,28 @@ export default function App() {
     } catch(e) { console.error("refreshResults:", e); }
   }
 
+  // Poll helper used by the 10s tick. The GET /api/live/ has a side effect: it
+  // syncs fresh scores from the upstream feed and, for any game that just hit
+  // full-time, finalizes it — writing the score into results and DELETING the
+  // live row. So we must fetch live FIRST (let that finalize happen) and only
+  // THEN fetch results, so the freshly-finalized score is in this same pass.
+  // Both state writes are applied synchronously → React batches them into one
+  // render. Doing it as two independent concurrent fetches (the old behaviour)
+  // raced: the game vanished from liveMatches before its result arrived, so the
+  // Today's Games card flipped to "UPCOMING" until the next refresh.
+  async function refreshLiveAndResults(){
+    if(user?.is_admin && tab==="results") return;
+    try {
+      const liveList = await liveApi.getAll();
+      const resList  = await api.getResults();
+      const lm={}; for(const x of liveList) lm[x.match_n]={score_a:x.score_a,score_b:x.score_b,minute:x.minute,is_live:!!x.is_live,winner:x.winner??null,et_a:x.et_a??null,et_b:x.et_b??null,pen_a:x.pen_a??null,pen_b:x.pen_b??null};
+      const rm={};   for(const r of resList)  rm[r.match_n]=[r.score_a,r.score_b,r.winner??null,r.et_a??null,r.et_b??null,r.pen_a??null,r.pen_b??null];
+      setLiveMatches(lm);
+      setResults(rm);
+      localStorage.setItem("mb_live_sync", Date.now().toString());
+    } catch(e) { console.error("refreshLiveAndResults:", e); }
+  }
+
   // Re-fetch round config (round_state, current_stage, tournament_winner) so the
   // admin's state transitions — open/close the round, advance the stage, set the
   // tournament winner — propagate to every client without a reload. Skipped on
@@ -4380,7 +4430,7 @@ export default function App() {
       // trips Chrome's "tab slowing your browser" prompt. We refresh on return.
       if (document.hidden) return;
       refreshConfig();                                       // even while idle
-      if (config.round_state !== "idle") { refreshLive(); refreshLb(); refreshResults(); }
+      if (config.round_state !== "idle") { refreshLiveAndResults(); refreshLb(); }
     };
     const id = setInterval(tick, 10000);
     const onVisible = () => { if (!document.hidden) tick(); };  // catch up when the tab comes back
@@ -5722,7 +5772,8 @@ export default function App() {
               );
             })()}
           </div>
-          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",
+            justifyContent:isMobile?"space-between":"flex-start"}}>
             {hasFocus&&(
               <span onClick={toggleLivePreds}
                 role="switch" aria-checked={showLivePreds}
@@ -5752,10 +5803,7 @@ export default function App() {
               // when Simulate is turned off (the toggle itself stays in
               // place, so the primary on/off is always a single click away).
               <div style={{display:"inline-flex",
-                flexDirection:isMobile?"column":"row",
-                alignItems:isMobile?"flex-start":"center",
-                gap:isMobile?8:0,
-                width:isMobile?"100%":"auto"}}>
+                flexDirection:"row",alignItems:"center",gap:0,width:"auto"}}>
                 <div style={{display:"flex",background:C.panel,
                   border:`1px solid ${C.border}`,borderRadius:6,overflow:"hidden",
                   fontSize:12}}>
@@ -5773,27 +5821,11 @@ export default function App() {
                     transition:"all .15s",whiteSpace:"nowrap",
                   }}>Simulate</button>
                 </div>
-                {entries.length > 1 && (isMobile ? (
-                  // Mobile: there's no horizontal room beside the toggle, so the
-                  // chips wrap onto their own row(s) below it, revealed by a
-                  // vertical (max-height) expand instead of a sideways slide.
-                  <div style={{
-                    width:"100%",overflow:"hidden",
-                    maxHeight:simMode?260:0,
-                    opacity:simMode?1:0,
-                    pointerEvents:simMode?"auto":"none",
-                    transition:"max-height .45s cubic-bezier(.4,0,.2,1), opacity .35s ease",
-                  }}>
-                    <div style={{display:"flex",flexWrap:"wrap",gap:6,paddingTop:2}}>
-                      {formChips}
-                    </div>
-                  </div>
-                ) : (
-                  // Desktop: chip cluster sits in a collapsible box — when
-                  // Simulate is OFF the box has 0 width (overflow clipped), so
-                  // the toggle sits at its natural rightmost position. Flipping
-                  // Simulate ON expands it, sliding the toggle left while the
-                  // chips fade + slide in.
+                {/* Desktop: chip cluster sits in a collapsible box that expands
+                    to the right of the toggle when Simulate is ON. On mobile the
+                    chips render as a separate full-width row below (see below) so
+                    the two toggles can sit side by side. */}
+                {entries.length > 1 && !isMobile && (
                   <div style={{
                     display:"inline-flex",alignItems:"center",
                     overflow:"hidden",
@@ -5811,7 +5843,20 @@ export default function App() {
                       {formChips}
                     </div>
                   </div>
-                ))}
+                )}
+              </div>
+            )}
+            {/* Mobile: chips can't fit beside the toggle, so they wrap to their
+                own full-width row below the two side-by-side toggles, expanding
+                down when Simulate is ON. */}
+            {isMobile && canSim && entries.length > 1 && (
+              <div style={{width:"100%",overflow:"hidden",
+                maxHeight:simMode?260:0,opacity:simMode?1:0,
+                pointerEvents:simMode?"auto":"none",
+                transition:"max-height .45s cubic-bezier(.4,0,.2,1), opacity .35s ease"}}>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,paddingTop:2}}>
+                  {formChips}
+                </div>
               </div>
             )}
           </div>
