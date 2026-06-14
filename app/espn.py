@@ -20,6 +20,7 @@ Score handling mirrors footdata exactly:
 """
 
 import logging
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 import httpx
@@ -169,17 +170,40 @@ def _extract(event: dict) -> Optional[dict]:
 async def sync_live_from_espn(db: AsyncSession) -> bool:
     """Pull today's WC scores from ESPN and upsert them into live_matches.
 
-    Returns True if the fetch succeeded (so the caller knows not to fall back),
-    False on any network/parse failure. Never raises. Assumes the caller has
+    Fetches both today and yesterday (UTC) so that early UTC kickoffs
+    (00:00–05:00 UTC) — which fall on the previous US date — are not missed
+    by ESPN's default no-date endpoint.
+
+    Returns True if at least one fetch succeeded (so the caller knows not to
+    fall back), False on total failure. Never raises. Assumes the caller has
     already gated on data_source=="realtime" and the shared cache.
     """
+    now_utc = datetime.now(timezone.utc)
+    dates = [
+        (now_utc - timedelta(days=1)).strftime("%Y%m%d"),
+        now_utc.strftime("%Y%m%d"),
+    ]
+    events = []
+    seen_ids: set = set()
+    any_success = False
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
-            resp = await client.get(WC_SCOREBOARD_URL)
-        resp.raise_for_status()
-        events = resp.json().get("events", [])
-    except Exception as exc:  # network error, bad JSON, endpoint moved, etc.
+            for date in dates:
+                try:
+                    resp = await client.get(WC_SCOREBOARD_URL, params={"dates": date})
+                    resp.raise_for_status()
+                    for e in resp.json().get("events", []):
+                        eid = e.get("id")
+                        if eid not in seen_ids:
+                            seen_ids.add(eid)
+                            events.append(e)
+                    any_success = True
+                except Exception as exc:
+                    log.warning("ESPN sync failed for date %s: %s", date, exc)
+    except Exception as exc:
         log.warning("ESPN sync failed: %s", exc)
+        return False
+    if not any_success:
         return False
 
     try:
