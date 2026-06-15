@@ -4169,7 +4169,14 @@ export default function App() {
   const effectiveSimEntryId = simEntryId || activeEntryId;
   const simPreds = (effectiveSimEntryId && simPredsByEntry[effectiveSimEntryId]) || myPreds;
   const maxMatchN = matches.length > 0 ? Math.max(...matches.map(m=>m.n)) : 64;
-  const simUpToN = simUpTo ?? maxMatchN;
+  // Slider range: first unplayed match of the current stage → stage's last match.
+  const currentStageObj = STAGES.find(s=>s.n===config.current_stage) || STAGES[0];
+  const firstUnplayedInStage = matches
+    .filter(m=>m.n>=currentStageObj.first&&m.n<=currentStageObj.last&&!results[m.n]&&!liveMatches[m.n])
+    .reduce((min,m)=>m.n<min?m.n:min, currentStageObj.last);
+  const simSliderMin = firstUnplayedInStage;
+  const simSliderMax = currentStageObj.last;
+  const simUpToN = simUpTo ?? simSliderMax;
   const unplayedPredMatches = matches.filter(m=>!results[m.n]&&!liveMatches[m.n]&&simPreds?.[m.n]?.[0]!=null&&m.n<=simUpToN);
   // Simulate / Actual toggle is always available for a stable UI. When there
   // are no unplayed predictions the simulated leaderboard equals the actual
@@ -5960,8 +5967,8 @@ export default function App() {
                 ...(simMode?{}:{padding:0,borderWidth:0}),
               }}>
                 <label style={{whiteSpace:"nowrap",fontWeight:600}}>Up to game</label>
-                <input type="range" min={1} max={maxMatchN} value={simUpToN}
-                  onChange={e=>setSimUpTo(+e.target.value===maxMatchN?null:+e.target.value)}
+                <input type="range" min={simSliderMin} max={simSliderMax} value={simUpToN}
+                  onChange={e=>setSimUpTo(+e.target.value===simSliderMax?null:+e.target.value)}
                   style={{width:100,accentColor:C.indigo,cursor:"pointer"}}/>
                 <span style={{minWidth:24,textAlign:"center",fontWeight:700,color:"#c7d2fe"}}>{simUpToN}</span>
               </div>
