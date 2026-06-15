@@ -4142,6 +4142,7 @@ export default function App() {
   const [simMode,setSimMode]=useState(false);
   const [simLb,setSimLb]=useState(null);
   const [simLoading,setSimLoading]=useState(false);
+  const [simLimit,setSimLimit]=useState(null); // null = all unplayed, number = cap
   // When the user owns multiple forms, they can pick which form's predictions
   // drive the simulation. Defaults to the currently active form. Other forms'
   // predictions are fetched on demand and cached here.
@@ -4176,17 +4177,18 @@ export default function App() {
   // Fetch the simulated leaderboard when Simulate turns on, or when the user
   // switches which form to simulate from. Unplayed matches resolve to the
   // chosen form's predictions (and, if no champion yet, my winner pick).
+  const simMatches = simLimit!=null ? unplayedPredMatches.slice(0,simLimit) : unplayedPredMatches;
   useEffect(()=>{
     if(!simMode||!canSim){ setSimLb(null); return; }
     const override={};
-    for(const m of unplayedPredMatches){ const p=simPreds[m.n]; if(p?.[0]!=null&&p?.[1]!=null) override[m.n]=[p[0],p[1]]; }
+    for(const m of simMatches){ const p=simPreds[m.n]; if(p?.[0]!=null&&p?.[1]!=null) override[m.n]=[p[0],p[1]]; }
     const winnerPick = lockedWinner||myWinner;
     const winnerOverride = (!config.tournament_winner&&winnerPick)?winnerPick:null;
     setSimLoading(true);
     api.getSimulatedLeaderboard(override,winnerOverride)
       .then(rows=>setSimLb(rows)).catch(()=>setSimLb(null)).finally(()=>setSimLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[simMode,effectiveSimEntryId,simPreds]);
+  },[simMode,effectiveSimEntryId,simPreds,simLimit]);
   // Fetch predictions for the chosen form if we don't already have them cached.
   useEffect(()=>{
     if(!simMode||!effectiveSimEntryId) return;
@@ -5904,7 +5906,7 @@ export default function App() {
                 <div style={{display:"flex",background:C.panel,
                   border:`1px solid ${C.border}`,borderRadius:6,overflow:"hidden",
                   fontSize:12}}>
-                  <button onClick={()=>setSimMode(false)} style={{
+                  <button onClick={()=>{setSimMode(false);setSimLimit(null);}} style={{
                     padding:"4px 12px",border:"none",cursor:"pointer",
                     background:!simMode?C.accent:"transparent",
                     color:!simMode?"#1a1a1a":C.muted,fontWeight:!simMode?700:400,
@@ -5963,7 +5965,23 @@ export default function App() {
           <div style={{background:"rgba(99,102,241,0.12)",border:`1px solid ${C.indigo}`,
             borderRadius:6,padding:"7px 14px",marginBottom:14,fontSize:13,color:C.indigo}}>
             {unplayedPredMatches.length>0
-              ? <>✨ Simulating <b>{unplayedPredMatches.length}</b> unplayed match{unplayedPredMatches.length!==1?"es":""} with <b>your</b> predictions as results — all users' scores are recomputed accordingly{simLoading?" · loading…":""}</>
+              ? <>✨ Simulating{" "}
+                  <input
+                    type="number"
+                    min={1}
+                    max={unplayedPredMatches.length}
+                    value={simLimit!=null?simLimit:unplayedPredMatches.length}
+                    onChange={e=>{
+                      const v=parseInt(e.target.value,10);
+                      if(isNaN(v)||v<1) return;
+                      setSimLimit(Math.min(v,unplayedPredMatches.length));
+                    }}
+                    style={{width:44,border:"none",borderBottom:`1px solid ${C.indigo}`,
+                      background:"transparent",color:C.indigo,fontWeight:700,fontSize:13,
+                      textAlign:"center",outline:"none",padding:"0 2px",MozAppearance:"textfield"}}
+                  />{" "}
+                  of {unplayedPredMatches.length} unplayed match{unplayedPredMatches.length!==1?"es":""} with <b>your</b> predictions as results — all users' scores are recomputed accordingly{simLoading?" · loading…":""}
+                </>
               : <>✨ <b>Simulation mode is on.</b> No unplayed predictions to apply — the standings here match the actual leaderboard.</>}
           </div>
         )}
@@ -6421,7 +6439,7 @@ export default function App() {
               padding:"8px 16px",fontSize:13,color:C.indigo,display:"flex",alignItems:"center",
               justifyContent:"space-between",gap:10,flexWrap:"wrap",fontWeight:600}}>
               <span>🔮 <b>Simulation</b> — unplayed games are shown as if they finish exactly as <b>your</b> predictions. Scores &amp; standings are hypothetical (only you see this).</span>
-              <button onClick={()=>setSimMode(false)} style={{background:C.indigo,color:"white",
+              <button onClick={()=>{setSimMode(false);setSimLimit(null);}} style={{background:C.indigo,color:"white",
                 border:0,borderRadius:6,padding:"4px 12px",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>
                 Exit simulation
               </button>
