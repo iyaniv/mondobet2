@@ -1212,6 +1212,13 @@ function AuthView({ roundState, onSuccess }) {
   const [err,setErr]=useState("");
   const [loading,setLoading]=useState(false);
   const [showPsw,setShowPsw]=useState(false);
+  // reset-password sub-flow
+  const [resetMode,setResetMode]=useState(false);
+  const [resetEmail,setResetEmail]=useState("");
+  const [resetPhone,setResetPhone]=useState("");
+  const [resetPsw,setResetPsw]=useState("");
+  const [resetConfirm,setResetConfirm]=useState("");
+  const [resetDone,setResetDone]=useState(false);
 
   const pills={
     open:  {text:"🟢 Betting round is OPEN",  bg:"rgba(16,185,129,0.1)",  color:C.green, border:`1px solid ${C.green}`},
@@ -1240,35 +1247,83 @@ function AuthView({ roundState, onSuccess }) {
     finally{setLoading(false);}
   }
 
+  async function submitReset(e) {
+    e.preventDefault(); setErr("");
+    if (resetPsw !== resetConfirm) { setErr("Passwords don't match."); return; }
+    setLoading(true);
+    try {
+      await api.resetPassword({email:resetEmail.trim().toLowerCase(),phone:resetPhone.trim(),new_password:resetPsw});
+      setResetDone(true);
+    } catch(ex){setErr(ex.message);}
+    finally{setLoading(false);}
+  }
+
+  function exitReset(){setResetMode(false);setResetDone(false);setErr("");setResetEmail("");setResetPhone("");setResetPsw("");setResetConfirm("");}
+
   return (
     <div style={{maxWidth:400,margin:"30px auto",padding:"0 16px"}}>
       <div style={{marginBottom:14,textAlign:"center"}}>
         <span style={{display:"inline-block",padding:"4px 14px",borderRadius:999,fontSize:13,fontWeight:600,background:pill.bg,color:pill.color,border:pill.border}}>{pill.text}</span>
       </div>
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:20}}>
-        <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:16}}>
-          {["signup","login"].map(m=>(
-            <button key={m} onClick={()=>setMode(m)} style={{background:mode===m?C.accent:"transparent",color:mode===m?"#1a1a1a":C.text,border:`1px solid ${mode===m?C.accent:C.border}`,padding:"6px 16px",borderRadius:6,cursor:"pointer",fontWeight:700}}>
-              {m==="signup"?"Sign up":"Log in"}
-            </button>
-          ))}
-        </div>
-        <form onSubmit={submit}>
-          {mode==="signup"&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Full name" required style={inputStyle}/>}
-          {mode==="signup"&&<input value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g,"").slice(0,10))} placeholder="Phone (10 digits, e.g. 0501234567)" required type="tel" inputMode="numeric" maxLength={10} style={inputStyle}/>}
-          <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" required type={mode==="signup"?"email":"text"} style={inputStyle}/>
-          <div style={{position:"relative"}}>
-            <input type={showPsw?"text":"password"} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" required minLength={4} style={{...inputStyle,marginBottom:0,paddingRight:36}}/>
-            <button type="button" onClick={()=>setShowPsw(v=>!v)} tabIndex={-1} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:16,lineHeight:1,padding:"2px 4px"}}>
-              {showPsw?"🙈":"👁️"}
-            </button>
-          </div>
-          {mode==="signup"&&<input type={showPsw?"text":"password"} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Confirm password" required minLength={4} onPaste={e=>e.preventDefault()} style={{...inputStyle,marginTop:10}}/>}
-          {err&&<p style={{color:C.red,fontSize:13,marginBottom:8}}>{err}</p>}
-          <button type="submit" disabled={loading} style={{width:"100%",background:C.accent,color:"#1a1a1a",border:0,padding:"10px 0",borderRadius:6,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.6:1}}>
-            {loading?"…":mode==="signup"?"Create account":"Log in"}
-          </button>
-        </form>
+        {resetMode ? (
+          <>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
+              <button type="button" onClick={exitReset} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:18,lineHeight:1,padding:0}}>←</button>
+              <span style={{fontWeight:700,fontSize:15}}>Reset password</span>
+            </div>
+            {resetDone ? (
+              <div style={{textAlign:"center",padding:"12px 0"}}>
+                <p style={{color:C.green,fontWeight:600,marginBottom:12}}>✓ Password updated!</p>
+                <button onClick={exitReset} style={{background:C.accent,color:"#1a1a1a",border:0,padding:"8px 20px",borderRadius:6,fontWeight:700,cursor:"pointer"}}>Back to login</button>
+              </div>
+            ) : (
+              <form onSubmit={submitReset}>
+                <input value={resetEmail} onChange={e=>setResetEmail(e.target.value)} placeholder="Email" required type="email" style={inputStyle}/>
+                <input value={resetPhone} onChange={e=>setResetPhone(e.target.value.replace(/\D/g,"").slice(0,10))} placeholder="Phone (10 digits)" required type="tel" inputMode="numeric" maxLength={10} style={inputStyle}/>
+                <input type="password" value={resetPsw} onChange={e=>setResetPsw(e.target.value)} placeholder="New password" required minLength={4} style={inputStyle}/>
+                <input type="password" value={resetConfirm} onChange={e=>setResetConfirm(e.target.value)} placeholder="Confirm new password" required minLength={4} onPaste={e=>e.preventDefault()} style={inputStyle}/>
+                {err&&<p style={{color:C.red,fontSize:13,marginBottom:8}}>{err}</p>}
+                <button type="submit" disabled={loading} style={{width:"100%",background:C.accent,color:"#1a1a1a",border:0,padding:"10px 0",borderRadius:6,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.6:1}}>
+                  {loading?"…":"Set new password"}
+                </button>
+              </form>
+            )}
+          </>
+        ) : (
+          <>
+            <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:16}}>
+              {["signup","login"].map(m=>(
+                <button key={m} onClick={()=>setMode(m)} style={{background:mode===m?C.accent:"transparent",color:mode===m?"#1a1a1a":C.text,border:`1px solid ${mode===m?C.accent:C.border}`,padding:"6px 16px",borderRadius:6,cursor:"pointer",fontWeight:700}}>
+                  {m==="signup"?"Sign up":"Log in"}
+                </button>
+              ))}
+            </div>
+            <form onSubmit={submit}>
+              {mode==="signup"&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Full name" required style={inputStyle}/>}
+              {mode==="signup"&&<input value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g,"").slice(0,10))} placeholder="Phone (10 digits, e.g. 0501234567)" required type="tel" inputMode="numeric" maxLength={10} style={inputStyle}/>}
+              <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" required type={mode==="signup"?"email":"text"} style={inputStyle}/>
+              <div style={{position:"relative"}}>
+                <input type={showPsw?"text":"password"} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" required minLength={4} style={{...inputStyle,marginBottom:0,paddingRight:36}}/>
+                <button type="button" onClick={()=>setShowPsw(v=>!v)} tabIndex={-1} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:16,lineHeight:1,padding:"2px 4px"}}>
+                  {showPsw?"🙈":"👁️"}
+                </button>
+              </div>
+              {mode==="signup"&&<input type={showPsw?"text":"password"} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Confirm password" required minLength={4} onPaste={e=>e.preventDefault()} style={{...inputStyle,marginTop:10}}/>}
+              {err&&<p style={{color:C.red,fontSize:13,marginBottom:8}}>{err}</p>}
+              <button type="submit" disabled={loading} style={{width:"100%",background:C.accent,color:"#1a1a1a",border:0,padding:"10px 0",borderRadius:6,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.6:1}}>
+                {loading?"…":mode==="signup"?"Create account":"Log in"}
+              </button>
+            </form>
+            {mode==="login"&&(
+              <p style={{textAlign:"center",marginTop:12,marginBottom:0,fontSize:13}}>
+                <button type="button" onClick={()=>{setResetMode(true);setErr("");}} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,textDecoration:"underline",fontSize:13,padding:0}}>
+                  Forgot password?
+                </button>
+              </p>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
@@ -3972,6 +4027,14 @@ export default function App() {
   const [gameMenuOpen,setGameMenuOpen]=useState(false);
   const [gameSearch,setGameSearch]=useState("");
   const gameBtnRef=useRef(null);
+  const gameMenuSelectedRef=useRef(null);
+  const gameMenuAutoRef=useRef(null);
+  useEffect(()=>{
+    // On open, bring the live / most-recent game (the Auto target) into view —
+    // not whatever's pinned — so the dropdown always opens focused on the
+    // current action. Falls back to the selected row if Auto isn't listed.
+    if(gameMenuOpen) setTimeout(()=>{ (gameMenuAutoRef.current||gameMenuSelectedRef.current)?.scrollIntoView({block:"center"}); },30);
+  },[gameMenuOpen]);
   // A match's picks are viewable unless it's in the still-open betting stage.
   const matchViewable=useCallback((m)=>!(config.round_state==="open"&&m.s===(config.current_stage||1)),[config.round_state,config.current_stage]);
   // Auto target (recomputed each render so the −10min look-ahead fires on the
@@ -6024,6 +6087,7 @@ export default function App() {
                                   const locked=!o.viewable;
                                   return (
                                     <div key={o.m.n}
+                                      ref={o.m.n===autoMatchN?gameMenuAutoRef:(isSel?gameMenuSelectedRef:null)}
                                       onClick={locked?undefined:()=>{setPinned(o.m.n);setGameMenuOpen(false);setGameSearch("");}}
                                       title={locked?"Hidden until this stage closes":undefined}
                                       style={{display:"flex",alignItems:"center",gap:7,padding:"6px 9px",borderRadius:6,fontSize:12,fontWeight:isSel?700:600,

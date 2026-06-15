@@ -37,9 +37,10 @@ async function request(path, options = {}) {
 
 export const api = {
   // Auth
-  signup:   (d) => request("/api/auth/signup", { method: "POST", body: d }),
-  login:    (d) => request("/api/auth/login",  { method: "POST", body: d }),
-  me:       ()  => request("/api/auth/me"),
+  signup:        (d) => request("/api/auth/signup",         { method: "POST", body: d }),
+  login:         (d) => request("/api/auth/login",          { method: "POST", body: d }),
+  resetPassword: (d) => request("/api/auth/reset-password", { method: "POST", body: d }),
+  me:            ()  => request("/api/auth/me"),
 
   // Game data (public-ish)
   getMatches:     () => request("/api/matches/"),
