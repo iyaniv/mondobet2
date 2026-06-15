@@ -4168,7 +4168,7 @@ export default function App() {
   // The form actually being simulated right now.
   const effectiveSimEntryId = simEntryId || activeEntryId;
   const simPreds = (effectiveSimEntryId && simPredsByEntry[effectiveSimEntryId]) || myPreds;
-  const unplayedPredMatches = matches.filter(m=>!results[m.n]&&!liveMatches[m.n]&&simPreds?.[m.n]?.[0]!=null);
+  const unplayedPredMatches = matches.filter(m=>!results[m.n]&&!liveMatches[m.n]&&simPreds?.[m.n]?.[0]!=null).sort((a,b)=>a.t<b.t?-1:a.t>b.t?1:a.n-b.n);
   // Simulate / Actual toggle is always available for a stable UI. When there
   // are no unplayed predictions the simulated leaderboard equals the actual
   // one, so flipping the toggle is just a no-op rather than the button
