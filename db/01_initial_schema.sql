@@ -124,6 +124,18 @@ CREATE TABLE IF NOT EXISTS game_config (
 INSERT INTO game_config (id, round_state) VALUES (1, 'idle')
 ON CONFLICT (id) DO NOTHING;
 
+-- ── Daily rank snapshots ──────────────────────────────────────────────────────
+-- One row per entry per calendar day (US Central). Taken automatically on the
+-- first leaderboard fetch after midnight CT. Powers the daily ↑/↓ indicators.
+CREATE TABLE IF NOT EXISTS daily_rank_snapshots (
+    id             SERIAL       PRIMARY KEY,
+    snapshot_date  DATE         NOT NULL,
+    entry_id       VARCHAR(36)  NOT NULL,
+    rank           INTEGER      NOT NULL,
+    CONSTRAINT uq_daily_rank_snapshot UNIQUE (snapshot_date, entry_id)
+);
+CREATE INDEX IF NOT EXISTS idx_daily_rank_date ON daily_rank_snapshots (snapshot_date);
+
 -- ── Live matches ──────────────────────────────────────────────────────────────
 -- Admin updates these during a match. Cleared (DELETE) when the admin clicks
 -- FINAL (and a row appears in `results`).

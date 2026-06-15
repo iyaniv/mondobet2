@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
-    Boolean, DateTime, Enum, ForeignKey, Integer,
+    Boolean, Date, DateTime, Enum, ForeignKey, Integer,
     SmallInteger, String, UniqueConstraint, func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -152,6 +152,21 @@ class GameConfig(Base):
     # Lets the leaderboard show per-stage rank movement (+N up / -N down). NULL
     # during stage 1 (no previous stage to compare against).
     stage_baseline: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+
+
+class DailyRankSnapshot(Base):
+    """One rank row per entry per calendar day (US Central time).
+
+    Taken automatically at the first leaderboard request after midnight CT.
+    Used to show daily rank-change arrows on the leaderboard.
+    """
+    __tablename__ = "daily_rank_snapshots"
+    __table_args__ = (UniqueConstraint("snapshot_date", "entry_id", name="uq_daily_rank_snapshot"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    snapshot_date: Mapped[object] = mapped_column(Date, nullable=False, index=True)
+    entry_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    rank: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
 class LiveMatch(Base):

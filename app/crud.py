@@ -3,13 +3,23 @@
 from __future__ import annotations
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, date, timezone, timedelta
 from typing import Optional
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import select, delete
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Entry, GameConfig, LiveMatch, Prediction, Result, RoundStateEnum, User, WinnerPick
+from app.models import DailyRankSnapshot, Entry, GameConfig, LiveMatch, Prediction, Result, RoundStateEnum, User, WinnerPick
+
+CT = ZoneInfo("America/Chicago")
+
+def _today_ct() -> date:
+    return datetime.now(CT).date()
+
+def _yesterday_ct() -> date:
+    return _today_ct() - timedelta(days=1)
 from app.auth import hash_password
 from app.scoring import user_totals
 from app.schemas import LeaderboardEntry
@@ -476,6 +486,28 @@ async def upsert_result(
 
 
 # ── Leaderboard ───────────────────────────────────────────────────────────────
+
+async def get_daily_prev_ranks(db: AsyncSession) -> dict[str, int]:
+    """Return {entry_id: rank} from yesterday's CT snapshot (empty if none yet)."""
+    yesterday = _yesterday_ct()
+    r = await db.execute(
+        select(DailyRankSnapshot).where(DailyRankSnapshot.snapshot_date == yesterday)
+    )
+    return {row.entry_id: row.rank for row in r.scalars().all()}
+
+
+async def save_daily_snapshot(db: AsyncSession, ranked_rows: list[LeaderboardEntry]) -> None:
+    """Upsert today's snapshot (CT date). Called once per day on first lb fetch."""
+    today = _today_ct()
+    for i, row in enumerate(ranked_rows):
+        stmt = pg_insert(DailyRankSnapshot).values(
+            snapshot_date=today,
+            entry_id=str(row.entry_id),
+            rank=i + 1,
+        ).on_conflict_do_nothing(constraint="uq_daily_rank_snapshot")
+        await db.execute(stmt)
+    await db.commit()
+
 
 async def get_leaderboard(
     db: AsyncSession,

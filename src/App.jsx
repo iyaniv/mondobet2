@@ -4142,6 +4142,7 @@ export default function App() {
   const [simMode,setSimMode]=useState(false);
   const [simLb,setSimLb]=useState(null);
   const [simLoading,setSimLoading]=useState(false);
+  const [simUpTo,setSimUpTo]=useState(null); // null = all games
   // When the user owns multiple forms, they can pick which form's predictions
   // drive the simulation. Defaults to the currently active form. Other forms'
   // predictions are fetched on demand and cached here.
@@ -4167,7 +4168,9 @@ export default function App() {
   // The form actually being simulated right now.
   const effectiveSimEntryId = simEntryId || activeEntryId;
   const simPreds = (effectiveSimEntryId && simPredsByEntry[effectiveSimEntryId]) || myPreds;
-  const unplayedPredMatches = matches.filter(m=>!results[m.n]&&!liveMatches[m.n]&&simPreds?.[m.n]?.[0]!=null);
+  const maxMatchN = matches.length > 0 ? Math.max(...matches.map(m=>m.n)) : 64;
+  const simUpToN = simUpTo ?? maxMatchN;
+  const unplayedPredMatches = matches.filter(m=>!results[m.n]&&!liveMatches[m.n]&&simPreds?.[m.n]?.[0]!=null&&m.n<=simUpToN);
   // Simulate / Actual toggle is always available for a stable UI. When there
   // are no unplayed predictions the simulated leaderboard equals the actual
   // one, so flipping the toggle is just a no-op rather than the button
@@ -4186,7 +4189,7 @@ export default function App() {
     api.getSimulatedLeaderboard(override,winnerOverride)
       .then(rows=>setSimLb(rows)).catch(()=>setSimLb(null)).finally(()=>setSimLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[simMode,effectiveSimEntryId,simPreds]);
+  },[simMode,effectiveSimEntryId,simPreds,simUpToN]);
   // Fetch predictions for the chosen form if we don't already have them cached.
   useEffect(()=>{
     if(!simMode||!effectiveSimEntryId) return;
@@ -5904,7 +5907,7 @@ export default function App() {
                 <div style={{display:"flex",background:C.panel,
                   border:`1px solid ${C.border}`,borderRadius:6,overflow:"hidden",
                   fontSize:12}}>
-                  <button onClick={()=>setSimMode(false)} style={{
+                  <button onClick={()=>{setSimMode(false);setSimUpTo(null);}} style={{
                     padding:"4px 12px",border:"none",cursor:"pointer",
                     background:!simMode?C.accent:"transparent",
                     color:!simMode?"#1a1a1a":C.muted,fontWeight:!simMode?700:400,
@@ -5943,6 +5946,26 @@ export default function App() {
                 )}
               </div>
             )}
+            {/* "Up to game N" slider — slides in beside the toggle when sim is on */}
+            {canSim&&(
+              <div style={{
+                display:"inline-flex",alignItems:"center",gap:7,
+                background:"rgba(99,102,241,0.13)",border:`1px solid ${C.indigo}`,
+                borderRadius:6,padding:"4px 10px",fontSize:12,color:"#a5b4fc",
+                overflow:"hidden",
+                maxWidth:simMode?280:0,
+                opacity:simMode?1:0,
+                pointerEvents:simMode?"auto":"none",
+                transition:"max-width .4s cubic-bezier(.4,0,.2,1), opacity .3s ease, padding .4s, border-width .4s",
+                ...(simMode?{}:{padding:0,borderWidth:0}),
+              }}>
+                <label style={{whiteSpace:"nowrap",fontWeight:600}}>Up to game</label>
+                <input type="range" min={1} max={maxMatchN} value={simUpToN}
+                  onChange={e=>setSimUpTo(+e.target.value===maxMatchN?null:+e.target.value)}
+                  style={{width:100,accentColor:C.indigo,cursor:"pointer"}}/>
+                <span style={{minWidth:24,textAlign:"center",fontWeight:700,color:"#c7d2fe"}}>{simUpToN}</span>
+              </div>
+            )}
             {/* Mobile: chips can't fit beside the toggle, so they wrap to their
                 own full-width row below the two side-by-side toggles, expanding
                 down when Simulate is ON. */}
@@ -5963,7 +5986,7 @@ export default function App() {
           <div style={{background:"rgba(99,102,241,0.12)",border:`1px solid ${C.indigo}`,
             borderRadius:6,padding:"7px 14px",marginBottom:14,fontSize:13,color:C.indigo}}>
             {unplayedPredMatches.length>0
-              ? <>✨ Simulating <b>{unplayedPredMatches.length}</b> unplayed match{unplayedPredMatches.length!==1?"es":""} with <b>your</b> predictions as results — all users' scores are recomputed accordingly{simLoading?" · loading…":""}</>
+              ? <>✨ Simulating <b>{unplayedPredMatches.length}</b> unplayed match{unplayedPredMatches.length!==1?"es":""}{simUpTo!=null?<> up to game <b>{simUpToN}</b></>:""} with <b>your</b> predictions as results — all users' scores are recomputed accordingly{simLoading?" · loading…":""}</>
               : <>✨ <b>Simulation mode is on.</b> No unplayed predictions to apply — the standings here match the actual leaderboard.</>}
           </div>
         )}
@@ -6164,6 +6187,18 @@ export default function App() {
                                 title={delta>0?`Up ${delta} place${delta===1?"":"s"} this stage`:`Down ${-delta} place${delta===-1?"":"s"} this stage`}>
                                 {delta>0?`+${delta}`:`${delta}`}
                               </div>
+                            );
+                          })()}
+                          {(()=>{
+                            if (simMode || row.prev_rank==null) return null;
+                            const delta = row.prev_rank - globalRank; // positive = climbed
+                            if (delta === 0) return null;
+                            return (
+                              <span style={{fontSize:9,fontWeight:700,marginLeft:4,
+                                color:delta>0?C.green:C.red,verticalAlign:"middle"}}
+                                title={delta>0?`↑ Up ${delta} since yesterday`:`↓ Down ${Math.abs(delta)} since yesterday`}>
+                                {delta>0?`↑${delta}`:`↓${Math.abs(delta)}`}
+                              </span>
                             );
                           })()}
                         </td>

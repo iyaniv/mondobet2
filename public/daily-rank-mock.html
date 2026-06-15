@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Daily rank change — mock</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0f1117;color:#e2e8f0;font-family:system-ui,sans-serif;padding:24px 16px;min-height:100vh}
+  h1{color:#94a3b8;font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:20px}
+  .card{background:#1e2433;border:1px solid #2d3748;border-radius:8px;padding:20px;max-width:720px;margin:0 auto}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;padding:8px 10px;color:#64748b;font-size:11px;font-weight:600;border-bottom:1px solid #2d3748}
+  td{padding:8px 10px;border-bottom:1px solid rgba(45,55,72,.5);vertical-align:middle}
+
+  .rank-cell{width:52px;text-align:center}
+  .rank-num{font-weight:700;font-size:15px}
+
+  /* daily delta badge */
+  .daily-delta{display:inline-flex;align-items:center;gap:2px;
+    font-size:10px;font-weight:700;line-height:1;margin-top:3px;
+    padding:1px 4px;border-radius:3px}
+  .daily-delta.up  {color:#10b981;background:rgba(16,185,129,.12)}
+  .daily-delta.dn  {color:#ef4444;background:rgba(239,68,68,.12)}
+  .daily-delta.eq  {color:#64748b}
+
+  .pts{font-weight:700;font-size:16px;font-family:monospace;text-align:right;color:#a3e635}
+  .name{font-weight:600}
+  .you{background:#6366f1;color:#fff;font-size:10px;padding:1px 5px;border-radius:4px;margin-left:6px}
+
+  /* Controls */
+  .controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+  .label{font-size:12px;color:#64748b;font-weight:600}
+  .seg{display:flex;background:#1e2433;border:1px solid #2d3748;border-radius:6px;overflow:hidden;font-size:12px}
+  .seg button{padding:4px 12px;border:none;cursor:pointer;background:transparent;color:#94a3b8;font-weight:400;white-space:nowrap}
+  .seg button.active{background:#a3e635;color:#1a1a1a;font-weight:700}
+  .seg button+button{border-left:1px solid #2d3748}
+
+  .timestamp{font-size:11px;color:#64748b;margin-bottom:14px}
+
+  /* variant label */
+  .variants{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+  .chip{padding:3px 10px;border-radius:999px;font-size:11px;cursor:pointer;border:1px solid #2d3748;background:transparent;color:#94a3b8}
+  .chip.active{background:#6366f1;color:#fff;border-color:#6366f1}
+</style>
+</head>
+<body>
+<h1>Daily rank change — mock</h1>
+
+<div class="card">
+  <!-- Style variants -->
+  <div class="variants">
+    <span style="font-size:11px;color:#64748b;font-weight:600">Style:</span>
+    <button class="chip active" onclick="setStyle('badge')">Badge</button>
+    <button class="chip" onclick="setStyle('inline')">Inline arrow</button>
+    <button class="chip" onclick="setStyle('subtle')">Subtle text</button>
+  </div>
+
+  <!-- Scenario selector -->
+  <div class="controls">
+    <span class="label">Scenario:</span>
+    <div class="seg">
+      <button class="active" onclick="setScenario('mid')">Mid-day</button>
+      <button onclick="setScenario('big')">Big moves</button>
+      <button onclick="setScenario('flat')">No change</button>
+    </div>
+  </div>
+
+  <div class="timestamp" id="ts"></div>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="rank-cell"># (daily Δ)</th>
+        <th>Name</th>
+        <th style="text-align:right">Points</th>
+        <th>Winner pick</th>
+      </tr>
+    </thead>
+    <tbody id="lb-body"></tbody>
+  </table>
+</div>
+
+<script>
+const SCENARIOS = {
+  mid: [
+    {name:"Bob — strategy B", pts:500, prev:2, flag:"🇪🇸 Spain"},
+    {name:"Alice — main",     pts:489, prev:4, flag:"🇫🇷 France", me:true},
+    {name:"Diana",            pts:488, prev:1, flag:"🇫🇷 France"},
+    {name:"Yaniv — A",        pts:450, prev:3, flag:"🇫🇷 France"},
+    {name:"Grace",            pts:448, prev:5, flag:"🇦🇷 Argentina"},
+    {name:"Frank — copy",     pts:367, prev:6, flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿 England"},
+    {name:"Alice — backup",   pts:361, prev:8, flag:"🇧🇷 Brazil"},
+    {name:"Bob — strategy A", pts:346, prev:7, flag:"🇦🇷 Argentina"},
+  ],
+  big: [
+    {name:"Grace",            pts:501, prev:5, flag:"🇦🇷 Argentina"},
+    {name:"Bob — strategy B", pts:500, prev:1, flag:"🇪🇸 Spain"},
+    {name:"Alice — main",     pts:489, prev:7, flag:"🇫🇷 France", me:true},
+    {name:"Yaniv — A",        pts:450, prev:2, flag:"🇫🇷 France"},
+    {name:"Diana",            pts:448, prev:3, flag:"🇫🇷 France"},
+    {name:"Frank — copy",     pts:367, prev:4, flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿 England"},
+    {name:"Bob — strategy A", pts:361, prev:6, flag:"🇦🇷 Argentina"},
+    {name:"Alice — backup",   pts:346, prev:8, flag:"🇧🇷 Brazil"},
+  ],
+  flat: [
+    {name:"Bob — strategy B", pts:500, prev:1, flag:"🇪🇸 Spain"},
+    {name:"Alice — main",     pts:489, prev:2, flag:"🇫🇷 France", me:true},
+    {name:"Diana",            pts:488, prev:3, flag:"🇫🇷 France"},
+    {name:"Yaniv — A",        pts:450, prev:4, flag:"🇫🇷 France"},
+    {name:"Grace",            pts:448, prev:5, flag:"🇦🇷 Argentina"},
+    {name:"Frank — copy",     pts:367, prev:6, flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿 England"},
+    {name:"Alice — backup",   pts:361, prev:7, flag:"🇧🇷 Brazil"},
+    {name:"Bob — strategy A", pts:346, prev:8, flag:"🇦🇷 Argentina"},
+  ],
+};
+
+let scenario = 'mid';
+let style = 'badge';
+
+// Fake "yesterday midnight CT" timestamp
+document.getElementById('ts').textContent =
+  'Rank compared to start of day (US Central) · as of Jun 15, 00:00 CT';
+
+function setScenario(s) {
+  scenario = s;
+  document.querySelectorAll('.seg button').forEach((b,i)=>{
+    b.className = ['mid','big','flat'][i]===s?'active':'';
+  });
+  render();
+}
+
+function setStyle(s) {
+  style = s;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  event.target.classList.add('active');
+  render();
+}
+
+function deltaHtml(delta) {
+  if (delta === 0) return '';
+
+  if (style === 'badge') {
+    const cls = delta > 0 ? 'up' : 'dn';
+    const arrow = delta > 0 ? '▲' : '▼';
+    const n = Math.abs(delta);
+    return `<div><span class="daily-delta ${cls}">${arrow}${n}</span></div>`;
+  }
+
+  if (style === 'inline') {
+    const color = delta > 0 ? '#10b981' : '#ef4444';
+    const arrow = delta > 0 ? '↑' : '↓';
+    const n = Math.abs(delta);
+    return `<div style="font-size:11px;font-weight:700;color:${color};margin-top:2px;line-height:1">${arrow}${n}</div>`;
+  }
+
+  if (style === 'subtle') {
+    const color = delta > 0 ? '#10b981' : '#ef4444';
+    const sign = delta > 0 ? '+' : '';
+    return `<div style="font-size:10px;font-weight:600;color:${color};margin-top:2px;line-height:1">${sign}${delta}</div>`;
+  }
+
+  return '';
+}
+
+function render() {
+  const data = SCENARIOS[scenario];
+  document.getElementById('lb-body').innerHTML = data.map((row, i) => {
+    const rank = i + 1;
+    const delta = row.prev - rank; // positive = climbed
+    return `<tr>
+      <td class="rank-cell" style="vertical-align:top;padding-top:10px">
+        <div class="rank-num">${rank}</div>
+        ${deltaHtml(delta)}
+      </td>
+      <td class="name">${row.name}${row.me?'<span class="you">YOU</span>':''}</td>
+      <td class="pts">${row.pts}</td>
+      <td style="font-size:13px">${row.flag}</td>
+    </tr>`;
+  }).join('');
+}
+
+render();
+</script>
+</body>
+</html>

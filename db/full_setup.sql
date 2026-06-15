@@ -133,6 +133,16 @@ INSERT INTO game_config (id, round_state) VALUES (1, 'idle');
 -- FINAL (a row appears in `results`).
 --   is_live = TRUE  → admin pressed ▶ LIVE, shown to users as LIVE NOW
 --   is_live = FALSE → score saved, ranking already updated, but no LIVE badge
+-- ── Daily rank snapshots ──────────────────────────────────────────────────────
+CREATE TABLE daily_rank_snapshots (
+    id             SERIAL       PRIMARY KEY,
+    snapshot_date  DATE         NOT NULL,
+    entry_id       VARCHAR(36)  NOT NULL,
+    rank           INTEGER      NOT NULL,
+    CONSTRAINT uq_daily_rank_snapshot UNIQUE (snapshot_date, entry_id)
+);
+CREATE INDEX idx_daily_rank_date ON daily_rank_snapshots (snapshot_date);
+
 CREATE TABLE live_matches (
     match_n     INT         PRIMARY KEY,
     score_a     SMALLINT    NOT NULL DEFAULT 0,

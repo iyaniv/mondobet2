@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Simulate "up to game N" — mock</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0f1117;color:#e2e8f0;font-family:system-ui,sans-serif;padding:24px 16px;min-height:100vh}
+  h1{color:#94a3b8;font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:20px}
+  .card{background:#1e2433;border:1px solid #2d3748;border-radius:8px;padding:20px;max-width:720px;margin:0 auto}
+
+  .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .seg{display:flex;background:#1e2433;border:1px solid #2d3748;border-radius:6px;overflow:hidden;font-size:12px}
+  .seg button{padding:4px 12px;border:none;cursor:pointer;background:transparent;color:#94a3b8;font-weight:400;transition:all .15s;white-space:nowrap}
+  .seg button.active{background:#a3e635;color:#1a1a1a;font-weight:700}
+  .seg button+button{border-left:1px solid #2d3748}
+
+  .sim-range{display:flex;align-items:center;gap:8px;
+    background:rgba(99,102,241,.13);border:1px solid #6366f1;
+    border-radius:6px;padding:5px 10px;font-size:12px;color:#a5b4fc;
+    transition:max-width .4s,opacity .4s;overflow:hidden}
+  .sim-range.hidden{max-width:0;opacity:0;padding:0;border-width:0}
+  .sim-range label{white-space:nowrap;font-weight:600}
+  .sim-range input[type=range]{width:120px;accent-color:#6366f1;cursor:pointer}
+  .sim-range .val{min-width:28px;text-align:center;font-weight:700;color:#c7d2fe}
+
+  .sim-banner{background:rgba(99,102,241,.12);border:1px solid #6366f1;
+    border-radius:6px;padding:7px 14px;margin-bottom:14px;font-size:13px;color:#6366f1}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;padding:6px 8px;color:#64748b;font-size:11px;font-weight:600;border-bottom:1px solid #2d3748}
+  td{padding:7px 8px;border-bottom:1px solid rgba(45,55,72,.6)}
+  .rank{color:#64748b;font-size:12px;width:28px}
+  .name{font-weight:600}
+  .diff{font-size:11px;padding-left:4px}
+  .diff.up{color:#10b981}
+  .diff.dn{color:#ef4444}
+  .diff.eq{color:#64748b}
+</style>
+</head>
+<body>
+<h1>Simulate "up to game N" — mock</h1>
+
+<div class="card">
+  <div class="toolbar">
+    <div class="seg">
+      <button onclick="setSim(false)" id="btn-actual" class="active">Actual</button>
+      <button onclick="setSim(true)"  id="btn-sim">Simulate</button>
+    </div>
+
+    <div class="sim-range hidden" id="sim-range">
+      <label>Up to game</label>
+      <input type="range" id="upto-slider" min="1" max="64" value="64"
+             oninput="setUpto(+this.value)"/>
+      <span class="val" id="val-label">64</span>
+    </div>
+  </div>
+
+  <div class="sim-banner" id="sim-banner" style="display:none">
+    ✨ Simulating <b id="sim-count">0</b> unplayed match<span id="sim-plural">es</span>
+    (up to game <b id="sim-upto-label">64</b>) with <b>your</b> predictions as results
+    — all users' scores are recomputed accordingly
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28px">#</th>
+        <th>Name</th>
+        <th style="text-align:right">Points</th>
+        <th style="text-align:right">Rank Δ</th>
+      </tr>
+    </thead>
+    <tbody id="lb-body"></tbody>
+  </table>
+</div>
+
+<script>
+const ACTUAL = [
+  {rank:1,name:"Bob — strategy B",pts:500},
+  {rank:2,name:"Diana",pts:489},
+  {rank:3,name:"Yaniv — A",pts:488},
+  {rank:4,name:"Alice — main",pts:450},
+  {rank:5,name:"Grace",pts:448},
+  {rank:6,name:"Frank — copy",pts:367},
+  {rank:7,name:"Alice — backup",pts:361},
+  {rank:8,name:"Bob — strategy A",pts:346},
+];
+
+function simRows(uptoGame) {
+  const bonus = Math.floor((uptoGame / 64) * 80);
+  const rows = ACTUAL.map(r=>({...r, simPts: r.pts + (r.name.startsWith("Yaniv") ? bonus : 0)}));
+  rows.sort((a,b)=>b.simPts-a.simPts);
+  rows.forEach((r,i)=>r.simRank=i+1);
+  return rows;
+}
+
+let simOn = false;
+let uptoGame = 64;
+
+function setSim(on) {
+  simOn = on;
+  document.getElementById('btn-actual').className = on?'':'active';
+  document.getElementById('btn-sim').className    = on?'active':'';
+  document.getElementById('sim-range').className  = on?'sim-range':'sim-range hidden';
+  document.getElementById('sim-banner').style.display = on?'':'none';
+  render();
+}
+
+function setUpto(v) {
+  uptoGame = Math.max(1, Math.min(64, v||1));
+  document.getElementById('val-label').textContent = uptoGame;
+  document.getElementById('sim-upto-label').textContent = uptoGame;
+  render();
+}
+
+function render() {
+  const rows = simOn ? simRows(uptoGame) : ACTUAL.map(r=>({...r,simRank:r.rank,simPts:r.pts}));
+  const simulated = simOn ? Math.min(uptoGame, 20) : 0;
+  document.getElementById('sim-count').textContent  = simulated;
+  document.getElementById('sim-plural').textContent = simulated===1?'':'es';
+
+  document.getElementById('lb-body').innerHTML = rows.map((r,i)=>{
+    const delta = r.rank - r.simRank;
+    const diffClass = delta>0?'up':delta<0?'dn':'eq';
+    const diffLabel = delta>0?`▲${delta}`:delta<0?`▼${Math.abs(delta)}`:'–';
+    return `<tr>
+      <td style="color:#64748b;font-size:12px">${i+1}</td>
+      <td style="font-weight:600">${r.name}</td>
+      <td style="text-align:right;font-weight:700;color:#a3e635">${simOn?r.simPts:r.pts}</td>
+      <td style="text-align:right"><span class="diff ${diffClass}">${simOn&&delta!==0?diffLabel:'–'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+render();
+</script>
+</body>
+</html>

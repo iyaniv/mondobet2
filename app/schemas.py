@@ -181,6 +181,7 @@ class LeaderboardEntry(BaseModel):
     # reaches the spotlight after its stage has closed, so these picks are already
     # public.
     spotlight_preds: dict[int, list[int]] = {}
+    prev_rank: Optional[int] = None  # yesterday's rank (US Central day boundary)
 
 
 # ── Live matches ──────────────────────────────────────────────────────────────
