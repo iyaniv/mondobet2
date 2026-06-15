@@ -4182,10 +4182,8 @@ export default function App() {
     if(!simMode||!canSim){ setSimLb(null); return; }
     const override={};
     for(const m of simMatches){ const p=simPreds[m.n]; if(p?.[0]!=null&&p?.[1]!=null) override[m.n]=[p[0],p[1]]; }
-    const winnerPick = lockedWinner||myWinner;
-    const winnerOverride = (!config.tournament_winner&&winnerPick)?winnerPick:null;
     setSimLoading(true);
-    api.getSimulatedLeaderboard(override,winnerOverride)
+    api.getSimulatedLeaderboard(override,null)
       .then(rows=>setSimLb(rows)).catch(()=>setSimLb(null)).finally(()=>setSimLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[simMode,effectiveSimEntryId,simPreds,simLimit]);
