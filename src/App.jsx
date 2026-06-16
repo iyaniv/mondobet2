@@ -6231,6 +6231,7 @@ export default function App() {
                     const _simB = matchSimB!==""?parseInt(matchSimB,10):null;
                     const _hasSimScore = matchSimMode && _simA!=null && _simB!=null;
                     const matchSimRankDelta = {};
+                    const matchSimTotalMap = {};
                     if(_hasSimScore){
                       const sg=(x)=>x===0?0:x>0?1:-1;
                       const simPts=(pred)=>{
@@ -6239,7 +6240,6 @@ export default function App() {
                         const g=(pred[0]===_simA?1:0)+(pred[1]===_simB?1:0);
                         return dir+(g===2?3:g===1?1:0);
                       };
-                      // If game already has a real score, subtract those pts first
                       const realPts=(pred)=>{
                         if(!selScore||!pred||pred[0]==null||pred[1]==null) return 0;
                         const dir=sg(pred[0]-pred[1])===sg(selScore[0]-selScore[1])?5:0;
@@ -6253,7 +6253,8 @@ export default function App() {
                       const sorted=[...withSim].sort((a,b)=>b.simTotal-a.simTotal);
                       withSim.forEach((r,currentIdx)=>{
                         const simIdx=sorted.findIndex(s=>s.id===r.id);
-                        matchSimRankDelta[r.id]=currentIdx-simIdx; // +N = moved up
+                        matchSimRankDelta[r.id]=currentIdx-simIdx;
+                        matchSimTotalMap[r.id]=r.simTotal;
                       });
                     }
                   return filteredLb.map((row)=>{
@@ -6356,8 +6357,8 @@ export default function App() {
                         <td style={td}>{row.name}
                           {isMe&&<span style={{background:C.indigo,color:"white",fontSize:10,padding:"1px 5px",borderRadius:4,marginLeft:6}}>YOU</span>}
                         </td>
-                        <td style={{...td,textAlign:"center",color:isSim?C.indigo:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:17}}>
-                          {row.total}
+                        <td style={{...td,textAlign:"center",color:(isSim||matchSimRd!==0||matchSimTotalMap[row.entry_id]!=null)?C.indigo:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:17}}>
+                          {matchSimTotalMap[row.entry_id]??row.total}
                           {hasSimDiff&&<span style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:6,background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,verticalAlign:"middle"}}>{simDiff>0?"+":""}{simDiff} sim</span>}
                         </td>
                         {showFocusCols&&(()=>{
