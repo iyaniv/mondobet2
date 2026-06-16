@@ -5675,6 +5675,11 @@ export default function App() {
     const selPinned = pinnedMatchN!=null && selMatch && pinnedMatchN===selMatch.n;
     const hasFocus = !!selMatch;
     const showFocusCols = showLivePreds && hasFocus && (!simMode || matchSimMode);
+    // Hide "since yesterday" indicator once the first game of today has started.
+    const todayStarted = matches.some(m => {
+      const k = kickoffParts(m.t, tz);
+      return k && k.dayKey === todayKey(tz) && (results[m.n] || liveMatches[m.n]);
+    });
     // Per-row pick for the selected game: the leaderboard payload covers the
     // auto/live game (spotlight_preds); a pinned/older game comes from the
     // on-demand matchPicks cache.
@@ -6219,7 +6224,39 @@ export default function App() {
                   {canJumpToParticipant&&<th style={{padding:"8px 6px",width:28,borderBottom:`1px solid ${C.border}`}}/>}
                 </tr></thead>
                 <tbody>
-                  {filteredLb.map((row)=>{
+                  {(()=>{
+                    // Pre-compute match-sim rank changes once for the whole list.
+                    // Only active when matchSimMode is on and both digits are typed.
+                    const _simA = matchSimA!==""?parseInt(matchSimA,10):null;
+                    const _simB = matchSimB!==""?parseInt(matchSimB,10):null;
+                    const _hasSimScore = matchSimMode && _simA!=null && _simB!=null;
+                    const matchSimRankDelta = {};
+                    if(_hasSimScore){
+                      const sg=(x)=>x===0?0:x>0?1:-1;
+                      const simPts=(pred)=>{
+                        if(!pred||pred[0]==null||pred[1]==null) return 0;
+                        const dir=sg(pred[0]-pred[1])===sg(_simA-_simB)?5:0;
+                        const g=(pred[0]===_simA?1:0)+(pred[1]===_simB?1:0);
+                        return dir+(g===2?3:g===1?1:0);
+                      };
+                      // If game already has a real score, subtract those pts first
+                      const realPts=(pred)=>{
+                        if(!selScore||!pred||pred[0]==null||pred[1]==null) return 0;
+                        const dir=sg(pred[0]-pred[1])===sg(selScore[0]-selScore[1])?5:0;
+                        const g=(pred[0]===selScore[0]?1:0)+(pred[1]===selScore[1]?1:0);
+                        return dir+(g===2?3:g===1?1:0);
+                      };
+                      const withSim = displayLb.map(r=>({
+                        id:r.entry_id,
+                        simTotal:r.total - realPts(pickFor(r)) + simPts(pickFor(r)),
+                      }));
+                      const sorted=[...withSim].sort((a,b)=>b.simTotal-a.simTotal);
+                      withSim.forEach((r,currentIdx)=>{
+                        const simIdx=sorted.findIndex(s=>s.id===r.id);
+                        matchSimRankDelta[r.id]=currentIdx-simIdx; // +N = moved up
+                      });
+                    }
+                  return filteredLb.map((row)=>{
                     // Always show global rank (position in the unfiltered display list)
                     const globalRank = displayLb.indexOf(row) + 1;
                     const isMe=row.user_id===user?.id;
@@ -6230,6 +6267,7 @@ export default function App() {
                     const isSim=simMode;
                     const simDiff=row._simDiff||0;
                     const hasSimDiff=simMode&&row._simDiff!=null&&row._simDiff!==0;
+                    const matchSimRd = matchSimRankDelta[row.entry_id]||0;
                     const i = globalRank - 1;
                     const rowBg=i===0?"rgba(163,230,53,0.12)":i===1?"rgba(163,230,53,0.07)":i===2?"rgba(163,230,53,0.03)":isFav?"rgba(163,230,53,0.05)":"transparent";
                     let winnerCell;
@@ -6271,7 +6309,7 @@ export default function App() {
                             );
                           })()}
                           {(()=>{
-                            if (simMode) return null;
+                            if (simMode || todayStarted) return null;
                             const prevRank = prevRankSnapshot[String(row.entry_id)];
                             if (prevRank==null) return null;
                             const delta = prevRank - globalRank; // positive = climbed
@@ -6284,6 +6322,14 @@ export default function App() {
                               </div>
                             );
                           })()}
+                          {matchSimRd!==0&&(
+                            <div style={{fontSize:10,fontWeight:700,lineHeight:1,
+                              color:matchSimRd>0?C.indigo:C.red,
+                              opacity:0.9}}
+                              title={matchSimRd>0?`Would move up ${matchSimRd}`:`Would move down ${-matchSimRd}`}>
+                              {matchSimRd>0?`▲${matchSimRd}`:`▼${-matchSimRd}`}
+                            </div>
+                          )}
                           </div>
                         </td>
                         <td style={{...td,textAlign:"center",width:40,padding:"8px 4px"}}>
@@ -6367,7 +6413,7 @@ export default function App() {
                         )}
                       </tr>
                     );
-                  })}
+                  });})()}
                 </tbody>
               </table>
             </div>
