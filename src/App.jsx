@@ -2886,10 +2886,11 @@ const HELP_CONTENT = {
     title: "Leaderboard",
     body: [
       "**Today's Games** (top) — today's matches with 🔴 **live** scores, finished results, and upcoming kickoff times. It updates live as games start, change, and finish.",
-      "Rankings across every submitted form, updated as results come in.",
+      "Rankings across every submitted form, updated as results come in. The **#** column shows your rank; a green/red number below it shows how much you've climbed or dropped since the stage started or since yesterday.",
       "Click any form to **compare it against yours** — your picks and theirs side by side, with the points each of you earned per match.",
       "Tap the **★** next to any name to favorite that form — your own forms are always favorited. Tap the **★** in the column header to show only your favorites.",
-      "**Simulate** ▾ — see hypothetical standings *if* every remaining pick of yours comes true. Only you see the simulation.",
+      "**Simulate** — flip to *Simulate* mode to see where you'd land *if* every remaining pick of yours came true. Type a number in the banner to cap how many matches to simulate. If you have multiple forms, chip buttons appear so you can pick which form drives the simulation. Only you see it.",
+      "**Match picks** (👁 toggle) — reveals a column showing what every form predicted for one specific match. Use the dropdown in the column header to switch between games.",
     ],
   },
   settings: {
@@ -6167,6 +6168,7 @@ export default function App() {
                             transition:"background .12s",
                           }}>
                         <td style={{...td,textAlign:"center",width:40,padding:"8px 4px"}}>
+                          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
                           <b>{globalRank}</b>
                           {(() => {
                             if (simMode || !baselineRanks) return null;
@@ -6175,7 +6177,7 @@ export default function App() {
                             const delta = baseRank - globalRank;   // +climbed / -dropped
                             if (delta === 0) return null;
                             return (
-                              <div style={{fontSize:10,fontWeight:700,lineHeight:1,marginTop:2,
+                              <div style={{fontSize:10,fontWeight:700,lineHeight:1,
                                 color:delta>0?C.green:C.red}}
                                 title={delta>0?`Up ${delta} place${delta===1?"":"s"} this stage`:`Down ${-delta} place${delta===-1?"":"s"} this stage`}>
                                 {delta>0?`+${delta}`:`${delta}`}
@@ -6187,13 +6189,14 @@ export default function App() {
                             const delta = row.prev_rank - globalRank; // positive = climbed
                             if (delta === 0) return null;
                             return (
-                              <span style={{fontSize:9,fontWeight:700,marginLeft:4,
-                                color:delta>0?C.green:C.red,verticalAlign:"middle"}}
+                              <div style={{fontSize:9,fontWeight:700,
+                                color:delta>0?C.green:C.red,lineHeight:1}}
                                 title={delta>0?`↑ Up ${delta} since yesterday`:`↓ Down ${Math.abs(delta)} since yesterday`}>
                                 {delta>0?`↑${delta}`:`↓${Math.abs(delta)}`}
-                              </span>
+                              </div>
                             );
                           })()}
+                          </div>
                         </td>
                         <td style={{...td,textAlign:"center",width:40,padding:"8px 4px"}}>
                           {isMe?(
