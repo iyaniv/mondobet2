@@ -22,21 +22,17 @@ async def _snapshot_today(rows: list[LeaderboardEntry]) -> None:
         await crud.save_daily_snapshot(db, rows)
 
 
-async def _attach_prev_ranks(
+async def _maybe_save_today_snapshot(
     rows: list[LeaderboardEntry],
     db: AsyncSession,
     background_tasks: BackgroundTasks,
-) -> list[LeaderboardEntry]:
-    prev = await crud.get_daily_prev_ranks(db)
+) -> None:
     today = datetime.now(CT).date()
     r = await db.execute(
         select(DailyRankSnapshot.id).where(DailyRankSnapshot.snapshot_date == today).limit(1)
     )
     if r.scalar_one_or_none() is None:
         background_tasks.add_task(_snapshot_today, list(rows))
-    for row in rows:
-        row.prev_rank = prev.get(str(row.entry_id))
-    return rows
 
 
 @router.get("/", response_model=list[LeaderboardEntry])
@@ -46,7 +42,17 @@ async def get_leaderboard(
     db: AsyncSession = Depends(get_db),
 ):
     rows = await crud.get_leaderboard(db)
-    return await _attach_prev_ranks(rows, db, background_tasks)
+    await _maybe_save_today_snapshot(rows, db, background_tasks)
+    return rows
+
+
+@router.get("/snapshot", response_model=dict[str, int])
+async def get_rank_snapshot(
+    _=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Yesterday's {entry_id: rank} snapshot for client-side rank-change display."""
+    return await crud.get_daily_prev_ranks(db)
 
 
 @router.post("/simulate", response_model=list[LeaderboardEntry])
@@ -56,10 +62,6 @@ async def simulate_leaderboard(
     db: AsyncSession = Depends(get_db),
 ):
     """Leaderboard as if every unplayed match finished with the given scores."""
-    rows = await crud.get_leaderboard(
+    return await crud.get_leaderboard(
         db, sim_results=data.results, sim_winner=data.winner, sim_user_id=user.id
     )
-    prev = await crud.get_daily_prev_ranks(db)
-    for row in rows:
-        row.prev_rank = prev.get(str(row.entry_id))
-    return rows

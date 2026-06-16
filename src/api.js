@@ -47,6 +47,7 @@ export const api = {
   getConfig:      () => request("/api/config/"),
   getResults:     () => request("/api/results/"),
   getLeaderboard: () => request("/api/leaderboard/"),
+  getRankSnapshot: () => request("/api/leaderboard/snapshot"),
   // Simulated leaderboard: unplayed matches resolve to `resultsOverride`
   // ({matchN:[a,b]}) and, if no champion is set yet, `winnerOverride` is
   // assumed to win. Recomputes every user's score server-side.

@@ -3936,6 +3936,7 @@ export default function App() {
   const predBaseline  = useRef({});
   const [results,setResults]=useState({});
   const [leaderboard,setLeaderboard]=useState([]);
+  const [prevRankSnapshot,setPrevRankSnapshot]=useState({});
   const [participants,setParticipants]=useState([]);
   const [adminParticipants,setAdminParticipants]=useState([]);
   const [entries,setEntries]=useState([]);
@@ -4250,6 +4251,7 @@ export default function App() {
       const resMap={};for(const r of d.results)resMap[r.match_n]=[r.score_a,r.score_b,r.winner??null,r.et_a??null,r.et_b??null,r.pen_a??null,r.pen_b??null];
       setResults(resMap);
       setLeaderboard(d.leaderboard);
+      api.getRankSnapshot().then(snap=>setPrevRankSnapshot(snap)).catch(()=>{});
 
       // Live matches (may not exist yet if table not created)
       if (d.live) {
@@ -6257,8 +6259,10 @@ export default function App() {
                             );
                           })()}
                           {(()=>{
-                            if (simMode || row.prev_rank==null) return null;
-                            const delta = row.prev_rank - globalRank; // positive = climbed
+                            if (simMode) return null;
+                            const prevRank = prevRankSnapshot[String(row.entry_id)];
+                            if (prevRank==null) return null;
+                            const delta = prevRank - globalRank; // positive = climbed
                             if (delta === 0) return null;
                             return (
                               <div style={{fontSize:9,fontWeight:700,
