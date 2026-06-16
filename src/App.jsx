@@ -3117,7 +3117,7 @@ function HelpDialog({ entry, onClose, helpBtnRef }){
   );
 }
 
-function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, config, setConfig, matches=[], results={}, setResults, liveMatches={}, refreshLive, refreshLb, onResetOnboarding, tz="auto", onTzChange }) {
+function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, config, setConfig, matches=[], results={}, setResults, liveMatches={}, refreshLive, refreshLb, onResetOnboarding, tz="auto", onTzChange, showLivePreds=true, onLivePredsChange }) {
   // Timezone is owned by App (lifted) so a change re-renders every time display
   // immediately. We just call back up and confirm with a toast.
   function saveTz(val) {
@@ -3182,6 +3182,28 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
             </div>
           );
         })()}
+      </div>
+
+      {/* Leaderboard preferences */}
+      <div style={sectionStyle}>
+        <h2 style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:14}}>Leaderboard</h2>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,cursor:"pointer"}}
+          onClick={onLivePredsChange}>
+          <div>
+            <div style={{fontSize:14,fontWeight:600,color:C.text}}>Match picks column open by default</div>
+            <div style={{fontSize:12,color:C.muted,marginTop:3,lineHeight:1.5}}>
+              Show everyone's predictions for the selected game when you open the leaderboard.
+            </div>
+          </div>
+          <div style={{
+            width:36,height:20,borderRadius:999,flexShrink:0,position:"relative",transition:"all .15s",
+            background:showLivePreds?"rgba(163,230,53,0.25)":C.panel2,
+            border:`1px solid ${showLivePreds?C.accent:C.border}`}}>
+            <div style={{
+              position:"absolute",top:2,width:16,height:16,borderRadius:999,transition:"all .15s",
+              left:showLivePreds?16:2,background:showLivePreds?C.accent:C.muted}}/>
+          </div>
+        </div>
       </div>
 
       {/* Help & onboarding — everyone */}
@@ -4009,7 +4031,7 @@ export default function App() {
   // like the theme/timezone), OFF by default. The toggle chip only surfaces
   // while ≥1 match is live; the columns themselves come and go with the games.
   const [showLivePreds,setShowLivePreds]=useState(()=>{
-    try { return localStorage.getItem("mb_show_live_preds")==="1"; } catch { return false; }
+    try { return localStorage.getItem("mb_show_live_preds")!=="0"; } catch { return true; }
   });
   const toggleLivePreds=useCallback(()=>{
     setShowLivePreds(v=>{ const n=!v; try{ localStorage.setItem("mb_show_live_preds",n?"1":"0"); }catch{} return n; });
@@ -4038,7 +4060,7 @@ export default function App() {
     // On open, bring the live / most-recent game (the Auto target) into view —
     // not whatever's pinned — so the dropdown always opens focused on the
     // current action. Falls back to the selected row if Auto isn't listed.
-    if(gameMenuOpen) setTimeout(()=>{ (gameMenuAutoRef.current||gameMenuSelectedRef.current)?.scrollIntoView({block:"center"}); },30);
+    if(gameMenuOpen) setTimeout(()=>{ (gameMenuAutoRef.current||gameMenuSelectedRef.current)?.scrollIntoView({block:"start"}); },30);
   },[gameMenuOpen]);
   // A match's picks are viewable unless it's in the still-open betting stage.
   const matchViewable=useCallback((m)=>!(config.round_state==="open"&&m.s===(config.current_stage||1)),[config.round_state,config.current_stage]);
@@ -6542,7 +6564,7 @@ export default function App() {
           setResults={setResults} setLiveMatches={setLiveMatches} refreshLb={refreshLb} refreshLive={refreshLive} showToast={showToast} tz={tz}
         />}
         {user&&tab==="tournament"&&<Tournament matches={matches} results={effResults} liveMatches={liveMatches} myPreds={myPreds} config={config} user={user} tz={tz}/>}
-        {user&&tab==="settings"&&<SettingsView user={user} leaderboard={leaderboard} onLogout={doLogout} onNameUpdate={u=>{setUser(u);showToast("Name updated ✓");}} showToast={showToast} config={config} setConfig={setConfig} matches={matches} results={results} setResults={setResults} liveMatches={liveMatches} refreshLive={refreshLive} refreshLb={refreshLb} onResetOnboarding={resetOnboarding} tz={tz} onTzChange={saveTz}/>}
+        {user&&tab==="settings"&&<SettingsView user={user} leaderboard={leaderboard} onLogout={doLogout} onNameUpdate={u=>{setUser(u);showToast("Name updated ✓");}} showToast={showToast} config={config} setConfig={setConfig} matches={matches} results={results} setResults={setResults} liveMatches={liveMatches} refreshLive={refreshLive} refreshLb={refreshLb} onResetOnboarding={resetOnboarding} tz={tz} onTzChange={saveTz} showLivePreds={showLivePreds} onLivePredsChange={toggleLivePreds}/>}
       </div>
       {toast&&(
         <div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",background:toast.kind==="err"?C.red:toast.kind==="warn"?C.accent:C.green,color:toast.kind==="warn"?"#1a1a1a":"white",padding:"8px 16px",borderRadius:6,fontSize:14,zIndex:100,boxShadow:"0 4px 12px rgba(0,0,0,0.2)",whiteSpace:"nowrap"}}>
