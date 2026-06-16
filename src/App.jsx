@@ -4026,6 +4026,7 @@ export default function App() {
   // Dropdown (game selector) UI state — lifted here so the 10s leaderboard poll
   // doesn't reset it (LeaderboardView is rendered inline).
   const [gameMenuOpen,setGameMenuOpen]=useState(false);
+  const [gameMenuPos,setGameMenuPos]=useState(null);
   const [gameSearch,setGameSearch]=useState("");
   const gameBtnRef=useRef(null);
   const gameMenuSelectedRef=useRef(null);
@@ -6016,6 +6017,7 @@ export default function App() {
                   ?myLbRowRef.current.getBoundingClientRect().top>el.getBoundingClientRect().bottom-20
                   :false;
                 setLbFabState({showTop:st>30,showMe:canSc,meAbove});
+                if(gameMenuOpen) setGameMenuOpen(false);
               }}
               style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:14,minWidth:320}}>
@@ -6055,15 +6057,14 @@ export default function App() {
                       : selRes
                         ? <span style={{fontSize:9,fontWeight:800,color:C.green,background:"rgba(16,185,129,0.12)",border:`1px solid rgba(16,185,129,0.35)`,borderRadius:999,padding:"1px 6px"}}>{selPinned&&"📌 "}FT</span>
                         : <span style={{fontSize:9,fontWeight:800,color:C.muted,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:999,padding:"1px 6px"}}>{selPinned&&"📌 "}{selKoParts?selKoParts.time:"—"}</span>;
-                    const r=gameBtnRef.current?.getBoundingClientRect();
-                    const menuStyle = r
-                      ? {position:"fixed",top:r.bottom+5,left:Math.max(8,Math.min(r.left+r.width/2-124,(typeof window!=="undefined"?window.innerWidth:1000)-256))}
+                    const menuStyle = gameMenuPos
+                      ? {position:"fixed",top:gameMenuPos.bottom+5,left:Math.max(8,Math.min(gameMenuPos.left+gameMenuPos.width/2-124,(typeof window!=="undefined"?window.innerWidth:1000)-256))}
                       : {position:"absolute",top:"100%",left:0};
                     return (
                     <th style={{padding:"6px 8px",textAlign:"center",color:C.text,fontWeight:600,
                       borderBottom:`1px solid ${C.border}`,borderLeft:`1px solid ${C.border}`,
                       background:selLive?"rgba(239,68,68,0.05)":"rgba(99,102,241,0.05)",whiteSpace:"nowrap",position:"relative"}}>
-                      <button ref={gameBtnRef} onClick={(e)=>{e.stopPropagation();setGameMenuOpen(o=>!o);}}
+                      <button ref={gameBtnRef} onClick={(e)=>{e.stopPropagation();const r=gameBtnRef.current?.getBoundingClientRect();setGameMenuPos(r||null);setGameMenuOpen(o=>!o);}}
                         title="Pick which game's predictions to show"
                         style={{display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer",border:0,background:"transparent",
                           padding:0,margin:0,fontFamily:"inherit",color:C.text}}>
