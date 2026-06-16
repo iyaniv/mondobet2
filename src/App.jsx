@@ -4029,6 +4029,9 @@ export default function App() {
   const [gameMenuPos,setGameMenuPos]=useState(null);
   const [gameSearch,setGameSearch]=useState("");
   const gameBtnRef=useRef(null);
+  const [matchSimMode,setMatchSimMode]=useState(false);
+  const [matchSimA,setMatchSimA]=useState("");
+  const [matchSimB,setMatchSimB]=useState("");
   const gameMenuSelectedRef=useRef(null);
   const gameMenuAutoRef=useRef(null);
   useEffect(()=>{
@@ -4075,6 +4078,8 @@ export default function App() {
   // keyed on the set contents (+ matches load); startingSet/setPinned read fresh via closure
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[startingKey,matches.length]);
+  // Reset match sim mode whenever the focused game changes
+  useEffect(()=>{ setMatchSimMode(false); setMatchSimA(""); setMatchSimB(""); },[selectedMatchN]);
   // Cache of {match_n: {entry_id:[a,b]}} for games not covered by the rows'
   // spotlight_preds (i.e. a pinned/older game). Fetched on demand.
   const [matchPicks,setMatchPicks]=useState({});
@@ -5646,7 +5651,7 @@ export default function App() {
     const selKoParts = selMatch ? kickoffParts(selMatch.t, tz) : null;
     const selPinned = pinnedMatchN!=null && selMatch && pinnedMatchN===selMatch.n;
     const hasFocus = !!selMatch;
-    const showFocusCols = showLivePreds && hasFocus && !simMode;
+    const showFocusCols = showLivePreds && hasFocus && (!simMode || matchSimMode);
     // Per-row pick for the selected game: the leaderboard payload covers the
     // auto/live game (spotlight_preds); a pinned/older game comes from the
     // on-demand matchPicks cache.
@@ -6060,72 +6065,138 @@ export default function App() {
                     const menuStyle = gameMenuPos
                       ? {position:"fixed",top:gameMenuPos.bottom+5,left:Math.max(8,Math.min(gameMenuPos.left+gameMenuPos.width/2-124,(typeof window!=="undefined"?window.innerWidth:1000)-256))}
                       : {position:"absolute",top:"100%",left:0};
+                    const simScoreA = matchSimA!==""?parseInt(matchSimA,10):null;
+                    const simScoreB = matchSimB!==""?parseInt(matchSimB,10):null;
+                    const hasSimScore = simScoreA!=null && simScoreB!=null;
                     return (
                     <th style={{padding:"6px 8px",textAlign:"center",color:C.text,fontWeight:600,
                       borderBottom:`1px solid ${C.border}`,borderLeft:`1px solid ${C.border}`,
-                      background:selLive?"rgba(239,68,68,0.05)":"rgba(99,102,241,0.05)",whiteSpace:"nowrap",position:"relative"}}>
-                      <button ref={gameBtnRef} onClick={(e)=>{e.stopPropagation();const r=gameBtnRef.current?.getBoundingClientRect();setGameMenuPos(r||null);setGameMenuOpen(o=>!o);}}
-                        title="Pick which game's predictions to show"
-                        style={{display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer",border:0,background:"transparent",
-                          padding:0,margin:0,fontFamily:"inherit",color:C.text}}>
-                        <span style={{fontSize:14}}>{flag(ca)}</span>
-                        {selScore
-                          ? <b style={{fontFamily:"monospace",fontSize:14}}>{selScore[0]}–{selScore[1]}</b>
-                          : <span style={{color:C.muted,fontSize:11,fontWeight:600}}>v</span>}
-                        <span style={{fontSize:14}}>{flag(cb)}</span>
-                        {badge}
-                        <span style={{fontSize:8,color:gameMenuOpen?C.accent:C.muted}}>▾</span>
-                      </button>
-                      {gameMenuOpen&&(
-                        <>
-                          <div onClick={()=>setGameMenuOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
-                          <div onClick={e=>e.stopPropagation()} style={{...menuStyle,width:248,zIndex:99,
-                            background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,boxShadow:"0 12px 34px rgba(0,0,0,0.55)",overflow:"hidden",textAlign:"left"}}>
-                            <div style={{display:"flex",alignItems:"center",gap:7,padding:"7px 10px",borderBottom:`1px solid ${C.border}`}}>
-                              <span style={{color:C.muted,fontSize:12}}>🔍</span>
-                              <input autoFocus value={gameSearch} onChange={e=>setGameSearch(e.target.value)} placeholder="Search games…"
-                                style={{border:0,outline:0,background:"transparent",color:C.text,fontSize:12,flex:1,fontFamily:"inherit"}}/>
-                              {gameSearch&&<button onClick={()=>setGameSearch("")} style={{background:"none",border:0,color:C.muted,cursor:"pointer",fontSize:12,padding:0,fontFamily:"inherit"}}>✕</button>}
-                            </div>
-                            <div style={{maxHeight:264,overflowY:"auto",padding:3}}>
-                              {!gameSearch&&(
-                                <div onClick={()=>{setPinned(null);setGameMenuOpen(false);}}
-                                  style={{display:"flex",alignItems:"center",gap:8,padding:"6px 9px",margin:3,borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:700,
-                                    border:`1px dashed ${C.indigo}`,color:pinnedMatchN==null?C.accent:C.indigo,background:pinnedMatchN==null?"rgba(163,230,53,0.08)":"transparent"}}>
-                                  <span style={{flex:1}}>⟳ Auto — follow the current game</span>
-                                  {pinnedMatchN==null&&<span style={{color:C.accent}}>●</span>}
-                                </div>
-                              )}
-                              {(()=>{
-                                const q=gameSearch.toLowerCase();
-                                const opts=gameOptions.filter(o=>!q||`${o.a} ${o.b}`.toLowerCase().includes(q));
-                                if(!opts.length) return <div style={{padding:14,textAlign:"center",color:C.muted,fontSize:12}}>No games found</div>;
-                                return opts.map(o=>{
-                                  const isSel=o.m.n===selectedMatchN;
-                                  const locked=!o.viewable;
-                                  return (
-                                    <div key={o.m.n}
-                                      ref={o.m.n===autoMatchN?gameMenuAutoRef:(isSel?gameMenuSelectedRef:null)}
-                                      onClick={locked?undefined:()=>{setPinned(o.m.n);setGameMenuOpen(false);setGameSearch("");}}
-                                      title={locked?"Hidden until this stage closes":undefined}
-                                      style={{display:"flex",alignItems:"center",gap:7,padding:"6px 9px",borderRadius:6,fontSize:12,fontWeight:isSel?700:600,
-                                        cursor:locked?"default":"pointer",opacity:locked?0.5:1,
-                                        background:isSel?"rgba(163,230,53,0.10)":"transparent",color:isSel?C.accent:C.text}}>
-                                      <span style={{flex:1,display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
-                                        <span>{flag(o.a)}</span><span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{o.a}</span>
-                                        <span style={{color:C.muted,fontWeight:400}}>v</span>
-                                        <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{o.b}</span><span>{flag(o.b)}</span>
-                                      </span>
-                                      {o.live&&<span className="live-dot" style={{width:5,height:5,flexShrink:0}}/>}
-                                      {locked&&<span style={{flexShrink:0,fontSize:11}}>🔒</span>}
-                                      {isSel&&<span style={{color:C.accent,flexShrink:0}}>●</span>}
-                                    </div>
-                                  );
-                                });
-                              })()}
-                            </div>
+                      background:matchSimMode?(selLive?"rgba(239,68,68,0.14)":"rgba(99,102,241,0.18)"):selLive?"rgba(239,68,68,0.05)":"rgba(99,102,241,0.05)",
+                      whiteSpace:"nowrap",position:"relative",transition:"background .2s"}}>
+                      {matchSimMode ? (
+                        /* ── SIMULATE mode header ── */
+                        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
+                          <div style={{display:"flex",alignItems:"center",gap:6}}>
+                            <span style={{fontSize:9,fontWeight:800,color:selLive?"rgba(255,160,160,1)":"rgba(180,170,255,1)",letterSpacing:".06em"}}>SIMULATE</span>
+                            <button onClick={()=>{setMatchSimMode(false);setMatchSimA("");setMatchSimB("");}}
+                              title="Exit simulate"
+                              style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",borderRadius:5,color:"rgba(160,150,255,0.8)",fontSize:14,lineHeight:1,fontFamily:"inherit",display:"inline-flex",alignItems:"center"}}>
+                              ✕
+                            </button>
                           </div>
-                        </>
+                          <div style={{display:"flex",alignItems:"flex-end",gap:5}}>
+                            <span style={{fontSize:14}}>{flag(ca)}</span>
+                            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                              <span style={{fontSize:9,color:selLive?"rgba(255,150,150,0.7)":"rgba(160,150,255,0.7)",fontWeight:600}}>{ca}</span>
+                              <input
+                                autoFocus
+                                type="number" min="0" max="20"
+                                value={matchSimA}
+                                onChange={e=>setMatchSimA(e.target.value===""?"":String(Math.max(0,Math.min(20,parseInt(e.target.value,10)||0))))}
+                                placeholder="–"
+                                style={{width:36,height:32,borderRadius:6,
+                                  border:`1px solid ${selLive?"rgba(239,68,68,0.5)":"rgba(130,120,255,0.55)"}`,
+                                  background:selLive?"rgba(239,68,68,0.12)":"rgba(99,102,241,0.18)",
+                                  color:selLive?"#ffaaaa":"#c4c0ff",fontFamily:"monospace",
+                                  fontSize:17,fontWeight:700,textAlign:"center",outline:"none",
+                                  MozAppearance:"textfield",appearance:"textfield"}}/>
+                            </div>
+                            <span style={{fontSize:12,color:selLive?"rgba(200,100,100,0.8)":"rgba(120,110,200,0.8)",paddingBottom:8}}>–</span>
+                            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                              <span style={{fontSize:9,color:selLive?"rgba(255,150,150,0.7)":"rgba(160,150,255,0.7)",fontWeight:600}}>{cb}</span>
+                              <input
+                                type="number" min="0" max="20"
+                                value={matchSimB}
+                                onChange={e=>setMatchSimB(e.target.value===""?"":String(Math.max(0,Math.min(20,parseInt(e.target.value,10)||0))))}
+                                placeholder="–"
+                                style={{width:36,height:32,borderRadius:6,
+                                  border:`1px solid ${selLive?"rgba(239,68,68,0.5)":"rgba(130,120,255,0.55)"}`,
+                                  background:selLive?"rgba(239,68,68,0.12)":"rgba(99,102,241,0.18)",
+                                  color:selLive?"#ffaaaa":"#c4c0ff",fontFamily:"monospace",
+                                  fontSize:17,fontWeight:700,textAlign:"center",outline:"none",
+                                  MozAppearance:"textfield",appearance:"textfield"}}/>
+                            </div>
+                            <span style={{fontSize:14}}>{flag(cb)}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        /* ── normal (idle) header ── */
+                        <div style={{display:"inline-flex",alignItems:"center",gap:5}}>
+                          <button ref={gameBtnRef} onClick={(e)=>{e.stopPropagation();const r=gameBtnRef.current?.getBoundingClientRect();setGameMenuPos(r||null);setGameMenuOpen(o=>!o);}}
+                            title="Pick which game's predictions to show"
+                            style={{display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer",border:0,background:"transparent",
+                              padding:0,margin:0,fontFamily:"inherit",color:C.text}}>
+                            <span style={{fontSize:14}}>{flag(ca)}</span>
+                            {selScore
+                              ? <b style={{fontFamily:"monospace",fontSize:14}}>{selScore[0]}–{selScore[1]}</b>
+                              : <span style={{color:C.muted,fontSize:11,fontWeight:600}}>v</span>}
+                            <span style={{fontSize:14}}>{flag(cb)}</span>
+                            {badge}
+                            <span style={{fontSize:8,color:gameMenuOpen?C.accent:C.muted}}>▾</span>
+                          </button>
+                          {!selRes&&(
+                            <button onClick={()=>setMatchSimMode(true)}
+                              title="Simulate a score"
+                              style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",borderRadius:5,
+                                color:selLive?"rgba(239,68,68,0.5)":C.muted,fontSize:13,lineHeight:1,fontFamily:"inherit",display:"inline-flex",alignItems:"center",
+                                transition:"color .15s,background .15s"}}
+                              onMouseEnter={e=>{e.currentTarget.style.color=selLive?C.red:C.indigo;e.currentTarget.style.background=selLive?"rgba(239,68,68,0.12)":"rgba(99,102,241,0.12)";}}
+                              onMouseLeave={e=>{e.currentTarget.style.color=selLive?"rgba(239,68,68,0.5)":C.muted;e.currentTarget.style.background="none";}}>
+                              ✏️
+                            </button>
+                          )}
+                          {gameMenuOpen&&(
+                            <>
+                              <div onClick={()=>setGameMenuOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
+                              <div onClick={e=>e.stopPropagation()} style={{...menuStyle,width:248,zIndex:99,
+                                background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,boxShadow:"0 12px 34px rgba(0,0,0,0.55)",overflow:"hidden",textAlign:"left"}}>
+                                <div style={{display:"flex",alignItems:"center",gap:7,padding:"7px 10px",borderBottom:`1px solid ${C.border}`}}>
+                                  <span style={{color:C.muted,fontSize:12}}>🔍</span>
+                                  <input autoFocus value={gameSearch} onChange={e=>setGameSearch(e.target.value)} placeholder="Search games…"
+                                    style={{border:0,outline:0,background:"transparent",color:C.text,fontSize:12,flex:1,fontFamily:"inherit"}}/>
+                                  {gameSearch&&<button onClick={()=>setGameSearch("")} style={{background:"none",border:0,color:C.muted,cursor:"pointer",fontSize:12,padding:0,fontFamily:"inherit"}}>✕</button>}
+                                </div>
+                                <div style={{maxHeight:264,overflowY:"auto",padding:3}}>
+                                  {!gameSearch&&(
+                                    <div onClick={()=>{setPinned(null);setGameMenuOpen(false);}}
+                                      style={{display:"flex",alignItems:"center",gap:8,padding:"6px 9px",margin:3,borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:700,
+                                        border:`1px dashed ${C.indigo}`,color:pinnedMatchN==null?C.accent:C.indigo,background:pinnedMatchN==null?"rgba(163,230,53,0.08)":"transparent"}}>
+                                      <span style={{flex:1}}>⟳ Auto — follow the current game</span>
+                                      {pinnedMatchN==null&&<span style={{color:C.accent}}>●</span>}
+                                    </div>
+                                  )}
+                                  {(()=>{
+                                    const q=gameSearch.toLowerCase();
+                                    const opts=gameOptions.filter(o=>!q||`${o.a} ${o.b}`.toLowerCase().includes(q));
+                                    if(!opts.length) return <div style={{padding:14,textAlign:"center",color:C.muted,fontSize:12}}>No games found</div>;
+                                    return opts.map(o=>{
+                                      const isSel=o.m.n===selectedMatchN;
+                                      const locked=!o.viewable;
+                                      return (
+                                        <div key={o.m.n}
+                                          ref={o.m.n===autoMatchN?gameMenuAutoRef:(isSel?gameMenuSelectedRef:null)}
+                                          onClick={locked?undefined:()=>{setPinned(o.m.n);setGameMenuOpen(false);setGameSearch("");}}
+                                          title={locked?"Hidden until this stage closes":undefined}
+                                          style={{display:"flex",alignItems:"center",gap:7,padding:"6px 9px",borderRadius:6,fontSize:12,fontWeight:isSel?700:600,
+                                            cursor:locked?"default":"pointer",opacity:locked?0.5:1,
+                                            background:isSel?"rgba(163,230,53,0.10)":"transparent",color:isSel?C.accent:C.text}}>
+                                          <span style={{flex:1,display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                                            <span>{flag(o.a)}</span><span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{o.a}</span>
+                                            <span style={{color:C.muted,fontWeight:400}}>v</span>
+                                            <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{o.b}</span><span>{flag(o.b)}</span>
+                                          </span>
+                                          {o.live&&<span className="live-dot" style={{width:5,height:5,flexShrink:0}}/>}
+                                          {locked&&<span style={{flexShrink:0,fontSize:11}}>🔒</span>}
+                                          {isSel&&<span style={{color:C.accent,flexShrink:0}}>●</span>}
+                                        </div>
+                                      );
+                                    });
+                                  })()}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       )}
                     </th>
                     );
@@ -6229,16 +6300,16 @@ export default function App() {
                         </td>
                         {showFocusCols&&(()=>{
                           const pred=pickFor(row);
-                          // Played/live game: tint by points (digits green if
-                          // matched / red if not, box by total — matching
-                          // matchScore & the compare view's renderPredDigits):
-                          //   ≥5 pts (right result, incl. exact) → green (✓ exact)
-                          //    1 pt  (one score right, wrong result) → orange
-                          //    0 pts → red.  Upcoming game (no score yet): show
-                          //  the pick un-tinted. No pick → dashed —.
-                          let bd=C.border,bg=C.bg,tick=null,g0=false,g1=false,plain=!selScore;
-                          if(pred&&selScore){
-                            const sa=selScore[0],sb=selScore[1];
+                          // When matchSimMode is active and a score is typed, use that as the
+                          // effective score for colouring. Otherwise fall back to the real score.
+                          const simScoreA = matchSimA!==""?parseInt(matchSimA,10):null;
+                          const simScoreB = matchSimB!==""?parseInt(matchSimB,10):null;
+                          const effectiveScore = (matchSimMode && simScoreA!=null && simScoreB!=null)
+                            ? [simScoreA, simScoreB]
+                            : selScore;
+                          let bd=C.border,bg=C.bg,tick=null,g0=false,g1=false,plain=!effectiveScore;
+                          if(pred&&effectiveScore){
+                            const sa=effectiveScore[0],sb=effectiveScore[1];
                             const sg=(x)=>x===0?0:x>0?1:-1;
                             const dir=sg(pred[0]-pred[1])===sg(sa-sb)?5:0;
                             g0=pred[0]===sa; g1=pred[1]===sb;
@@ -6250,7 +6321,7 @@ export default function App() {
                           }
                           return (
                             <td style={{...td,textAlign:"center",borderLeft:`1px solid ${C.border}`,
-                              background:selLive?"rgba(239,68,68,0.02)":"rgba(99,102,241,0.02)"}}>
+                              background:matchSimMode?(selLive?"rgba(239,68,68,0.06)":"rgba(99,102,241,0.07)"):selLive?"rgba(239,68,68,0.02)":"rgba(99,102,241,0.02)"}}>
                               {pred?(
                                 <span style={{display:"inline-flex",alignItems:"center",gap:1,fontFamily:"monospace",fontSize:15,fontWeight:700,
                                   padding:"2px 8px",borderRadius:7,border:`1px solid ${plain?C.border:bd}`,background:plain?C.bg:bg}}>
@@ -6428,7 +6499,9 @@ export default function App() {
       {/* Simulation banner slides down/up smoothly when sim mode toggles.
           The wrapper stays rendered so we can animate max-height + opacity. */}
       {(() => {
-        const showBanner = simActive && ["leaderboard","byuser","tournament"].includes(tab);
+        const showBanner = (simActive && ["leaderboard","byuser","tournament"].includes(tab))
+          || (matchSimMode && tab==="leaderboard");
+        const isMatchSim = matchSimMode && tab==="leaderboard" && !simActive;
         return (
           <div style={{
             overflow:"hidden",
@@ -6440,9 +6513,16 @@ export default function App() {
             <div style={{background:"rgba(99,102,241,0.12)",
               padding:"8px 16px",fontSize:13,color:C.indigo,display:"flex",alignItems:"center",
               justifyContent:"space-between",gap:10,flexWrap:"wrap",fontWeight:600}}>
-              <span>🔮 <b>Simulation</b> — unplayed games are shown as if they finish exactly as <b>your</b> predictions. Scores &amp; standings are hypothetical (only you see this).</span>
-              <button onClick={()=>{setSimMode(false);setSimLimit(null);}} style={{background:C.indigo,color:"white",
-                border:0,borderRadius:6,padding:"4px 12px",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>
+              {isMatchSim
+                ? <span>✏️ <b>Score simulate</b> — type a hypothetical score in the match picks column to see how every prediction would score. Only you see this.</span>
+                : <span>🔮 <b>Simulation</b> — unplayed games are shown as if they finish exactly as <b>your</b> predictions. Scores &amp; standings are hypothetical (only you see this).</span>
+              }
+              <button
+                onClick={isMatchSim
+                  ? ()=>{ setMatchSimMode(false); setMatchSimA(""); setMatchSimB(""); }
+                  : ()=>{ setSimMode(false); setSimLimit(null); }}
+                style={{background:C.indigo,color:"white",
+                  border:0,borderRadius:6,padding:"4px 12px",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>
                 Exit simulation
               </button>
             </div>
