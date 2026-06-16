@@ -4028,7 +4028,6 @@ export default function App() {
   // doesn't reset it (LeaderboardView is rendered inline).
   const [gameMenuOpen,setGameMenuOpen]=useState(false);
   const [gameMenuPos,setGameMenuPos]=useState(null);
-  const [gameSearch,setGameSearch]=useState("");
   const gameBtnRef=useRef(null);
   const [matchSimMode,setMatchSimMode]=useState(false);
   const [matchSimA,setMatchSimA]=useState("");
@@ -6152,24 +6151,15 @@ export default function App() {
                               <div onClick={()=>setGameMenuOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
                               <div onClick={e=>e.stopPropagation()} style={{...menuStyle,width:248,zIndex:99,
                                 background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,boxShadow:"0 12px 34px rgba(0,0,0,0.55)",overflow:"hidden",textAlign:"left"}}>
-                                <div style={{display:"flex",alignItems:"center",gap:7,padding:"7px 10px",borderBottom:`1px solid ${C.border}`}}>
-                                  <span style={{color:C.muted,fontSize:12}}>🔍</span>
-                                  <input autoFocus value={gameSearch} onChange={e=>setGameSearch(e.target.value)} placeholder="Search games…"
-                                    style={{border:0,outline:0,background:"transparent",color:C.text,fontSize:12,flex:1,fontFamily:"inherit"}}/>
-                                  {gameSearch&&<button onClick={()=>setGameSearch("")} style={{background:"none",border:0,color:C.muted,cursor:"pointer",fontSize:12,padding:0,fontFamily:"inherit"}}>✕</button>}
-                                </div>
                                 <div style={{maxHeight:264,overflowY:"auto",padding:3}}>
-                                  {!gameSearch&&(
-                                    <div onClick={()=>{setPinned(null);setGameMenuOpen(false);}}
-                                      style={{display:"flex",alignItems:"center",gap:8,padding:"6px 9px",margin:3,borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:700,
-                                        border:`1px dashed ${C.indigo}`,color:pinnedMatchN==null?C.accent:C.indigo,background:pinnedMatchN==null?"rgba(163,230,53,0.08)":"transparent"}}>
-                                      <span style={{flex:1}}>⟳ Auto — follow the current game</span>
-                                      {pinnedMatchN==null&&<span style={{color:C.accent}}>●</span>}
-                                    </div>
-                                  )}
+                                  <div onClick={()=>{setPinned(null);setGameMenuOpen(false);}}
+                                    style={{display:"flex",alignItems:"center",gap:8,padding:"6px 9px",margin:3,borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:700,
+                                      border:`1px dashed ${C.indigo}`,color:pinnedMatchN==null?C.accent:C.indigo,background:pinnedMatchN==null?"rgba(163,230,53,0.08)":"transparent"}}>
+                                    <span style={{flex:1}}>⟳ Auto — follow the current game</span>
+                                    {pinnedMatchN==null&&<span style={{color:C.accent}}>●</span>}
+                                  </div>
                                   {(()=>{
-                                    const q=gameSearch.toLowerCase();
-                                    const opts=gameOptions.filter(o=>!q||`${o.a} ${o.b}`.toLowerCase().includes(q));
+                                    const opts=gameOptions;
                                     if(!opts.length) return <div style={{padding:14,textAlign:"center",color:C.muted,fontSize:12}}>No games found</div>;
                                     return opts.map(o=>{
                                       const isSel=o.m.n===selectedMatchN;
@@ -6177,7 +6167,7 @@ export default function App() {
                                       return (
                                         <div key={o.m.n}
                                           ref={o.m.n===autoMatchN?gameMenuAutoRef:(isSel?gameMenuSelectedRef:null)}
-                                          onClick={locked?undefined:()=>{setPinned(o.m.n);setGameMenuOpen(false);setGameSearch("");}}
+                                          onClick={locked?undefined:()=>{setPinned(o.m.n);setGameMenuOpen(false);}}
                                           title={locked?"Hidden until this stage closes":undefined}
                                           style={{display:"flex",alignItems:"center",gap:7,padding:"6px 9px",borderRadius:6,fontSize:12,fontWeight:isSel?700:600,
                                             cursor:locked?"default":"pointer",opacity:locked?0.5:1,
