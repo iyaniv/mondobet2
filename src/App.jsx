@@ -6295,7 +6295,7 @@ export default function App() {
                           <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
                           <b>{globalRank}</b>
                           {(() => {
-                            if (simMode || !baselineRanks) return null;
+                            if (simMode || matchSimMode || !baselineRanks) return null;
                             const baseRank = baselineRanks[row.entry_id];
                             if (baseRank == null) return null;
                             const delta = baseRank - globalRank;   // +climbed / -dropped
@@ -6309,7 +6309,7 @@ export default function App() {
                             );
                           })()}
                           {(()=>{
-                            if (simMode || todayStarted) return null;
+                            if (simMode || matchSimMode || todayStarted) return null;
                             const prevRank = prevRankSnapshot[String(row.entry_id)];
                             if (prevRank==null) return null;
                             const delta = prevRank - globalRank; // positive = climbed
