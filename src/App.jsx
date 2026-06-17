@@ -6297,7 +6297,7 @@ export default function App() {
                           <b>{globalRank}</b>
                           {(() => {
                             if (simMode || matchSimMode || !baselineRanks) return null;
-                            const baseRank = baselineRanks[row.entry_id];
+                            const baseRank = baselineRanks[String(row.entry_id)];
                             if (baseRank == null) return null;
                             const delta = baseRank - globalRank;   // +climbed / -dropped
                             if (delta === 0) return null;
