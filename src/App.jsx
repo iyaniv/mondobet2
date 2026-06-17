@@ -5697,7 +5697,7 @@ export default function App() {
       .pop() || null;
     const nextGameKickoffs = lastCompletedDay
       ? matches
-          .filter(m => { const k = kickoffParts(m.t, tz); return k && k.dayKey > lastCompletedDay && !results[m.n]; })
+          .filter(m => { const k = kickoffParts(m.t, tz); return k && k.dayKey > lastCompletedDay; })
           .map(m => new Date(m.t).getTime())
       : [];
     const nextDayStarted = nextGameKickoffs.length > 0 && Math.min(...nextGameKickoffs) <= Date.now();
