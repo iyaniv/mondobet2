@@ -6282,13 +6282,16 @@ export default function App() {
                         matchSimTotalMap[r.id]=r.simTotal;
                       });
                     }
+                  const simSortedAll = _hasSimScore
+                    ? [...displayLb].sort((a,b)=>(matchSimTotalMap[b.entry_id]??b.total)-(matchSimTotalMap[a.entry_id]??a.total))
+                    : null;
                   const renderLb = _hasSimScore
                     ? [...filteredLb].sort((a,b)=>(matchSimTotalMap[b.entry_id]??b.total)-(matchSimTotalMap[a.entry_id]??a.total))
                     : filteredLb;
                   return renderLb.map((row)=>{
-                    // Rank = position in the sim-sorted list when sim is active, otherwise real rank
-                    const globalRank = _hasSimScore
-                      ? renderLb.indexOf(row) + 1
+                    // Rank = global position across all users (sim-sorted when sim active)
+                    const globalRank = simSortedAll
+                      ? simSortedAll.indexOf(row) + 1
                       : displayLb.indexOf(row) + 1;
                     const isMe=row.user_id===user?.id;
                     const isFav=isFavRow(row);
