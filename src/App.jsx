@@ -5675,11 +5675,14 @@ export default function App() {
     const selPinned = pinnedMatchN!=null && selMatch && pinnedMatchN===selMatch.n;
     const hasFocus = !!selMatch;
     const showFocusCols = showLivePreds && hasFocus && (!simMode || matchSimMode);
-    // Hide "since yesterday" indicator once the first game of today has started.
-    const todayStarted = matches.some(m => {
-      const k = kickoffParts(m.t, tz);
-      return k && k.dayKey === todayKey(tz) && (results[m.n] || liveMatches[m.n]);
-    });
+    // Show "since yesterday" indicator only after yesterday's last game is done
+    // and before today's first game kicks off. Hide the moment today's first
+    // scheduled kickoff time passes (regardless of whether scores are in yet).
+    const tKey = todayKey(tz);
+    const todayKickoffs = matches
+      .filter(m => kickoffParts(m.t, tz)?.dayKey === tKey)
+      .map(m => new Date(m.t).getTime());
+    const todayStarted = todayKickoffs.length > 0 && Math.min(...todayKickoffs) <= Date.now();
     // Per-row pick for the selected game: the leaderboard payload covers the
     // auto/live game (spotlight_preds); a pinned/older game comes from the
     // on-demand matchPicks cache.
