@@ -6282,9 +6282,14 @@ export default function App() {
                         matchSimTotalMap[r.id]=r.simTotal;
                       });
                     }
-                  return filteredLb.map((row)=>{
-                    // Always show global rank (position in the unfiltered display list)
-                    const globalRank = displayLb.indexOf(row) + 1;
+                  const renderLb = _hasSimScore
+                    ? [...filteredLb].sort((a,b)=>(matchSimTotalMap[b.entry_id]??b.total)-(matchSimTotalMap[a.entry_id]??a.total))
+                    : filteredLb;
+                  return renderLb.map((row)=>{
+                    // Rank = position in the sim-sorted list when sim is active, otherwise real rank
+                    const globalRank = _hasSimScore
+                      ? renderLb.indexOf(row) + 1
+                      : displayLb.indexOf(row) + 1;
                     const isMe=row.user_id===user?.id;
                     const isFav=isFavRow(row);
                     // Visual sim-mode (indigo row + total) is on whenever the
