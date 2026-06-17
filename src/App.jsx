@@ -3958,7 +3958,7 @@ export default function App() {
   const predBaseline  = useRef({});
   const [results,setResults]=useState({});
   const [leaderboard,setLeaderboard]=useState([]);
-  const [prevRankSnapshot,setPrevRankSnapshot]=useState({});
+  const [rankSnapshots,setRankSnapshots]=useState({today:{},yesterday:{}});
   const [participants,setParticipants]=useState([]);
   const [adminParticipants,setAdminParticipants]=useState([]);
   const [entries,setEntries]=useState([]);
@@ -4272,7 +4272,7 @@ export default function App() {
       const resMap={};for(const r of d.results)resMap[r.match_n]=[r.score_a,r.score_b,r.winner??null,r.et_a??null,r.et_b??null,r.pen_a??null,r.pen_b??null];
       setResults(resMap);
       setLeaderboard(d.leaderboard);
-      api.getRankSnapshot().then(snap=>setPrevRankSnapshot(snap)).catch(()=>{});
+      api.getRankSnapshot().then(snap=>setRankSnapshots(snap||{today:{},yesterday:{}})).catch(()=>{});
 
       // Live matches (may not exist yet if table not created)
       if (d.live) {
@@ -5675,14 +5675,36 @@ export default function App() {
     const selPinned = pinnedMatchN!=null && selMatch && pinnedMatchN===selMatch.n;
     const hasFocus = !!selMatch;
     const showFocusCols = showLivePreds && hasFocus && (!simMode || matchSimMode);
-    // Show "since yesterday" indicator only after yesterday's last game is done
-    // and before today's first game kicks off. Hide the moment today's first
-    // scheduled kickoff time passes (regardless of whether scores are in yet).
+    // "Since last game-day" rank indicator: visible after the last game of a
+    // game-day finishes and hidden once the next game-day's first kickoff passes.
+    //
+    // lastCompletedDay: most recent calendar day (user tz) where every match has
+    // a result. snapshot: the ranks saved at the START of that day (before its
+    // games ran) — use today's snapshot if that day is today, yesterday's if it
+    // was yesterday.
     const tKey = todayKey(tz);
-    const todayKickoffs = matches
-      .filter(m => kickoffParts(m.t, tz)?.dayKey === tKey)
-      .map(m => new Date(m.t).getTime());
-    const todayStarted = todayKickoffs.length > 0 && Math.min(...todayKickoffs) <= Date.now();
+    const matchesByDay = {};
+    for (const m of matches) {
+      const k = kickoffParts(m.t, tz);
+      if (!k) continue;
+      if (!matchesByDay[k.dayKey]) matchesByDay[k.dayKey] = [];
+      matchesByDay[k.dayKey].push(m);
+    }
+    const lastCompletedDay = Object.entries(matchesByDay)
+      .filter(([, ms]) => ms.every(m => results[m.n]))
+      .map(([day]) => day)
+      .sort()
+      .pop() || null;
+    const nextGameKickoffs = lastCompletedDay
+      ? matches
+          .filter(m => { const k = kickoffParts(m.t, tz); return k && k.dayKey > lastCompletedDay && !results[m.n]; })
+          .map(m => new Date(m.t).getTime())
+      : [];
+    const nextDayStarted = nextGameKickoffs.length > 0 && Math.min(...nextGameKickoffs) <= Date.now();
+    const showPrevRankIndicator = !!lastCompletedDay && !nextDayStarted;
+    const prevRankSnapshot = lastCompletedDay === tKey
+      ? rankSnapshots.today
+      : rankSnapshots.yesterday;
     // Per-row pick for the selected game: the leaderboard payload covers the
     // auto/live game (spotlight_preds); a pinned/older game comes from the
     // on-demand matchPicks cache.
@@ -6313,7 +6335,7 @@ export default function App() {
                             );
                           })()}
                           {(()=>{
-                            if (simMode || matchSimMode || todayStarted) return null;
+                            if (simMode || matchSimMode || !showPrevRankIndicator) return null;
                             const prevRank = prevRankSnapshot[String(row.entry_id)];
                             if (prevRank==null) return null;
                             const delta = prevRank - globalRank; // positive = climbed

@@ -46,13 +46,13 @@ async def get_leaderboard(
     return rows
 
 
-@router.get("/snapshot", response_model=dict[str, int])
+@router.get("/snapshot", response_model=dict[str, dict[str, int]])
 async def get_rank_snapshot(
     _=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Yesterday's {entry_id: rank} snapshot for client-side rank-change display."""
-    return await crud.get_daily_prev_ranks(db)
+    """Today's and yesterday's {entry_id: rank} snapshots for rank-change display."""
+    return await crud.get_daily_snapshots(db)
 
 
 @router.post("/simulate", response_model=list[LeaderboardEntry])

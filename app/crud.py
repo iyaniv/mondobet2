@@ -487,13 +487,18 @@ async def upsert_result(
 
 # ── Leaderboard ───────────────────────────────────────────────────────────────
 
-async def get_daily_prev_ranks(db: AsyncSession) -> dict[str, int]:
-    """Return {entry_id: rank} from yesterday's CT snapshot (empty if none yet)."""
+async def get_daily_snapshots(db: AsyncSession) -> dict[str, dict[str, int]]:
+    """Return today's and yesterday's {entry_id: rank} snapshots."""
+    today = _today_ct()
     yesterday = _yesterday_ct()
     r = await db.execute(
-        select(DailyRankSnapshot).where(DailyRankSnapshot.snapshot_date == yesterday)
+        select(DailyRankSnapshot).where(DailyRankSnapshot.snapshot_date.in_([today, yesterday]))
     )
-    return {row.entry_id: row.rank for row in r.scalars().all()}
+    result: dict[str, dict[str, int]] = {"today": {}, "yesterday": {}}
+    for row in r.scalars().all():
+        key = "today" if row.snapshot_date == today else "yesterday"
+        result[key][row.entry_id] = row.rank
+    return result
 
 
 async def save_daily_snapshot(db: AsyncSession, ranked_rows: list[LeaderboardEntry]) -> None:
