@@ -5678,17 +5678,20 @@ export default function App() {
     // "Since last game-day" rank indicator: visible after the last game of a
     // game-day finishes and hidden once the next game-day's first kickoff passes.
     //
-    // lastCompletedDay: most recent calendar day (user tz) where every match has
-    // a result. snapshot: the ranks saved at the START of that day (before its
-    // games ran) — use today's snapshot if that day is today, yesterday's if it
-    // was yesterday.
-    const tKey = todayKey(tz);
+    // Game-days are grouped in CT (the canonical tournament timezone) — in CT
+    // the WC schedule clusters cleanly into calendar days (~14:00–23:00 CT, never
+    // crossing CT midnight), and daily snapshots are keyed by CT date too. Using
+    // the viewer's display tz here would split one game-day across two calendar
+    // days for far-east timezones and never match the CT-keyed snapshots.
+    const ctDayKey = (t) => new Intl.DateTimeFormat("en-CA", {
+      year:"numeric", month:"2-digit", day:"2-digit", timeZone:"America/Chicago"
+    }).format(new Date(t));
     const matchesByDay = {};
     for (const m of matches) {
-      const k = kickoffParts(m.t, tz);
-      if (!k) continue;
-      if (!matchesByDay[k.dayKey]) matchesByDay[k.dayKey] = [];
-      matchesByDay[k.dayKey].push(m);
+      if (!m.t) continue;
+      const day = ctDayKey(m.t);
+      if (!matchesByDay[day]) matchesByDay[day] = [];
+      matchesByDay[day].push(m);
     }
     const lastCompletedDay = Object.entries(matchesByDay)
       .filter(([, ms]) => ms.every(m => results[m.n]))
@@ -5697,24 +5700,14 @@ export default function App() {
       .pop() || null;
     const nextGameKickoffs = lastCompletedDay
       ? matches
-          .filter(m => { const k = kickoffParts(m.t, tz); return k && k.dayKey > lastCompletedDay; })
+          .filter(m => m.t && ctDayKey(m.t) > lastCompletedDay)
           .map(m => new Date(m.t).getTime())
       : [];
     const nextDayStarted = nextGameKickoffs.length > 0 && Math.min(...nextGameKickoffs) <= Date.now();
     const showPrevRankIndicator = !!lastCompletedDay && !nextDayStarted;
-    // Snapshots are stored in CT timezone. Convert the first kickoff of
-    // lastCompletedDay to its CT date to find the right snapshot.
-    const prevRankSnapshot = (() => {
-      if (!lastCompletedDay) return {};
-      const firstMatch = (matchesByDay[lastCompletedDay] || [])
-        .slice().sort((a,b) => new Date(a.t)-new Date(b.t))[0];
-      if (!firstMatch) return {};
-      const ctDate = new Intl.DateTimeFormat("en-CA", {
-        year:"numeric", month:"2-digit", day:"2-digit",
-        timeZone:"America/Chicago"
-      }).format(new Date(firstMatch.t));
-      return rankSnapshots[ctDate] || {};
-    })();
+    // Snapshots are keyed by CT date — same grouping as above, so the last
+    // completed game-day's key is the snapshot key directly.
+    const prevRankSnapshot = lastCompletedDay ? (rankSnapshots[lastCompletedDay] || {}) : {};
     // Per-row pick for the selected game: the leaderboard payload covers the
     // auto/live game (spotlight_preds); a pinned/older game comes from the
     // on-demand matchPicks cache.
