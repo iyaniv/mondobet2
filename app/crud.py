@@ -488,16 +488,19 @@ async def upsert_result(
 # ── Leaderboard ───────────────────────────────────────────────────────────────
 
 async def get_daily_snapshots(db: AsyncSession) -> dict[str, dict[str, int]]:
-    """Return today's and yesterday's {entry_id: rank} snapshots."""
+    """Return the last 5 CT-day snapshots keyed by ISO date string (YYYY-MM-DD).
+    The client converts match kickoff times to CT to look up the right snapshot."""
     today = _today_ct()
-    yesterday = _yesterday_ct()
+    cutoff = today - timedelta(days=5)
     r = await db.execute(
-        select(DailyRankSnapshot).where(DailyRankSnapshot.snapshot_date.in_([today, yesterday]))
+        select(DailyRankSnapshot).where(DailyRankSnapshot.snapshot_date >= cutoff)
     )
-    result: dict[str, dict[str, int]] = {"today": {}, "yesterday": {}}
+    result: dict[str, dict[str, int]] = {}
     for row in r.scalars().all():
-        key = "today" if row.snapshot_date == today else "yesterday"
-        result[key][row.entry_id] = row.rank
+        d = str(row.snapshot_date)
+        if d not in result:
+            result[d] = {}
+        result[d][row.entry_id] = row.rank
     return result
 
 

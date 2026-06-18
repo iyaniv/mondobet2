@@ -3958,7 +3958,7 @@ export default function App() {
   const predBaseline  = useRef({});
   const [results,setResults]=useState({});
   const [leaderboard,setLeaderboard]=useState([]);
-  const [rankSnapshots,setRankSnapshots]=useState({today:{},yesterday:{}});
+  const [rankSnapshots,setRankSnapshots]=useState({});
   const [participants,setParticipants]=useState([]);
   const [adminParticipants,setAdminParticipants]=useState([]);
   const [entries,setEntries]=useState([]);
@@ -5702,9 +5702,19 @@ export default function App() {
       : [];
     const nextDayStarted = nextGameKickoffs.length > 0 && Math.min(...nextGameKickoffs) <= Date.now();
     const showPrevRankIndicator = !!lastCompletedDay && !nextDayStarted;
-    const prevRankSnapshot = lastCompletedDay === tKey
-      ? rankSnapshots.today
-      : rankSnapshots.yesterday;
+    // Snapshots are stored in CT timezone. Convert the first kickoff of
+    // lastCompletedDay to its CT date to find the right snapshot.
+    const prevRankSnapshot = (() => {
+      if (!lastCompletedDay) return {};
+      const firstMatch = (matchesByDay[lastCompletedDay] || [])
+        .slice().sort((a,b) => new Date(a.t)-new Date(b.t))[0];
+      if (!firstMatch) return {};
+      const ctDate = new Intl.DateTimeFormat("en-CA", {
+        year:"numeric", month:"2-digit", day:"2-digit",
+        timeZone:"America/Chicago"
+      }).format(new Date(firstMatch.t));
+      return rankSnapshots[ctDate] || {};
+    })();
     // Per-row pick for the selected game: the leaderboard payload covers the
     // auto/live game (spotlight_preds); a pinned/older game comes from the
     // on-demand matchPicks cache.

@@ -46,12 +46,12 @@ async def get_leaderboard(
     return rows
 
 
-@router.get("/snapshot", response_model=dict[str, dict[str, int]])
+@router.get("/snapshot")
 async def get_rank_snapshot(
     _=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Today's and yesterday's {entry_id: rank} snapshots for rank-change display."""
+    """Last 5 CT-day snapshots keyed by ISO date: {'2026-06-17': {entry_id: rank}}."""
     return await crud.get_daily_snapshots(db)
 
 
