@@ -5988,27 +5988,6 @@ export default function App() {
                             <div style={{fontSize:10,color:C.text}}>across all forms</div>
                           </div>
                         </div>
-                        {top3picks.length>0&&(
-                          <div>
-                            <div style={{fontSize:11,color:C.text,marginBottom:6}}>Top champion picks</div>
-                            <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                              {top3picks.map(([team,count],i)=>{
-                                const pct=Math.round(count/leaderboard.length*100);
-                                return (
-                                  <div key={i} style={{display:"flex",alignItems:"center",gap:8,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 10px"}}>
-                                    <span style={{fontSize:13,width:20,textAlign:"center"}}>{["🥇","🥈","🥉"][i]}</span>
-                                    <span style={{flex:1,fontSize:13,fontWeight:600,color:C.text}}>{withFlag(team)}</span>
-                                    <span style={{fontSize:12,color:C.text,opacity:0.7}}>{count} picks</span>
-                                    <div style={{width:50,background:C.border,borderRadius:4,height:4}}>
-                                      <div style={{width:`${pct}%`,height:4,borderRadius:4,background:C.indigo}}/>
-                                    </div>
-                                    <span style={{fontSize:11,color:C.text,opacity:0.7,width:28,textAlign:"right"}}>{pct}%</span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
                         {/* top 3 most-predicted scores across all users */}
                         {groupStatsData?.top3_scores?.length>0&&(
                           <div style={{marginTop:10}}>
@@ -6066,6 +6045,27 @@ export default function App() {
                                 </div>
                               </div>
                             )}
+                          </div>
+                        )}
+                        {top3picks.length>0&&(
+                          <div style={{marginTop:10}}>
+                            <div style={{fontSize:11,color:C.text,marginBottom:6}}>Top champion picks</div>
+                            <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                              {top3picks.map(([team,count],i)=>{
+                                const pct=Math.round(count/leaderboard.length*100);
+                                return (
+                                  <div key={i} style={{display:"flex",alignItems:"center",gap:8,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 10px"}}>
+                                    <span style={{fontSize:13,width:20,textAlign:"center"}}>{["🥇","🥈","🥉"][i]}</span>
+                                    <span style={{flex:1,fontSize:13,fontWeight:600,color:C.text}}>{withFlag(team)}</span>
+                                    <span style={{fontSize:12,color:C.text,opacity:0.7}}>{count} picks</span>
+                                    <div style={{width:50,background:C.border,borderRadius:4,height:4}}>
+                                      <div style={{width:`${pct}%`,height:4,borderRadius:4,background:C.indigo}}/>
+                                    </div>
+                                    <span style={{fontSize:11,color:C.text,opacity:0.7,width:28,textAlign:"right"}}>{pct}%</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>
