@@ -3647,9 +3647,11 @@ function SettingsView({ user, leaderboard, onLogout, onNameUpdate, showToast, co
 // ─────────────────────────────────────────────────────────────────────────────
 function CompareView({ matches, results, liveMatches, isMobile,
                        myName, myPreds, myTotal, myRank, myWinner,
+                       myForms=[], myKey, onMyPick,
                        theirKey, theirName, theirPreds, theirTotal, theirRank, theirWinner, winnersRevealed,
                        forms, loading, onBack, onPick, tz }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [myMenuOpen, setMyMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
   const searchRef = useRef(null);
   const [showTop, setShowTop] = useState(false);
@@ -3668,6 +3670,12 @@ function CompareView({ matches, results, liveMatches, isMobile,
     document.addEventListener("click", h);
     return () => document.removeEventListener("click", h);
   }, [menuOpen]);
+  useEffect(() => {
+    if (!myMenuOpen) return;
+    const h = () => setMyMenuOpen(false);
+    document.addEventListener("click", h);
+    return () => document.removeEventListener("click", h);
+  }, [myMenuOpen]);
   useEffect(() => {
     if (menuOpen) { setSearch(""); setTimeout(() => searchRef.current?.focus(), 40); }
   }, [menuOpen]);
@@ -3778,7 +3786,40 @@ function CompareView({ matches, results, liveMatches, isMobile,
   });
 
   // Header sub-blocks (composed differently for desktop vs mobile).
-  const youNameBlk = (
+  const youNameBlk = myForms.length > 1 ? (
+    <div style={{position:"relative"}}>
+      <button onClick={(e)=>{e.stopPropagation();setMyMenuOpen(o=>!o);}} title="Switch your form"
+        style={{display:"inline-flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,
+          minWidth:120,maxWidth:220,height:"100%",padding:"5px 12px",borderRadius:8,
+          background:C.bg,border:`1px solid ${C.indigo}`,fontFamily:"inherit",cursor:"pointer"}}>
+        <span style={tileLabel}>Your form</span>
+        <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:15,fontWeight:700,color:C.indigo,whiteSpace:"nowrap",maxWidth:200,overflow:"hidden"}}>
+          <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{myName}</span>
+          <span style={{fontSize:8,opacity:.7,transition:"transform .2s",transform:myMenuOpen?"rotate(180deg)":"none"}}>▾</span>
+        </span>
+        <span style={{fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:200,marginTop:1}}>🏆 {myWinner?withFlag(myWinner):"—"}</span>
+      </button>
+      {myMenuOpen&&(
+        <div onClick={e=>e.stopPropagation()}
+          style={{position:"absolute",top:"calc(100% + 4px)",left:0,minWidth:200,background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",zIndex:40,overflow:"hidden",padding:4}}>
+          {myForms.map(f=>{
+            const isActive=f.key===myKey;
+            return (
+              <div key={f.key} onClick={()=>{onMyPick(f.key);setMyMenuOpen(false);}}
+                style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",cursor:"pointer",borderRadius:6,
+                  background:isActive?"rgba(99,102,241,0.15)":"transparent",transition:"background .1s"}}
+                onMouseEnter={e=>{if(!isActive)e.currentTarget.style.background=C.panel2;}}
+                onMouseLeave={e=>{if(!isActive)e.currentTarget.style.background="transparent";}}>
+                <span style={{fontSize:14,color:C.indigo,width:16,flexShrink:0}}>{isActive?"✓":""}</span>
+                <span style={{fontSize:13,fontWeight:600,color:C.text,flex:1}}>{f.name}</span>
+                <span style={{fontSize:11,color:C.muted,fontFamily:"monospace"}}>#{f.rank}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  ) : (
     <div style={{display:"inline-flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,padding:"5px 12px",minWidth:110,maxWidth:200}}>
       <span style={tileLabel}>Your form</span>
       <span style={{fontSize:15,fontWeight:700,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:180}}>{myName}</span>
@@ -3989,8 +4030,22 @@ export default function App() {
       .finally(()=>setCompareLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[compareKey]);
+  // "My form" picker inside compare view — lets multi-entry users switch which
+  // of their forms is shown on the left side.
+  const [compareMyKey,setCompareMyKey]=useState(null); // null = use active entry
+  const [compareMyPreds,setCompareMyPreds]=useState(null); // null = use myPreds
+  const [compareMyWinner,setCompareMyWinner]=useState(null);
+  useEffect(()=>{
+    if(!compareMyKey){ setCompareMyPreds(null); setCompareMyWinner(null); return; }
+    const lbEntry=leaderboard.find(e=>(e.entry_id||e.user_id)===compareMyKey);
+    if(!lbEntry) return;
+    api.getUserPredictions(lbEntry.user_id, lbEntry.entry_id||null)
+      .then(preds=>{ const m={}; for(const p of preds) m[p.match_n]=[p.score_a,p.score_b]; setCompareMyPreds(m); setCompareMyWinner(lbEntry.winner_pick||null); })
+      .catch(e=>showToast(e.message,"err"));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[compareMyKey]);
   // Leave compare mode when navigating away from the leaderboard tab.
-  useEffect(()=>{ if(tab!=="leaderboard"){ setCompareKey(null); setMatchSimMode(false); setMatchSimA(""); setMatchSimB(""); } },[tab]);
+  useEffect(()=>{ if(tab!=="leaderboard"){ setCompareKey(null); setCompareMyKey(null); setMatchSimMode(false); setMatchSimA(""); setMatchSimB(""); } },[tab]);
   const [liveMatches,setLiveMatches]=useState({});
   const [predsLoaded,setPredsLoaded]=useState(false);
   // True once the leaderboard has resolved at least once, so the table can show
@@ -5617,16 +5672,27 @@ export default function App() {
         .filter(e=>(e.entry_id||e.user_id)!==myLbKey)
         .map(e=>({key:e.entry_id||e.user_id, name:e.name, rank:leaderboard.indexOf(e)+1, fav:isFavForm(e)}))
         .sort((a,b)=>(b.fav?1:0)-(a.fav?1:0) || a.name.localeCompare(b.name));
+      // All leaderboard entries belonging to the current user (for multi-entry picker)
+      const myForms = leaderboard
+        .filter(e=>e.user_id===user?.id)
+        .map(e=>({key:e.entry_id||e.user_id, name:e.name, rank:leaderboard.indexOf(e)+1}));
+      // Resolve which "my" row/preds to use based on compareMyKey
+      const activeMyKey = compareMyKey || myLbKey;
+      const activeMyRow = compareMyKey ? leaderboard.find(e=>(e.entry_id||e.user_id)===compareMyKey) : myLbRow;
+      const activeMyPreds = compareMyPreds ?? myPreds;
+      const activeMyWinner = compareMyKey ? compareMyWinner : myWinner;
+      const activeMyRank = activeMyRow ? leaderboard.indexOf(activeMyRow)+1 : myRank;
       return (
         <div>
           <TodaysGames matches={matches} results={results} liveMatches={liveMatches} tz={tz}/>
           <CompareView
             matches={matches} results={results} liveMatches={liveMatches} isMobile={isMobile}
-            myName={myLbRow?myLbRow.name:"Your form"} myPreds={myPreds} myTotal={myLbRow?myLbRow.total:0} myRank={myRank} myWinner={myWinner}
+            myName={activeMyRow?activeMyRow.name:"Your form"} myPreds={activeMyPreds} myTotal={activeMyRow?activeMyRow.total:0} myRank={activeMyRank} myWinner={activeMyWinner}
+            myForms={myForms} myKey={activeMyKey} onMyPick={(k)=>{ setCompareMyKey(k===myLbKey?null:k); }}
             theirKey={compareKey} theirName={themRow?themRow.name:"—"}
             theirPreds={comparePreds} theirTotal={themRow?themRow.total:0} theirRank={themRank} theirWinner={compareWinner} winnersRevealed={config.round_state==="closed"||(config.current_stage||1)>1}
             forms={compareForms} loading={compareLoading}
-            onBack={()=>setCompareKey(null)} onPick={(k)=>setCompareKey(k)}
+            onBack={()=>{ setCompareKey(null); setCompareMyKey(null); }} onPick={(k)=>setCompareKey(k)}
             tz={tz}/>
         </div>
       );
@@ -5863,6 +5929,23 @@ export default function App() {
               const avgExactPct=totalScored>0?Math.round(totalExact/totalScored*100):0;
               const avgDirPct=totalScored>0?Math.round(totalDir/totalScored*100):0;
               const stageLabel=config.round_state==="open"?`Stage ${stageForStats} (closed)`:`Stage ${stageForStats}`;
+              // ── Real-score stats (across all played games) ──
+              const playedMatches=matches.filter(m=>{const r=results[m.n];return r&&r.length>=2&&r[0]!=null&&r[1]!=null;});
+              const scorelineCounts={};
+              const tFor={},tAg={},tApp={};
+              playedMatches.forEach(m=>{
+                const r=results[m.n];const ga=r[0],gb=r[1];
+                const key=`${Math.max(ga,gb)}–${Math.min(ga,gb)}`;
+                scorelineCounts[key]=(scorelineCounts[key]||0)+1;
+                tFor[m.a]=(tFor[m.a]||0)+ga;tAg[m.a]=(tAg[m.a]||0)+gb;tApp[m.a]=(tApp[m.a]||0)+1;
+                tFor[m.b]=(tFor[m.b]||0)+gb;tAg[m.b]=(tAg[m.b]||0)+ga;tApp[m.b]=(tApp[m.b]||0)+1;
+              });
+              const scorelineSorted=Object.entries(scorelineCounts).sort((a,b)=>b[1]-a[1]);
+              const topScoreline=scorelineSorted[0];
+              const maxSL=topScoreline?topScoreline[1]:0;
+              const eligibleTeams=Object.keys(tApp).filter(t=>tApp[t]>=2);
+              const topScorer=eligibleTeams.map(t=>({team:t,avg:tFor[t]/tApp[t],gms:tApp[t]})).sort((a,b)=>b.avg-a.avg)[0];
+              const bestDef=eligibleTeams.map(t=>({team:t,avg:tAg[t]/tApp[t],gms:tApp[t]})).sort((a,b)=>a.avg-b.avg)[0];
               const handleOpen=()=>{
                 setGroupStatsOpen(o=>{
                   if(!o && !groupStatsData){
@@ -5929,6 +6012,51 @@ export default function App() {
                                 </div>
                               ))}
                             </div>
+                          </div>
+                        )}
+                        {/* ── Real-score stats ── */}
+                        {playedMatches.length>0&&(
+                          <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${C.border}`}}>
+                            <div style={{fontSize:11,color:C.text,marginBottom:8}}>Real scores · {playedMatches.length} games played</div>
+                            {(topScorer||bestDef)&&(
+                              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:10}}>
+                                {topScorer&&(
+                                  <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
+                                    <div style={{fontSize:13,marginBottom:2}}>⚽</div>
+                                    <div style={{fontSize:13,fontWeight:700,lineHeight:1.15,marginBottom:2,color:C.text}}>{withFlag(topScorer.team)}</div>
+                                    <div style={{fontSize:11,color:C.text,marginBottom:1}}>Top scoring</div>
+                                    <div style={{fontSize:10,color:C.text}}>{topScorer.avg.toFixed(1)} goals/gm</div>
+                                  </div>
+                                )}
+                                {bestDef&&(
+                                  <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.indigo}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
+                                    <div style={{fontSize:13,marginBottom:2}}>🛡️</div>
+                                    <div style={{fontSize:13,fontWeight:700,lineHeight:1.15,marginBottom:2,color:C.text}}>{withFlag(bestDef.team)}</div>
+                                    <div style={{fontSize:11,color:C.text,marginBottom:1}}>Best defense</div>
+                                    <div style={{fontSize:10,color:C.text}}>{bestDef.avg.toFixed(1)} conceded/gm</div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {scorelineSorted.length>0&&(
+                              <div>
+                                <div style={{fontSize:11,color:C.text,marginBottom:6}}>Most common: <span style={{fontWeight:700}}>{topScoreline[0]}</span> ({topScoreline[1]}×)</div>
+                                <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                                  {scorelineSorted.slice(0,6).map(([key,count],i)=>{
+                                    const pct=Math.round(count/maxSL*100);
+                                    return (
+                                      <div key={i} style={{display:"flex",alignItems:"center",gap:8}}>
+                                        <span style={{fontSize:12,fontWeight:600,color:C.text,width:34}}>{key}</span>
+                                        <div style={{flex:1,background:C.border,borderRadius:4,height:8}}>
+                                          <div style={{width:`${pct}%`,height:8,borderRadius:4,background:C.accent}}/>
+                                        </div>
+                                        <span style={{fontSize:11,color:C.text,opacity:0.7,width:24,textAlign:"right"}}>{count}×</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
