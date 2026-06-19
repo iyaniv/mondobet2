@@ -3990,9 +3990,12 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[compareKey]);
   // Leave compare mode when navigating away from the leaderboard tab.
-  useEffect(()=>{ if(tab!=="leaderboard") setCompareKey(null); },[tab]);
+  useEffect(()=>{ if(tab!=="leaderboard"){ setCompareKey(null); setMatchSimMode(false); setMatchSimA(""); setMatchSimB(""); } },[tab]);
   const [liveMatches,setLiveMatches]=useState({});
   const [predsLoaded,setPredsLoaded]=useState(false);
+  // True once the leaderboard has resolved at least once, so the table can show
+  // a loading state instead of the "No participants yet." empty state on first load.
+  const [lbLoaded,setLbLoaded]=useState(false);
   const [toast,setToast]=useState(null);
   const [globalErr,setGlobalErr]=useState("");
   const toastTimer=useRef(null);
@@ -4272,6 +4275,7 @@ export default function App() {
       const resMap={};for(const r of d.results)resMap[r.match_n]=[r.score_a,r.score_b,r.winner??null,r.et_a??null,r.et_b??null,r.pen_a??null,r.pen_b??null];
       setResults(resMap);
       setLeaderboard(d.leaderboard);
+      setLbLoaded(true);
       api.getRankSnapshot().then(snap=>setRankSnapshots(snap||{today:{},yesterday:{}})).catch(()=>{});
 
       // Live matches (may not exist yet if table not created)
@@ -4449,7 +4453,7 @@ export default function App() {
     setHelpEntry(null);
     api.setHelpSeen({}).catch(()=>{});
   }
-  function doLogout(){setToken(null);setUser(null);setTab("auth");setMyPreds({});setMyWinner(null);setLeaderboard([]);setParticipants([]);setEntries([]);setActiveEntryId(null);setLockedWinner(null);setAdminParticipants([]);}
+  function doLogout(){setToken(null);setUser(null);setTab("auth");setMyPreds({});setMyWinner(null);setLeaderboard([]);setLbLoaded(false);setParticipants([]);setEntries([]);setActiveEntryId(null);setLockedWinner(null);setAdminParticipants([]);}
 
   async function refreshLive() {
     try {
@@ -5597,6 +5601,7 @@ export default function App() {
       if (!canJumpToParticipant) return;
       const key = row.entry_id || row.user_id;
       if (key === myLbKey) return;   // can't compare a form with itself
+      setMatchSimMode(false); setMatchSimA(""); setMatchSimB("");
       setCompareKey(key);
     };
 
@@ -6048,7 +6053,12 @@ export default function App() {
         )}
 
         {leaderboard.length===0
-          ?<div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>No participants yet.</div>
+          ?(!lbLoaded
+            ?<div style={{textAlign:"center",padding:"40px 20px",color:C.muted,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+               <span className="lb-spinner" style={{width:16,height:16,border:`2px solid ${C.border}`,borderTopColor:C.muted,borderRadius:"50%",display:"inline-block"}}/>
+               Loading leaderboard…
+             </div>
+            :<div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>No participants yet.</div>)
           :(
             <>
             {showFavHint&&(
