@@ -147,15 +147,24 @@ function useAnchoredPopup({ open, preferLeft=false, width=340 }) {
   let popupStyle = null;
   if (open && rect) {
     const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const margin = 12;
     const popW = Math.min(width, vw - 20);
     const left = preferLeft
       ? Math.max(10, Math.min(rect.left, vw - popW - 10))
       : Math.max(10, Math.min(rect.right - popW, vw - popW - 10));
+    // Prefer opening below the trigger; if there's more room above, open upward.
+    const spaceBelow = vh - rect.bottom - margin;
+    const spaceAbove = rect.top - margin;
+    const openUp = spaceBelow < 280 && spaceAbove > spaceBelow;
     popupStyle = {
       position:"fixed",
-      top: rect.bottom + 8,
+      ...(openUp
+        ? { bottom: vh - rect.top + 8, maxHeight: spaceAbove }
+        : { top: rect.bottom + 8, maxHeight: spaceBelow }),
       left,
       width: popW,
+      overflowY:"auto",
       zIndex:99,
     };
   }
