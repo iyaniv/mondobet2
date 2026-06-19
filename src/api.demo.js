@@ -1181,6 +1181,26 @@ export const api = {
     requireAdmin();
     return computeAdminParticipants();
   },
+
+  getGroupStats: async (stage) => {
+    await delay();
+    if (!getUser()) throw new Error("Not authenticated");
+    // Aggregate predictions across all submitted entries
+    const freq = {};
+    Object.values(S.entries).forEach(entry => {
+      if (!entry.submitted_at) return;
+      const preds = S.predictions[entry.id] || {};
+      Object.values(preds).forEach(p => {
+        if (p && p[0] != null && p[1] != null) {
+          const [lo, hi] = [Math.min(p[0], p[1]), Math.max(p[0], p[1])];
+          const k = `${lo}:${hi}`; freq[k] = (freq[k] || 0) + 1;
+        }
+      });
+    });
+    const top3 = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 3)
+      .map(([score, count]) => ({ score, count }));
+    return { top3_scores: top3 };
+  },
 };
 
 // ── Live API ──────────────────────────────────────────────────────────────────
@@ -1295,25 +1315,5 @@ export const initApi = {
     }
 
     return out;
-  },
-
-  getGroupStats: async (stage) => {
-    await delay();
-    if (!getUser()) throw new Error("Not authenticated");
-    // Aggregate predictions across all submitted entries
-    const freq = {};
-    Object.values(S.entries).forEach(entry => {
-      if (!entry.submitted_at) return;
-      const preds = S.predictions[entry.id] || {};
-      Object.values(preds).forEach(p => {
-        if (p && p[0] != null && p[1] != null) {
-          const [lo, hi] = [Math.min(p[0], p[1]), Math.max(p[0], p[1])];
-          const k = `${lo}:${hi}`; freq[k] = (freq[k] || 0) + 1;
-        }
-      });
-    });
-    const top3 = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 3)
-      .map(([score, count]) => ({ score, count }));
-    return { top3_scores: top3 };
   },
 };
