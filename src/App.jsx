@@ -5637,6 +5637,7 @@ export default function App() {
     // here via closure.
     // Per-row "diff vs actual" badge data
     const actualTotalsByEntry = Object.fromEntries(leaderboard.map(e => [e.entry_id, e.total]));
+    const actualRankByEntry = Object.fromEntries(leaderboard.map((e,i) => [e.entry_id, i+1]));
 
     const displayLb = (simMode && simLb)
       ? simLb.map(e => ({...e, _simDiff: e.total - (actualTotalsByEntry[e.entry_id] ?? e.total)}))
@@ -6366,6 +6367,19 @@ export default function App() {
                                 color:delta>0?C.green:C.red,lineHeight:1}}
                                 title={delta>0?`↑ Up ${delta} since yesterday`:`↓ Down ${Math.abs(delta)} since yesterday`}>
                                 {delta>0?`↑${delta}`:`↓${Math.abs(delta)}`}
+                              </div>
+                            );
+                          })()}
+                          {simMode&&(()=>{
+                            const origRank = actualRankByEntry[row.entry_id];
+                            if (origRank==null) return null;
+                            const delta = origRank - globalRank; // +climbed / -dropped
+                            if (delta===0) return null;
+                            return (
+                              <div style={{fontSize:10,fontWeight:700,lineHeight:1,
+                                color:delta>0?C.indigo:C.red,opacity:0.9}}
+                                title={delta>0?`Would move up ${delta}`:`Would move down ${-delta}`}>
+                                {delta>0?`▲${delta}`:`▼${-delta}`}
                               </div>
                             );
                           })()}
