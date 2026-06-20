@@ -7,6 +7,16 @@ const C = {
   accent:"var(--c-accent)", accentDk:"var(--c-accent-dk)", accentSoft:"var(--c-accent-soft)", green:"var(--c-green)", red:"var(--c-red)", indigo:"var(--c-indigo)",
 };
 
+// Opt-in perf logging — silent for normal users. Enable with `?perf` in the URL
+// or `localStorage.mb_perf = "1"`. Purely diagnostic; no behavior change.
+// `perfNow()` returns ms since page load (performance.now), so absolute values
+// read as "this happened N ms after the page started loading".
+const PERF_ON = typeof window !== "undefined" &&
+  (window.location.search.includes("perf") ||
+   (() => { try { return localStorage.getItem("mb_perf") === "1"; } catch { return false; } })());
+const perfNow = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
+const perfLog = (...a) => { if (PERF_ON) console.log("[perf]", ...a); };
+
 // Stage definitions — mirrors app/matches.py STAGES
 const STAGES = [
   { n:1, name:"Group Stage",   first:1,   last:72  },
@@ -4332,9 +4342,18 @@ export default function App() {
   function showToast(msg,kind="ok"){setToast({msg,kind});clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(null),2500);}
 
   const loadGameData=useCallback(async(isAdmin,userId=null)=>{
+    const _t0 = perfNow();
     try {
+      perfLog(`init: requesting /api/init/ at t=${_t0.toFixed(0)}ms`);
       // Single round-trip: /api/init/ returns everything at once
       const d = await initApi.load();
+      perfLog(
+        `init: /api/init/ resolved — round-trip ${(perfNow()-_t0).toFixed(0)}ms · ` +
+        `${Math.round(JSON.stringify(d).length/1024)}KB · ` +
+        `lb=${d.leaderboard?.length ?? 0} results=${d.results?.length ?? 0} live=${d.live?.length ?? 0}` +
+        (d.entries!=null?` entries=${d.entries.length}`:"") +
+        (d.participants!=null?` participants=${d.participants.length}`:"")
+      );
 
       // Matches are static — cache in sessionStorage to skip re-fetch
       if (d.matches) {
@@ -4353,6 +4372,7 @@ export default function App() {
       setResults(resMap);
       setLeaderboard(d.leaderboard);
       setLbLoaded(true);
+      perfLog(`init: leaderboard state set ${(perfNow()-_t0).toFixed(0)}ms after request start (state applied; React render/paint follows)`);
       api.getRankSnapshot().then(snap=>setRankSnapshots(snap||{today:{},yesterday:{}})).catch(()=>{});
 
       // Live matches (may not exist yet if table not created)
@@ -4394,6 +4414,12 @@ export default function App() {
       setPredsLoaded(true); // always clear loading state
     } catch(e){setGlobalErr(e.message);}
   },[]);
+
+  // Perf: log when the leaderboard first becomes ready — this effect runs right
+  // after React commits the DOM that replaces the spinner with the table.
+  useEffect(()=>{
+    if(lbLoaded) perfLog(`leaderboard committed to DOM at t=${perfNow().toFixed(0)}ms since page load`);
+  },[lbLoaded]);
 
   // Pre-load config + cached matches immediately (before auth check)
   useEffect(()=>{

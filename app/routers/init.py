@@ -3,6 +3,9 @@ from __future__ import annotations
 Single-request bootstrap — returns everything the client needs on load.
 Replaces 4-5 parallel API calls with one DB session.
 """
+import logging
+from time import perf_counter
+
 from fastapi import APIRouter, Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
@@ -16,6 +19,7 @@ from app.models import Prediction, User, WinnerPick
 
 router = APIRouter(prefix="/init", tags=["init"])
 _bearer = HTTPBearer(auto_error=False)
+_log = logging.getLogger("perf")
 
 
 @router.get("/")
@@ -23,16 +27,31 @@ async def bootstrap(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     db: AsyncSession = Depends(get_db),
 ):
+    # Perf timing — logged to the Vercel function logs to show where /api/init
+    # spends its time. Cheap (a few perf_counter reads); safe to leave on.
+    _t = perf_counter()
+    _marks: list[tuple[str, float]] = []
+    def _mark(label: str) -> None:
+        nonlocal _t
+        now = perf_counter()
+        _marks.append((label, (now - _t) * 1000))
+        _t = now
+
     caller: User | None = None
     if credentials:
         uid = decode_token(credentials.credentials)
         if uid:
             caller = await db.get(User, uid)
+    _mark("auth")
 
     cfg          = await crud.get_config(db)
+    _mark("config")
     results_map  = await crud.get_all_results(db)
+    _mark("results")
     live_map     = await crud.get_live_matches(db)
+    _mark("live")
     lb           = await crud.get_leaderboard(db)
+    _mark("leaderboard")
 
     out: dict = {
         "matches": MATCHES,
@@ -102,6 +121,7 @@ async def bootstrap(
         if first:
             out["my_predictions"] = first["predictions"]
             out["my_winner_pick"] = first["winner_pick"]
+        _mark("user_entries")
 
     if caller and caller.is_admin:
         participants = await crud.get_participants_with_entries(db)
@@ -113,5 +133,14 @@ async def bootstrap(
              "locked_winner": p.get("locked_winner")}
             for p in participants
         ]
+        _mark("admin_participants")
+
+    role = "admin" if (caller and caller.is_admin) else ("user" if caller else "anon")
+    total = sum(ms for _, ms in _marks)
+    breakdown = " ".join(f"{label}={ms:.0f}ms" for label, ms in _marks)
+    _log.info(
+        "init bootstrap [%s] total=%.0fms %s | lb_rows=%d",
+        role, total, breakdown, len(lb),
+    )
 
     return out
