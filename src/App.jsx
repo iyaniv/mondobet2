@@ -171,6 +171,19 @@ function useAnchoredPopup({ open, preferLeft=false, width=340 }) {
   return { triggerRef, popupStyle };
 }
 
+// Shared styling so every stats popup behaves identically: a dimmed-backdrop
+// modal that is near-fullscreen on mobile and a centered box on desktop.
+const STATS_BACKDROP_STYLE = {position:"fixed",inset:0,zIndex:98,background:"rgba(0,0,0,0.55)"};
+function statsModalStyle(isMobile){
+  return isMobile
+    ? {position:"fixed",inset:12,width:"auto",maxHeight:"calc(100vh - 24px)",overflowY:"auto",zIndex:99,background:C.panel,border:`1px solid ${C.border}`,borderRadius:14,padding:16,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}
+    : {position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:"min(460px, calc(100vw - 48px))",maxHeight:"85vh",overflowY:"auto",zIndex:99,background:C.panel,border:`1px solid ${C.border}`,borderRadius:14,padding:18,boxShadow:"0 8px 40px rgba(0,0,0,0.55)"};
+}
+function StatsCloseBtn({onClick}){
+  return <button onClick={onClick} aria-label="Close stats"
+    style={{background:"none",border:0,color:C.muted,cursor:"pointer",fontSize:20,lineHeight:1,padding:"2px 4px",fontFamily:"inherit",flexShrink:0}}>✕</button>;
+}
+
 function CsvHelp() {
   const [open, setOpen] = useState(false);
   const stop = (e) => e.stopPropagation();
@@ -5381,11 +5394,14 @@ export default function App() {
                       </button>
                       {statsOpen&&(
                         <>
-                          <div onClick={()=>setStatsOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
-                          <div style={{...statsPopup.popupStyle??{position:"absolute",top:"calc(100% + 8px)",right:0,width:"min(340px, calc(100vw - 40px))"},background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}>
-                            <div style={{fontSize:11,color:C.text,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
-                              <span style={{background:"rgba(163,230,53,0.1)",color:C.accent,border:`1px solid rgba(163,230,53,0.25)`,borderRadius:999,padding:"2px 9px",fontSize:11,fontWeight:700}}>{myLbEntry.name}</span>
-                              <span>{myLbEntry.scored_matches} matches with results</span>
+                          <div onClick={()=>setStatsOpen(false)} style={STATS_BACKDROP_STYLE}/>
+                          <div style={statsModalStyle(isMobile)}>
+                            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:10}}>
+                              <div style={{fontSize:11,color:C.text,display:"flex",alignItems:"center",gap:6}}>
+                                <span style={{background:"rgba(163,230,53,0.1)",color:C.accent,border:`1px solid rgba(163,230,53,0.25)`,borderRadius:999,padding:"2px 9px",fontSize:11,fontWeight:700}}>{myLbEntry.name}</span>
+                                <span>{myLbEntry.scored_matches} matches with results</span>
+                              </div>
+                              <StatsCloseBtn onClick={()=>setStatsOpen(false)}/>
                             </div>
                             <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:7,marginBottom:top3scores.length?10:0}}>
                               {cards.map((s,i)=>(
@@ -5866,21 +5882,16 @@ export default function App() {
                   {statsOpen && (
                     <>
                       {/* backdrop to close on outside click */}
-                      <div onClick={()=>setStatsOpen(false)}
-                        style={{position:"fixed",inset:0,zIndex:98}}/>
-                      <div style={{
-                        position:"absolute",top:"calc(100% + 8px)",right:0,
-                        width:"min(340px, calc(100vw - 40px))",
-                        background:C.panel,border:`1px solid ${C.border}`,
-                        borderRadius:12,padding:14,
-                        boxShadow:"0 8px 32px rgba(0,0,0,0.5)",
-                        zIndex:99,
-                      }}>
-                        <div style={{fontSize:11,color:C.text,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
-                          <span style={{background:"rgba(163,230,53,0.1)",color:C.accent,border:`1px solid rgba(163,230,53,0.25)`,borderRadius:999,padding:"2px 9px",fontSize:11,fontWeight:700}}>
-                            {myRow.name}
-                          </span>
-                          <span>{myRow.scored_matches} matches with results</span>
+                      <div onClick={()=>setStatsOpen(false)} style={STATS_BACKDROP_STYLE}/>
+                      <div style={statsModalStyle(isMobile)}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:10}}>
+                          <div style={{fontSize:11,color:C.text,display:"flex",alignItems:"center",gap:6}}>
+                            <span style={{background:"rgba(163,230,53,0.1)",color:C.accent,border:`1px solid rgba(163,230,53,0.25)`,borderRadius:999,padding:"2px 9px",fontSize:11,fontWeight:700}}>
+                              {myRow.name}
+                            </span>
+                            <span>{myRow.scored_matches} matches with results</span>
+                          </div>
+                          <StatsCloseBtn onClick={()=>setStatsOpen(false)}/>
                         </div>
                         <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:7,marginBottom:10}}>
                           {[
@@ -5974,14 +5985,11 @@ export default function App() {
                     const bestDef=eligibleTeams.map(t=>({team:t,avg:tAg[t]/tApp[t],gms:tApp[t]})).sort((a,b)=>a.avg-b.avg)[0];
                     return (
                     <>
-                      <div onClick={()=>setGroupStatsOpen(false)} style={{position:"fixed",inset:0,zIndex:98,background:"rgba(0,0,0,0.55)"}}/>
-                      <div style={isMobile
-                        ?{position:"fixed",inset:12,width:"auto",maxHeight:"calc(100vh - 24px)",overflowY:"auto",zIndex:99,background:C.panel,border:`1px solid ${C.border}`,borderRadius:14,padding:16,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}
-                        :{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:"min(460px, calc(100vw - 48px))",maxHeight:"85vh",overflowY:"auto",zIndex:99,background:C.panel,border:`1px solid ${C.border}`,borderRadius:14,padding:18,boxShadow:"0 8px 40px rgba(0,0,0,0.55)"}}>
+                      <div onClick={()=>setGroupStatsOpen(false)} style={STATS_BACKDROP_STYLE}/>
+                      <div style={statsModalStyle(isMobile)}>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:10}}>
                           <div style={{fontSize:11,color:C.text}}>{stageLabel} · {leaderboard.length} participants</div>
-                          <button onClick={()=>setGroupStatsOpen(false)} aria-label="Close stats"
-                            style={{background:"none",border:0,color:C.muted,cursor:"pointer",fontSize:20,lineHeight:1,padding:"2px 4px",fontFamily:"inherit",flexShrink:0}}>✕</button>
+                          <StatsCloseBtn onClick={()=>setGroupStatsOpen(false)}/>
                         </div>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:10}}>
                           <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
@@ -6706,10 +6714,13 @@ export default function App() {
                   </button>
                   {userStatsOpen&&(
                     <>
-                      <div onClick={()=>setUserStatsOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
-                      <div style={{...userStatsPopup.popupStyle??{position:"absolute",top:"calc(100% + 8px)",right:0,width:"min(300px, calc(100vw - 40px))"},background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}>
-                        <div style={{fontSize:11,color:C.text,marginBottom:10}}>
-                          {user.name} · {myRows.length} form{myRows.length!==1?"s":""} · {totalScored} matches
+                      <div onClick={()=>setUserStatsOpen(false)} style={STATS_BACKDROP_STYLE}/>
+                      <div style={statsModalStyle(isMobile)}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:10}}>
+                          <div style={{fontSize:11,color:C.text}}>
+                            {user.name} · {myRows.length} form{myRows.length!==1?"s":""} · {totalScored} matches
+                          </div>
+                          <StatsCloseBtn onClick={()=>setUserStatsOpen(false)}/>
                         </div>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:top3.length?10:0}}>
                           <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.green}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
