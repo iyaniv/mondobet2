@@ -87,6 +87,11 @@ html { -webkit-text-size-adjust: 100%; }
 }
 .lb-star-blink { animation: lbStarBlink 3.5s ease-in-out infinite; }
 
+/* Leaderboard table loading spinner — shown while the first leaderboard load
+   is in flight, instead of the "No participants yet." empty state. */
+@keyframes lbSpin { to { transform: rotate(360deg); } }
+.lb-spinner { animation: lbSpin 0.7s linear infinite; }
+
 /* Submit button "ready to go" pulse — used on the My-predictions action bar
    once the form is complete (all matches + champion). Uses a pseudo-element
    ring animated with transform+opacity (GPU-composited) instead of box-shadow,

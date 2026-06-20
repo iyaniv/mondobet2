@@ -4250,7 +4250,7 @@ export default function App() {
   const [groupStatsData,setGroupStatsData]=useState(null);
   const statsPopup      = useAnchoredPopup({open:statsOpen,      preferLeft:false, width:340});
   const userStatsPopup  = useAnchoredPopup({open:userStatsOpen,  preferLeft:false, width:300});
-  const groupStatsPopup = useAnchoredPopup({open:groupStatsOpen, preferLeft:true,  width:320}); // {top3_scores:[{score,count}]}
+  const groupStatsPopup = useAnchoredPopup({open:groupStatsOpen, preferLeft:true,  width:380}); // {top3_scores:[{score,count}]}
   // The active form is always available via myPreds — seed it into the cache
   // so picking the active form costs no fetch.
   useEffect(()=>{
@@ -5929,32 +5929,6 @@ export default function App() {
             {leaderboard.length>0&&(()=>{
               const stageForStats=config.round_state==="open"?(config.current_stage||1)-1:(config.current_stage||1);
               if(stageForStats<1) return null;
-              const pickCounts={};
-              leaderboard.forEach(e=>{if(e.winner_pick){pickCounts[e.winner_pick]=(pickCounts[e.winner_pick]||0)+1;}});
-              const top3picks=Object.entries(pickCounts).sort((a,b)=>b[1]-a[1]).slice(0,3);
-              const totalExact=leaderboard.reduce((s,e)=>s+(e.exact||0),0);
-              const totalDir=leaderboard.reduce((s,e)=>s+(e.correct_dir||0),0);
-              const totalScored=leaderboard.reduce((s,e)=>s+(e.scored_matches||0),0);
-              const avgExactPct=totalScored>0?Math.round(totalExact/totalScored*100):0;
-              const avgDirPct=totalScored>0?Math.round(totalDir/totalScored*100):0;
-              const stageLabel=config.round_state==="open"?`Stage ${stageForStats} (closed)`:`Stage ${stageForStats}`;
-              // ── Real-score stats (across all played games) ──
-              const playedMatches=matches.filter(m=>{const r=results[m.n];return r&&r.length>=2&&r[0]!=null&&r[1]!=null;});
-              const scorelineCounts={};
-              const tFor={},tAg={},tApp={};
-              playedMatches.forEach(m=>{
-                const r=results[m.n];const ga=r[0],gb=r[1];
-                const key=`${Math.max(ga,gb)}–${Math.min(ga,gb)}`;
-                scorelineCounts[key]=(scorelineCounts[key]||0)+1;
-                tFor[m.a]=(tFor[m.a]||0)+ga;tAg[m.a]=(tAg[m.a]||0)+gb;tApp[m.a]=(tApp[m.a]||0)+1;
-                tFor[m.b]=(tFor[m.b]||0)+gb;tAg[m.b]=(tAg[m.b]||0)+ga;tApp[m.b]=(tApp[m.b]||0)+1;
-              });
-              const scorelineSorted=Object.entries(scorelineCounts).sort((a,b)=>b[1]-a[1]);
-              const topScoreline=scorelineSorted[0];
-              const maxSL=topScoreline?topScoreline[1]:0;
-              const eligibleTeams=Object.keys(tApp).filter(t=>tApp[t]>=2);
-              const topScorer=eligibleTeams.map(t=>({team:t,avg:tFor[t]/tApp[t],gms:tApp[t]})).sort((a,b)=>b.avg-a.avg)[0];
-              const bestDef=eligibleTeams.map(t=>({team:t,avg:tAg[t]/tApp[t],gms:tApp[t]})).sort((a,b)=>a.avg-b.avg)[0];
               const handleOpen=()=>{
                 setGroupStatsOpen(o=>{
                   if(!o && !groupStatsData){
@@ -5969,11 +5943,46 @@ export default function App() {
                     style={{background:groupStatsOpen?"rgba(163,230,53,0.08)":"transparent",border:`1px solid ${groupStatsOpen?C.accent:"transparent"}`,borderRadius:8,padding:"4px 6px",cursor:"pointer",color:groupStatsOpen?C.accent:C.muted,display:"flex",alignItems:"center",fontSize:18,lineHeight:1,fontFamily:"inherit",transition:"all .15s"}}>
                     📊
                   </button>
-                  {groupStatsOpen&&(
+                  {groupStatsOpen&&(()=>{
+                    // Stats are computed lazily — only when the panel is open — so the
+                    // leaderboard render/poll doesn't pay for them while it's closed.
+                    const pickCounts={};
+                    leaderboard.forEach(e=>{if(e.winner_pick){pickCounts[e.winner_pick]=(pickCounts[e.winner_pick]||0)+1;}});
+                    const top3picks=Object.entries(pickCounts).sort((a,b)=>b[1]-a[1]).slice(0,3);
+                    const totalExact=leaderboard.reduce((s,e)=>s+(e.exact||0),0);
+                    const totalDir=leaderboard.reduce((s,e)=>s+(e.correct_dir||0),0);
+                    const totalScored=leaderboard.reduce((s,e)=>s+(e.scored_matches||0),0);
+                    const avgExactPct=totalScored>0?Math.round(totalExact/totalScored*100):0;
+                    const avgDirPct=totalScored>0?Math.round(totalDir/totalScored*100):0;
+                    const stageLabel=config.round_state==="open"?`Stage ${stageForStats} (closed)`:`Stage ${stageForStats}`;
+                    // ── Real-score stats (across all played games) ──
+                    const playedMatches=matches.filter(m=>{const r=results[m.n];return r&&r.length>=2&&r[0]!=null&&r[1]!=null;});
+                    const scorelineCounts={};
+                    const tFor={},tAg={},tApp={};
+                    playedMatches.forEach(m=>{
+                      const r=results[m.n];const ga=r[0],gb=r[1];
+                      const key=`${Math.max(ga,gb)}–${Math.min(ga,gb)}`;
+                      scorelineCounts[key]=(scorelineCounts[key]||0)+1;
+                      tFor[m.a]=(tFor[m.a]||0)+ga;tAg[m.a]=(tAg[m.a]||0)+gb;tApp[m.a]=(tApp[m.a]||0)+1;
+                      tFor[m.b]=(tFor[m.b]||0)+gb;tAg[m.b]=(tAg[m.b]||0)+ga;tApp[m.b]=(tApp[m.b]||0)+1;
+                    });
+                    const scorelineSorted=Object.entries(scorelineCounts).sort((a,b)=>b[1]-a[1]);
+                    const topScoreline=scorelineSorted[0];
+                    const maxSL=topScoreline?topScoreline[1]:0;
+                    const eligibleTeams=Object.keys(tApp).filter(t=>tApp[t]>=2);
+                    const topScorer=eligibleTeams.map(t=>({team:t,avg:tFor[t]/tApp[t],gms:tApp[t]})).sort((a,b)=>b.avg-a.avg)[0];
+                    const bestDef=eligibleTeams.map(t=>({team:t,avg:tAg[t]/tApp[t],gms:tApp[t]})).sort((a,b)=>a.avg-b.avg)[0];
+                    return (
                     <>
-                      <div onClick={()=>setGroupStatsOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
-                      <div style={{...groupStatsPopup.popupStyle??{position:"absolute",top:"calc(100% + 8px)",left:0,width:"min(320px, calc(100vw - 40px))"},background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}>
-                        <div style={{fontSize:11,color:C.text,marginBottom:10}}>{stageLabel} · {leaderboard.length} participants</div>
+                      <div onClick={()=>setGroupStatsOpen(false)} style={{position:"fixed",inset:0,zIndex:98,background:"rgba(0,0,0,0.55)"}}/>
+                      <div style={isMobile
+                        ?{position:"fixed",inset:12,width:"auto",maxHeight:"calc(100vh - 24px)",overflowY:"auto",zIndex:99,background:C.panel,border:`1px solid ${C.border}`,borderRadius:14,padding:16,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}
+                        :{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:"min(460px, calc(100vw - 48px))",maxHeight:"85vh",overflowY:"auto",zIndex:99,background:C.panel,border:`1px solid ${C.border}`,borderRadius:14,padding:18,boxShadow:"0 8px 40px rgba(0,0,0,0.55)"}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:10}}>
+                          <div style={{fontSize:11,color:C.text}}>{stageLabel} · {leaderboard.length} participants</div>
+                          <button onClick={()=>setGroupStatsOpen(false)} aria-label="Close stats"
+                            style={{background:"none",border:0,color:C.muted,cursor:"pointer",fontSize:20,lineHeight:1,padding:"2px 4px",fontFamily:"inherit",flexShrink:0}}>✕</button>
+                        </div>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:10}}>
                           <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
                             <div style={{fontSize:13,marginBottom:2}}>🎯</div>
@@ -6070,7 +6079,8 @@ export default function App() {
                         )}
                       </div>
                     </>
-                  )}
+                    );
+                  })()}
                 </div>
               );
             })()}
@@ -6427,8 +6437,9 @@ export default function App() {
                         simTotal:r.total - realPts(pickFor(r)) + simPts(pickFor(r)),
                       }));
                       const sorted=[...withSim].sort((a,b)=>b.simTotal-a.simTotal);
+                      const sortedRankMap=new Map(sorted.map((s,idx)=>[s.id,idx]));
                       withSim.forEach((r,currentIdx)=>{
-                        const simIdx=sorted.findIndex(s=>s.id===r.id);
+                        const simIdx=sortedRankMap.get(r.id);
                         matchSimRankDelta[r.id]=currentIdx-simIdx;
                         matchSimTotalMap[r.id]=r.simTotal;
                       });
@@ -6439,11 +6450,14 @@ export default function App() {
                   const renderLb = _hasSimScore
                     ? [...filteredLb].sort((a,b)=>(matchSimTotalMap[b.entry_id]??b.total)-(matchSimTotalMap[a.entry_id]??a.total))
                     : filteredLb;
+                  // Prebuild rank lookups once (O(n)) so per-row rank isn't an O(n) indexOf → O(n²) over the table.
+                  const baseRankMap = new Map(displayLb.map((r,idx)=>[r,idx+1]));
+                  const simRankAllMap = simSortedAll ? new Map(simSortedAll.map((r,idx)=>[r,idx+1])) : null;
                   return renderLb.map((row)=>{
                     // Rank = global position across all users (sim-sorted when sim active)
-                    const globalRank = simSortedAll
-                      ? simSortedAll.indexOf(row) + 1
-                      : displayLb.indexOf(row) + 1;
+                    const globalRank = simRankAllMap
+                      ? simRankAllMap.get(row)
+                      : baseRankMap.get(row);
                     const isMe=row.user_id===user?.id;
                     const isFav=isFavRow(row);
                     // Visual sim-mode (indigo row + total) is on whenever the
