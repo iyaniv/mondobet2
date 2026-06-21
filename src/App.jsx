@@ -4667,7 +4667,7 @@ export default function App() {
       if (config.round_state !== "idle") { refreshLiveAndResults(); refreshLb(); }
     };
     const id = setInterval(tick, 10000);
-    const onVisible = () => { if (!document.hidden) tick(); };  // catch up when the tab comes back
+    const onVisible = () => { if (!document.hidden) { setPinned(null); tick(); } };  // reset pin + catch up when the tab comes back
     document.addEventListener("visibilitychange", onVisible);
     return () => { clearInterval(id); document.removeEventListener("visibilitychange", onVisible); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
