@@ -1994,16 +1994,28 @@ function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
             : finished
               ? <span style={{color:C.green,fontWeight:800,letterSpacing:".5px",whiteSpace:"nowrap",flexShrink:0}}>✓ FULL TIME</span>
               : <span style={{color:C.accent,fontWeight:800,letterSpacing:".5px",whiteSpace:"nowrap",flexShrink:0}}>◷ UPCOMING</span>;
-          const teamRow=(name,won,sc)=>(
+          // Red cards per side — live-only signal (gone once finalized).
+          const redA = live ? (live.red_a||0) : 0;
+          const redB = live ? (live.red_b||0) : 0;
+          const redChip = (n) => n>0 ? (
+            <span title={`${n} red card${n>1?"s":""}`} style={{display:"inline-flex",alignItems:"center",gap:2,flexShrink:0}}>
+              <span style={{display:"inline-block",width:9,height:12,borderRadius:1.5,background:C.red,boxShadow:"0 0 0 1px rgba(0,0,0,0.25)"}}/>
+              {n>1 && <span style={{fontSize:10,fontWeight:800,color:C.red,fontVariantNumeric:"tabular-nums"}}>{n}</span>}
+            </span>
+          ) : null;
+          const teamRow=(name,won,sc,reds=0)=>(
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
               <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:14,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
                 color:won===true?C.accent:won===false?C.muted:C.text}}>
                 <span style={{fontSize:15,flexShrink:0}}>{flag(name)}</span>
                 <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{name}</span>
               </span>
-              {score
-                ? <span style={{fontFamily:"var(--c-font-display)",fontSize:17,letterSpacing:.5,minWidth:14,textAlign:"right",color:won===true?C.accent:won===false?C.muted:(isLive?C.red:C.text)}}>{sc}</span>
-                : <span style={{color:C.muted,fontSize:11}}>{won==="lead"?"vs":""}</span>}
+              <span style={{display:"inline-flex",alignItems:"center",gap:4,flexShrink:0}}>
+                {redChip(reds)}
+                {score
+                  ? <span style={{fontFamily:"var(--c-font-display)",fontSize:17,letterSpacing:.5,minWidth:14,textAlign:"right",color:won===true?C.accent:won===false?C.muted:(isLive?C.red:C.text)}}>{sc}</span>
+                  : <span style={{color:C.muted,fontSize:11}}>{won==="lead"?"vs":""}</span>}
+              </span>
             </div>
           );
           return (
@@ -2015,13 +2027,16 @@ function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
                 {badge}
                 {/* A live game whose scheduled day isn't today keeps its original
                     date + time so it's clear when it was actually played. */}
-                <span style={{color:C.muted,fontWeight:600,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",minWidth:0,overflow:"hidden",textOverflow:"ellipsis"}}>
+                {/* Option A: once a game is live or finished the kickoff hour is
+                    secondary, so it shrinks + dims and the badge wins the eye. */}
+                <span style={{color:C.muted,fontWeight:600,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",
+                  ...((isLive||finished) ? {fontSize:10,opacity:0.55} : {})}}>
                   {k ? (k.dayKey!==tKey ? `${k.md} · ${k.time}` : k.time) : ""}
                 </span>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                {teamRow(rm.a, winA===true?true:(winA===false?false:(score?null:"lead")), score?score[0]:null)}
-                {teamRow(rm.b, winA===false?true:(winA===true?false:null), score?score[1]:null)}
+                {teamRow(rm.a, winA===true?true:(winA===false?false:(score?null:"lead")), score?score[0]:null, redA)}
+                {teamRow(rm.b, winA===false?true:(winA===true?false:null), score?score[1]:null, redB)}
               </div>
             </div>
           );
@@ -2338,6 +2353,9 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
   const [etB, setEtB]   = useState(hasScore ? sStr(liveData.et_b)  : isFinal ? sStr(result[4]) : "");
   const [penA, setPenA] = useState(hasScore ? sStr(liveData.pen_a) : isFinal ? sStr(result[5]) : "");
   const [penB, setPenB] = useState(hasScore ? sStr(liveData.pen_b) : isFinal ? sStr(result[6]) : "");
+  // Red cards per side — live-only UI signal (no result equivalent).
+  const [redA, setRedA] = useState(hasScore ? sStr(liveData.red_a) : "");
+  const [redB, setRedB] = useState(hasScore ? sStr(liveData.red_b) : "");
 
   // Race protection — the 10s background poll + cross-tab sync both flush
   // liveMatches state from props. Without these guards, polling could wipe
@@ -2356,15 +2374,19 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
       setResA(sStr(liveData.score_a)); setResB(sStr(liveData.score_b));
       setEtA(sStr(liveData.et_a)); setEtB(sStr(liveData.et_b));
       setPenA(sStr(liveData.pen_a)); setPenB(sStr(liveData.pen_b));
+      setRedA(sStr(liveData.red_a)); setRedB(sStr(liveData.red_b));
     } else if (result) {
       setResA(sStr(result[0])); setResB(sStr(result[1]));
       setEtA(sStr(result[3])); setEtB(sStr(result[4]));
       setPenA(sStr(result[5])); setPenB(sStr(result[6]));
+      setRedA(""); setRedB("");
     } else {
       setResA(""); setResB(""); setEtA(""); setEtB(""); setPenA(""); setPenB("");
+      setRedA(""); setRedB("");
     }
   }, [liveData?.score_a, liveData?.score_b, liveData?.et_a, liveData?.et_b,
-      liveData?.pen_a, liveData?.pen_b, result?.[0], result?.[1],
+      liveData?.pen_a, liveData?.pen_b, liveData?.red_a, liveData?.red_b,
+      result?.[0], result?.[1],
       result?.[3], result?.[4], result?.[5], result?.[6]]);
 
   const handleFocus = () => { editingRef.current = true; };
@@ -2406,6 +2428,8 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
       et_b:  numOrNull(ov.eb!==undefined ? ov.eb : etB),
       pen_a: numOrNull(ov.pa!==undefined ? ov.pa : penA),
       pen_b: numOrNull(ov.pb!==undefined ? ov.pb : penB),
+      red_a: numOrNull(ov.ra!==undefined ? ov.ra : redA),
+      red_b: numOrNull(ov.rb!==undefined ? ov.rb : redB),
     });
   }
 
@@ -2500,6 +2524,7 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
       </div>
       {showEt  && tierRow("a.e.t.", etA, setEtA, etB, setEtB, "ea", "eb")}
       {showPen && tierRow("pen",   penA, setPenA, penB, setPenB, "pa", "pb")}
+      {hasScore && tierRow("🟥", redA, setRedA, redB, setRedB, "ra", "rb")}
       {isKnockout && hasScore && curWinner && (
         <div style={{fontSize:10,color:C.accent,fontWeight:700}}>
           {curWinner==='a' ? `◀ ${match.a}` : `${match.b} ▶`}
@@ -2536,6 +2561,7 @@ function AdminMatchRow({ match, result, liveData, onSaveResult, onGoLive, onUpda
             minute: liveData?.minute||0, is_live: !!liveData?.is_live,
             et_a: numOrNull(etA), et_b: numOrNull(etB),
             pen_a: numOrNull(penA), pen_b: numOrNull(penB),
+            red_a: numOrNull(redA), red_b: numOrNull(redB),
           }); }}
           disabled={finalBlocked}
           title={finalBlocked ? "A knockout match can't end in a draw — enter extra-time / penalties to decide a winner first" : undefined}
@@ -2653,6 +2679,8 @@ function AdminResults({ config, matches, results, liveMatches, setResults, setLi
       const etB  = data.et_b  !== undefined ? data.et_b  : (p.et_b  ?? null);
       const penA = data.pen_a !== undefined ? data.pen_a : (p.pen_a ?? null);
       const penB = data.pen_b !== undefined ? data.pen_b : (p.pen_b ?? null);
+      const redA = data.red_a !== undefined ? data.red_a : (p.red_a ?? null);
+      const redB = data.red_b !== undefined ? data.red_b : (p.red_b ?? null);
       return {
         ...prev,
         [matchN]: {
@@ -2660,6 +2688,7 @@ function AdminResults({ config, matches, results, liveMatches, setResults, setLi
           minute:  data.minute  ?? p.minute  ?? 0,
           is_live: data.is_live ?? p.is_live ?? false,
           et_a: etA, et_b: etB, pen_a: penA, pen_b: penB,
+          red_a: redA, red_b: redB,
           winner: deriveWinner(sa, sb, etA, etB, penA, penB),
         },
       };
@@ -4396,7 +4425,7 @@ export default function App() {
 
       // Live matches (may not exist yet if table not created)
       if (d.live) {
-        const liveMap={};for(const m of d.live)liveMap[m.match_n]={score_a:m.score_a,score_b:m.score_b,minute:m.minute,is_live:!!m.is_live,winner:m.winner??null,et_a:m.et_a??null,et_b:m.et_b??null,pen_a:m.pen_a??null,pen_b:m.pen_b??null};
+        const liveMap={};for(const m of d.live)liveMap[m.match_n]={score_a:m.score_a,score_b:m.score_b,minute:m.minute,is_live:!!m.is_live,winner:m.winner??null,et_a:m.et_a??null,et_b:m.et_b??null,pen_a:m.pen_a??null,pen_b:m.pen_b??null,red_a:m.red_a??null,red_b:m.red_b??null};
         setLiveMatches(liveMap);
       }
 
@@ -4588,7 +4617,7 @@ export default function App() {
   async function refreshLive() {
     try {
       const list = await liveApi.getAll();
-      const m={}; for(const x of list) m[x.match_n]={score_a:x.score_a,score_b:x.score_b,minute:x.minute,is_live:!!x.is_live,winner:x.winner??null,et_a:x.et_a??null,et_b:x.et_b??null,pen_a:x.pen_a??null,pen_b:x.pen_b??null};
+      const m={}; for(const x of list) m[x.match_n]={score_a:x.score_a,score_b:x.score_b,minute:x.minute,is_live:!!x.is_live,winner:x.winner??null,et_a:x.et_a??null,et_b:x.et_b??null,pen_a:x.pen_a??null,pen_b:x.pen_b??null,red_a:x.red_a??null,red_b:x.red_b??null};
       setLiveMatches(m);
       localStorage.setItem("mb_live_sync", Date.now().toString());
     } catch(e) { console.error("refreshLive:", e); }
@@ -4601,7 +4630,7 @@ export default function App() {
       // Don't clobber an admin's in-progress result entry from another tab's sync.
       if (user?.is_admin && tab === "results") return;
       liveApi.getAll().then(list => {
-        const m={}; for(const x of list) m[x.match_n]={score_a:x.score_a,score_b:x.score_b,minute:x.minute,is_live:!!x.is_live,winner:x.winner??null,et_a:x.et_a??null,et_b:x.et_b??null,pen_a:x.pen_a??null,pen_b:x.pen_b??null};
+        const m={}; for(const x of list) m[x.match_n]={score_a:x.score_a,score_b:x.score_b,minute:x.minute,is_live:!!x.is_live,winner:x.winner??null,et_a:x.et_a??null,et_b:x.et_b??null,pen_a:x.pen_a??null,pen_b:x.pen_b??null,red_a:x.red_a??null,red_b:x.red_b??null};
         setLiveMatches(m);
       }).catch(()=>{});
       // A finalize in another tab moves a match from live → results, so pull
@@ -4655,7 +4684,7 @@ export default function App() {
     try {
       const liveList = await liveApi.getAll();
       const resList  = await api.getResults();
-      const lm={}; for(const x of liveList) lm[x.match_n]={score_a:x.score_a,score_b:x.score_b,minute:x.minute,is_live:!!x.is_live,winner:x.winner??null,et_a:x.et_a??null,et_b:x.et_b??null,pen_a:x.pen_a??null,pen_b:x.pen_b??null};
+      const lm={}; for(const x of liveList) lm[x.match_n]={score_a:x.score_a,score_b:x.score_b,minute:x.minute,is_live:!!x.is_live,winner:x.winner??null,et_a:x.et_a??null,et_b:x.et_b??null,pen_a:x.pen_a??null,pen_b:x.pen_b??null,red_a:x.red_a??null,red_b:x.red_b??null};
       const rm={};   for(const r of resList)  rm[r.match_n]=[r.score_a,r.score_b,r.winner??null,r.et_a??null,r.et_b??null,r.pen_a??null,r.pen_b??null];
       setLiveMatches(lm);
       setResults(rm);

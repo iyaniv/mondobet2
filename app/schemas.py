@@ -196,6 +196,8 @@ class LiveMatchIn(BaseModel):
     et_b: Optional[int] = Field(None, ge=0, le=99)
     pen_a: Optional[int] = Field(None, ge=0, le=99)
     pen_b: Optional[int] = Field(None, ge=0, le=99)
+    red_a: Optional[int] = Field(None, ge=0, le=11)
+    red_b: Optional[int] = Field(None, ge=0, le=11)
 
 
 class LiveMatchOut(BaseModel):
@@ -208,6 +210,8 @@ class LiveMatchOut(BaseModel):
     et_b: Optional[int] = None
     pen_a: Optional[int] = None
     pen_b: Optional[int] = None
+    red_a: Optional[int] = None
+    red_b: Optional[int] = None
     winner: Optional[str] = None
 
 

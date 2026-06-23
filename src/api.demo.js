@@ -271,7 +271,7 @@ const SEED_RESULTS = {
 };
 // Two live R32 matches — shows the live badge + running score in the date/time slot
 const SEED_LIVE = {
-  77:{score_a:1,score_b:0,minute:67,is_live:true},
+  77:{score_a:1,score_b:0,minute:67,is_live:true,red_b:1},
   78:{score_a:0,score_b:0,minute:34,is_live:true},
 };
 
@@ -404,8 +404,8 @@ function buildFreshState() {
 // each.
 const VARIANT_KEY = "mb_demo_variant";
 const STORAGE_KEYS = {
-  current: "mb_demo_v8",
-  fresh:   "mb_demo_v8_fresh",
+  current: "mb_demo_v9",
+  fresh:   "mb_demo_v9_fresh",
 };
 function getVariant() {
   const v = localStorage.getItem(VARIANT_KEY);
@@ -472,7 +472,7 @@ function backfillSnapshots(state) {
 backfillSnapshots(S);
 
 window._resetDemo = () => {
-  ["mb_demo_v1","mb_demo_v2","mb_demo_v3","mb_demo_v4","mb_demo_v5","mb_demo_v5_fresh","mb_demo_v6","mb_demo_v6_fresh","mb_demo_v7","mb_demo_v7_fresh","mb_demo_v8","mb_demo_v8_fresh","wc2026_token","mb_demo_variant"].forEach(k=>localStorage.removeItem(k));
+  ["mb_demo_v1","mb_demo_v2","mb_demo_v3","mb_demo_v4","mb_demo_v5","mb_demo_v5_fresh","mb_demo_v6","mb_demo_v6_fresh","mb_demo_v7","mb_demo_v7_fresh","mb_demo_v8","mb_demo_v8_fresh","mb_demo_v9","mb_demo_v9_fresh","wc2026_token","mb_demo_variant"].forEach(k=>localStorage.removeItem(k));
   location.reload();
 };
 window._switchDemo = (variant) => {
@@ -1225,6 +1225,8 @@ export const liveApi = {
     const etB  = d.et_b  !== undefined ? d.et_b  : (prev?.et_b  ?? null);
     const penA = d.pen_a !== undefined ? d.pen_a : (prev?.pen_a ?? null);
     const penB = d.pen_b !== undefined ? d.pen_b : (prev?.pen_b ?? null);
+    const redA = d.red_a !== undefined ? d.red_a : (prev?.red_a ?? null);
+    const redB = d.red_b !== undefined ? d.red_b : (prev?.red_b ?? null);
     const sa = d.score_a ?? prev?.score_a ?? 0;
     const sb = d.score_b ?? prev?.score_b ?? 0;
     S.live[Number(n)] = {
@@ -1232,6 +1234,7 @@ export const liveApi = {
       minute: d.minute ?? (prev?.minute || 0),
       is_live: isLive,
       et_a: etA, et_b: etB, pen_a: penA, pen_b: penB,
+      red_a: redA, red_b: redB,
       winner: deriveWinner(sa, sb, etA, etB, penA, penB),
     };
     save(S);

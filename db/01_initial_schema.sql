@@ -151,6 +151,8 @@ CREATE TABLE IF NOT EXISTS live_matches (
     et_b        SMALLINT,
     pen_a       SMALLINT,
     pen_b       SMALLINT,
+    red_a       SMALLINT,    -- red cards shown per side (UI signal only, not scored)
+    red_b       SMALLINT,
     winner      CHAR(1),    -- "a" or "b" for knockout matches (ET/penalties)
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

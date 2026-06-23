@@ -187,6 +187,10 @@ class LiveMatch(Base):
     et_b: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
     pen_a: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
     pen_b: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    # Red cards shown per side — a pure UI signal (not scored). Live-only:
+    # dropped when the match is finalized into results.
+    red_a: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    red_b: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
     # "a" or "b" — auto-derived from pens → ET → 90-min score.
     winner: Mapped[Optional[str]] = mapped_column(String(1), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(

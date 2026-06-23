@@ -993,7 +993,8 @@ async def get_live_matches(db: AsyncSession) -> dict:
     r = await db.execute(select(LiveMatch))
     return {m.match_n: {"score_a": m.score_a, "score_b": m.score_b, "minute": m.minute,
                         "is_live": bool(m.is_live), "winner": m.winner,
-                        "et_a": m.et_a, "et_b": m.et_b, "pen_a": m.pen_a, "pen_b": m.pen_b}
+                        "et_a": m.et_a, "et_b": m.et_b, "pen_a": m.pen_a, "pen_b": m.pen_b,
+                        "red_a": m.red_a, "red_b": m.red_b}
             for m in r.scalars().all()}
 
 
@@ -1011,6 +1012,8 @@ async def upsert_live_match(
     et_b: object = _UNSET_INT,
     pen_a: object = _UNSET_INT,
     pen_b: object = _UNSET_INT,
+    red_a: object = _UNSET_INT,
+    red_b: object = _UNSET_INT,
 ) -> LiveMatch:
     """PATCH-style upsert — only the fields actually passed are written.
 
@@ -1031,6 +1034,8 @@ async def upsert_live_match(
         if et_b  is not _UNSET_INT: lm.et_b  = et_b
         if pen_a is not _UNSET_INT: lm.pen_a = pen_a
         if pen_b is not _UNSET_INT: lm.pen_b = pen_b
+        if red_a is not _UNSET_INT: lm.red_a = red_a
+        if red_b is not _UNSET_INT: lm.red_b = red_b
     else:
         lm = LiveMatch(
             match_n=match_n,
@@ -1042,6 +1047,8 @@ async def upsert_live_match(
             et_b=None  if et_b  is _UNSET_INT else et_b,
             pen_a=None if pen_a is _UNSET_INT else pen_a,
             pen_b=None if pen_b is _UNSET_INT else pen_b,
+            red_a=None if red_a is _UNSET_INT else red_a,
+            red_b=None if red_b is _UNSET_INT else red_b,
         )
         db.add(lm)
     lm.winner = derive_winner(lm.score_a, lm.score_b, lm.et_a, lm.et_b, lm.pen_a, lm.pen_b)
