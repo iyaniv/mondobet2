@@ -15,5 +15,8 @@
     { "src": "/api/(.*)", "dest": "/api/index.py" },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/health", "schedule": "*/5 * * * *" }
   ]
 }
