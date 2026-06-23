@@ -3759,6 +3759,14 @@ function CompareView({ matches, results, liveMatches, isMobile,
   const displayMatches = matches
     .filter(m => myPreds[m.n]?.[0]!=null || theirPreds[m.n]?.[0]!=null || results[m.n]!=null || liveMatches[m.n]!=null)
     .sort((a,b)=>{ const sa=matchStageObj(a.n).n,sb=matchStageObj(b.n).n; if(sa!==sb)return sa-sb; return a.t<b.t?-1:a.t>b.t?1:a.n-b.n; });
+  const hasLive = displayMatches.some(m => liveMatches[m.n]?.is_live);
+  // Re-center the live row in the viewport (the rows live in the window scroll,
+  // matching the auto-scroll logic above).
+  const scrollToLive = () => {
+    const el = liveRef.current; if (!el) return;
+    const r = el.getBoundingClientRect();
+    window.scrollTo({ top: Math.max(0, r.top + window.scrollY - (window.innerHeight / 2) + (r.height / 2)), behavior: "smooth" });
+  };
   const gap = myTotal - theirTotal;
   const tileBox={display:"inline-flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,minWidth:62,padding:"5px 12px",borderRadius:8,background:C.bg,border:`1px solid ${C.border}`};
   const tileLabel={fontSize:9,letterSpacing:".6px",textTransform:"uppercase",color:C.muted,fontWeight:700};
@@ -3790,7 +3798,7 @@ function CompareView({ matches, results, liveMatches, isMobile,
     rowEls.push(isMobile ? (
       // Mobile: two lines — match + result on top, your pick vs their pick below.
       <div key={m.n} ref={isLive?liveRef:undefined} style={{background:rowBg,border:rowBorder,borderRadius:7,padding:"7px 10px",marginBottom:5}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,flexWrap:"wrap",marginBottom:6}}>{teams}{resChip(eff,live)}</div>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:5,marginBottom:6}}>{teams}{resChip(eff,live)}</div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
           <span style={{display:"inline-flex",alignItems:"center",gap:6}}>{ptsChip(myPreds[m.n],eff)}{predBox(myPreds[m.n],eff)}</span>
           <span style={{display:"inline-flex",alignItems:"center",gap:6}}>{predBox(theirPreds[m.n],eff)}{ptsChip(theirPreds[m.n],eff)}</span>
@@ -3882,7 +3890,7 @@ function CompareView({ matches, results, liveMatches, isMobile,
       </button>
       {menuOpen&&(
         <div onClick={e=>e.stopPropagation()}
-          style={{position:"absolute",top:"calc(100% + 4px)",right:0,minWidth:220,background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",zIndex:40,overflow:"hidden"}}>
+          style={{position:"absolute",top:"calc(100% + 4px)",left:isMobile?0:"auto",right:isMobile?"auto":0,minWidth:220,maxWidth:"calc(100vw - 28px)",background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",zIndex:40,overflow:"hidden"}}>
           {/* Search row */}
           <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderBottom:`1px solid ${C.border}`}}>
             <span style={{color:C.muted,fontSize:13,flexShrink:0}}>🔍</span>
@@ -3979,15 +3987,26 @@ function CompareView({ matches, results, liveMatches, isMobile,
           </div>
         );
       })()}
-      {/* Floating "scroll to top" — matches the leaderboard FAB style. */}
-      <div style={{position:"fixed",bottom:20,right:18,zIndex:200,
-        pointerEvents:showTop?"auto":"none",opacity:showTop?1:0,
-        transform:showTop?"translateY(0)":"translateY(10px)",transition:"opacity .22s,transform .22s"}}>
-        <div onClick={()=>window.scrollTo({top:0,behavior:"smooth"})}
-          style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:600,cursor:"pointer",
-            borderRadius:22,padding:"8px 14px",boxShadow:"0 4px 18px rgba(0,0,0,.55)",
-            background:C.panel2,border:`1px solid ${C.border}`,color:C.muted}}>
-          ↑ Top
+      {/* Floating FABs — jump to the live match, and scroll to top. Matches the
+          leaderboard FAB style. */}
+      <div style={{position:"fixed",bottom:20,right:18,zIndex:200,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8}}>
+        <div style={{pointerEvents:hasLive?"auto":"none",opacity:hasLive?1:0,
+          transform:hasLive?"translateY(0)":"translateY(10px)",transition:"opacity .22s,transform .22s"}}>
+          <div onClick={scrollToLive}
+            style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:700,cursor:"pointer",
+              borderRadius:22,padding:"8px 14px",boxShadow:"0 4px 18px rgba(0,0,0,.55)",
+              background:"rgba(239,68,68,0.15)",border:`1px solid ${RED}`,color:RED}}>
+            <span className="live-dot"/> Live score
+          </div>
+        </div>
+        <div style={{pointerEvents:showTop?"auto":"none",opacity:showTop?1:0,
+          transform:showTop?"translateY(0)":"translateY(10px)",transition:"opacity .22s,transform .22s"}}>
+          <div onClick={()=>window.scrollTo({top:0,behavior:"smooth"})}
+            style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:600,cursor:"pointer",
+              borderRadius:22,padding:"8px 14px",boxShadow:"0 4px 18px rgba(0,0,0,.55)",
+              background:C.panel2,border:`1px solid ${C.border}`,color:C.muted}}>
+            ↑ Top
+          </div>
         </div>
       </div>
     </div>
