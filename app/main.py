@@ -87,6 +87,12 @@ async def _bootstrap():
                 ), '{}'::jsonb))
             FROM clean WHERE e.id = clean.id
         """))
+        # Migration 14: red-card counts per side on a live match (UI signal
+        # only, not scored). Cleared when the match finalizes into `results`.
+        for col in ("red_a", "red_b"):
+            await conn.execute(text(
+                f"ALTER TABLE live_matches ADD COLUMN IF NOT EXISTS {col} SMALLINT"
+            ))
 
     async with AsyncSessionLocal() as db:
         await crud.get_config(db)
