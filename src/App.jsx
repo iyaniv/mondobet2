@@ -3716,11 +3716,17 @@ function CompareView({ matches, results, liveMatches, isMobile,
   const [search, setSearch] = useState("");
   const searchRef = useRef(null);
   const [showTop, setShowTop] = useState(false);
+  const [liveInView, setLiveInView] = useState(false);
   const liveRef = useRef(null);
   // Show a floating "↑ Top" once the user has scrolled down (the auto-scroll to
-  // the live match can leave them deep in the list).
+  // the live match can leave them deep in the list). Also track whether the live
+  // row is on-screen, so the "Live score" jump button can hide once we're on it.
   useEffect(() => {
-    const onScroll = () => setShowTop(window.scrollY > 400);
+    const onScroll = () => {
+      setShowTop(window.scrollY > 400);
+      const el = liveRef.current;
+      setLiveInView(!!el && (() => { const r = el.getBoundingClientRect(); return r.top < window.innerHeight && r.bottom > 0; })());
+    };
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
     return () => window.removeEventListener("scroll", onScroll);
@@ -4019,12 +4025,12 @@ function CompareView({ matches, results, liveMatches, isMobile,
       {/* Floating FABs — jump to the live match, and scroll to top. Matches the
           leaderboard FAB style. */}
       <div style={{position:"fixed",bottom:20,right:18,zIndex:200,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8}}>
-        <div style={{pointerEvents:hasLive?"auto":"none",opacity:hasLive?1:0,
-          transform:hasLive?"translateY(0)":"translateY(10px)",transition:"opacity .22s,transform .22s"}}>
+        <div style={{pointerEvents:(hasLive&&!liveInView)?"auto":"none",opacity:(hasLive&&!liveInView)?1:0,
+          transform:(hasLive&&!liveInView)?"translateY(0)":"translateY(10px)",transition:"opacity .22s,transform .22s"}}>
           <div onClick={scrollToLive}
-            style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:700,cursor:"pointer",
+            style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:600,cursor:"pointer",
               borderRadius:22,padding:"8px 14px",boxShadow:"0 4px 18px rgba(0,0,0,.55)",
-              background:"rgba(239,68,68,0.15)",border:`1px solid ${RED}`,color:RED}}>
+              background:C.panel2,border:`1px solid ${C.border}`,color:C.muted}}>
             <span className="live-dot"/> Live score
           </div>
         </div>
