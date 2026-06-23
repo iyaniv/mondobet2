@@ -4381,6 +4381,14 @@ export default function App() {
         setLiveMatches(liveMap);
       }
 
+      // /api/init/ only READS the live table — it never syncs the upstream feed.
+      // So a user logging in mid-match sees a score that's only as fresh as the
+      // last poller wrote. Kick off ONE immediate live refresh (GET /api/live/
+      // syncs the feed) so the freshly-synced score lands in ~1-5s instead of
+      // waiting for the first 10s poll tick. Gated on a round being in motion,
+      // same as the tick; the 10s upstream cache means this can't spam the feed.
+      if (d.config?.round_state !== "idle") refreshLiveAndResults();
+
       if(!isAdmin&&userId){
         if(d.entries&&d.entries.length>0){
           setEntries(d.entries);
