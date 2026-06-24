@@ -572,6 +572,11 @@ function initials(name) {
   return p.length >= 2 ? (p[0][0] + p[p.length-1][0]).toUpperCase() : name.slice(0,2).toUpperCase();
 }
 
+// Stable-stringify compare: the polled objects are always rebuilt with the same
+// key order each tick, so this reliably detects "nothing changed" and lets the
+// setState bail out instead of re-rendering the whole tree on a 10s metronome.
+const sameData = (a, b) => { try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; } };
+
 const inputStyle = {
   display:"block", width:"100%", marginBottom:10,
   background:C.panel2, color:C.text, border:`1px solid ${C.border}`,
@@ -4649,7 +4654,7 @@ export default function App() {
 
   async function refreshLb(){
     try {
-      const lb=await api.getLeaderboard();setLeaderboard(lb);
+      const lb=await api.getLeaderboard();setLeaderboard(prev=>sameData(prev,lb)?prev:lb);
       // Sync winner pick only for the currently-active entry so a newly-created
       // empty form doesn't inherit another entry's pick. Read activeEntryId /
       // lockedWinner from refs — the polled caller closes over stale state.
@@ -4659,7 +4664,7 @@ export default function App() {
       }
       if(user?.is_admin){
         const [u,p]=await Promise.all([api.getUsers(),api.getAdminParticipants()]);
-        setParticipants(u);setAdminParticipants(p);
+        setParticipants(prev=>sameData(prev,u)?prev:u);setAdminParticipants(prev=>sameData(prev,p)?prev:p);
       }
     } catch(e) { console.error("refreshLb:", e); }
   }
@@ -4692,8 +4697,8 @@ export default function App() {
       const resList  = await api.getResults();
       const lm={}; for(const x of liveList) lm[x.match_n]={score_a:x.score_a,score_b:x.score_b,minute:x.minute,is_live:!!x.is_live,winner:x.winner??null,et_a:x.et_a??null,et_b:x.et_b??null,pen_a:x.pen_a??null,pen_b:x.pen_b??null,red_a:x.red_a??null,red_b:x.red_b??null};
       const rm={};   for(const r of resList)  rm[r.match_n]=[r.score_a,r.score_b,r.winner??null,r.et_a??null,r.et_b??null,r.pen_a??null,r.pen_b??null];
-      setLiveMatches(lm);
-      setResults(rm);
+      setLiveMatches(prev=>sameData(prev,lm)?prev:lm);
+      setResults(prev=>sameData(prev,rm)?prev:rm);
       localStorage.setItem("mb_live_sync", Date.now().toString());
     } catch(e) { console.error("refreshLiveAndResults:", e); }
   }
@@ -4704,7 +4709,7 @@ export default function App() {
   // the admin's Dashboard, where they're the ones driving those changes.
   async function refreshConfig(){
     if(user?.is_admin && tab==="dashboard") return;
-    try { const cfg=await api.getConfig(); setConfig(cfg); }
+    try { const cfg=await api.getConfig(); setConfig(prev=>sameData(prev,cfg)?prev:cfg); }
     catch(e) { console.error("refreshConfig:", e); }
   }
 
