@@ -3722,15 +3722,19 @@ function CompareView({ matches, results, liveMatches, isMobile,
   const searchRef = useRef(null);
   const [showTop, setShowTop] = useState(false);
   const [liveInView, setLiveInView] = useState(false);
+  const [latestInView, setLatestInView] = useState(false);
   const liveRef = useRef(null);
+  const latestRef = useRef(null);
   // Show a floating "↑ Top" once the user has scrolled down (the auto-scroll to
   // the live match can leave them deep in the list). Also track whether the live
-  // row is on-screen, so the "Live score" jump button can hide once we're on it.
+  // (or, with no live game, the latest-finished) row is on-screen, so the jump
+  // button can hide once we're on it.
   useEffect(() => {
+    const inView = (el) => !!el && (() => { const r = el.getBoundingClientRect(); return r.top < window.innerHeight && r.bottom > 0; })();
     const onScroll = () => {
       setShowTop(window.scrollY > 400);
-      const el = liveRef.current;
-      setLiveInView(!!el && (() => { const r = el.getBoundingClientRect(); return r.top < window.innerHeight && r.bottom > 0; })());
+      setLiveInView(inView(liveRef.current));
+      setLatestInView(inView(latestRef.current));
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
@@ -3800,13 +3804,22 @@ function CompareView({ matches, results, liveMatches, isMobile,
     .filter(m => myPreds[m.n]?.[0]!=null || theirPreds[m.n]?.[0]!=null || results[m.n]!=null || liveMatches[m.n]!=null)
     .sort((a,b)=>{ const sa=matchStageObj(a.n).n,sb=matchStageObj(b.n).n; if(sa!==sb)return sa-sb; return a.t<b.t?-1:a.t>b.t?1:a.n-b.n; });
   const hasLive = displayMatches.some(m => liveMatches[m.n]?.is_live);
-  // Re-center the live row in the viewport (the rows live in the window scroll,
+  // With no live game, the FAB instead jumps to the latest match that has a
+  // score — the bottom-most played row in the (stage-then-kickoff sorted) list.
+  let latestN = null;
+  for (let i = displayMatches.length - 1; i >= 0; i--) {
+    const m = displayMatches[i];
+    if (effScoreOf(results[m.n], liveMatches[m.n])) { latestN = m.n; break; }
+  }
+  // Re-center a row in the viewport (the rows live in the window scroll,
   // matching the auto-scroll logic above).
-  const scrollToLive = () => {
-    const el = liveRef.current; if (!el) return;
+  const scrollToRow = (el) => {
+    if (!el) return;
     const r = el.getBoundingClientRect();
     window.scrollTo({ top: Math.max(0, r.top + window.scrollY - (window.innerHeight / 2) + (r.height / 2)), behavior: "smooth" });
   };
+  const scrollToLive = () => scrollToRow(liveRef.current);
+  const scrollToLatest = () => scrollToRow(latestRef.current);
   const gap = myTotal - theirTotal;
   const tileBox={display:"inline-flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,minWidth:62,padding:"5px 12px",borderRadius:8,background:C.bg,border:`1px solid ${C.border}`};
   const tileLabel={fontSize:9,letterSpacing:".6px",textTransform:"uppercase",color:C.muted,fontWeight:700};
@@ -3837,7 +3850,7 @@ function CompareView({ matches, results, liveMatches, isMobile,
     const cmpKo = !eff ? kickoffParts(m.t, tz) : null;
     rowEls.push(isMobile ? (
       // Mobile: two lines — match + result on top, your pick vs their pick below.
-      <div key={m.n} ref={isLive?liveRef:undefined} style={{background:rowBg,border:rowBorder,borderRadius:7,padding:"7px 10px",marginBottom:5}}>
+      <div key={m.n} ref={isLive?liveRef:(m.n===latestN?latestRef:undefined)} style={{background:rowBg,border:rowBorder,borderRadius:7,padding:"7px 10px",marginBottom:5}}>
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:5,marginBottom:6}}>{teams}{resChip(eff,live)}</div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
           <span style={{display:"inline-flex",alignItems:"center",gap:6}}>{ptsChip(myPreds[m.n],eff)}{predBox(myPreds[m.n],eff)}</span>
@@ -3848,7 +3861,7 @@ function CompareView({ matches, results, liveMatches, isMobile,
         </div>}
       </div>
     ) : (
-      <div key={m.n} ref={isLive?liveRef:undefined} style={{display:"grid",gridTemplateColumns:GRID,alignItems:"center",gap:6,
+      <div key={m.n} ref={isLive?liveRef:(m.n===latestN?latestRef:undefined)} style={{display:"grid",gridTemplateColumns:GRID,alignItems:"center",gap:6,
         background:rowBg,border:rowBorder,borderRadius:7,padding:"6px 8px",marginBottom:4}}>
         <span style={{textAlign:"right"}}>{ptsChip(myPreds[m.n],eff)}</span>
         <span style={{display:"flex",justifyContent:"flex-end"}}>{predBox(myPreds[m.n],eff)}</span>
@@ -4030,15 +4043,22 @@ function CompareView({ matches, results, liveMatches, isMobile,
       {/* Floating FABs — jump to the live match, and scroll to top. Matches the
           leaderboard FAB style. */}
       <div style={{position:"fixed",bottom:20,right:18,zIndex:200,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8}}>
-        <div style={{pointerEvents:(hasLive&&!liveInView)?"auto":"none",opacity:(hasLive&&!liveInView)?1:0,
-          transform:(hasLive&&!liveInView)?"translateY(0)":"translateY(10px)",transition:"opacity .22s,transform .22s"}}>
-          <div onClick={scrollToLive}
-            style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:600,cursor:"pointer",
-              borderRadius:22,padding:"8px 14px",boxShadow:"0 4px 18px rgba(0,0,0,.55)",
-              background:C.panel2,border:`1px solid ${C.border}`,color:C.muted}}>
-            <span className="live-dot"/> Live score
-          </div>
-        </div>
+        {(() => {
+          // Live game → jump to the live row. None live → jump to the latest
+          // played row. Hide once that row is on-screen (or nothing's started).
+          const showJump = hasLive ? !liveInView : (latestN!=null && !latestInView);
+          return (
+            <div style={{pointerEvents:showJump?"auto":"none",opacity:showJump?1:0,
+              transform:showJump?"translateY(0)":"translateY(10px)",transition:"opacity .22s,transform .22s"}}>
+              <div onClick={hasLive?scrollToLive:scrollToLatest}
+                style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:600,cursor:"pointer",
+                  borderRadius:22,padding:"8px 14px",boxShadow:"0 4px 18px rgba(0,0,0,.55)",
+                  background:C.panel2,border:`1px solid ${C.border}`,color:C.muted}}>
+                {hasLive ? <><span className="live-dot"/> Live score</> : <>↓ Latest</>}
+              </div>
+            </div>
+          );
+        })()}
         <div style={{pointerEvents:showTop?"auto":"none",opacity:showTop?1:0,
           transform:showTop?"translateY(0)":"translateY(10px)",transition:"opacity .22s,transform .22s"}}>
           <div onClick={()=>window.scrollTo({top:0,behavior:"smooth"})}
