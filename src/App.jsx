@@ -6207,7 +6207,7 @@ export default function App() {
             })()}
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",
-            justifyContent:isMobile?"space-between":"flex-start"}}>
+            justifyContent:"flex-start"}}>
             {hasFocus&&(
               <span onClick={toggleLivePreds}
                 role="switch" aria-checked={showLivePreds}
