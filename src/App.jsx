@@ -6958,7 +6958,9 @@ export default function App() {
         return (
           <div style={{
             overflow:"hidden",
-            maxHeight:showBanner?80:0,
+            // On mobile the long banner copy wraps to 3-4 lines and pushes the
+            // "Exit simulation" button onto its own line; an 80px cap clipped it.
+            maxHeight:showBanner?(isMobile?220:80):0,
             opacity:showBanner?1:0,
             transition:"max-height .55s cubic-bezier(.4,0,.2,1), opacity .4s ease",
             borderBottom:showBanner?`1px solid ${C.indigo}`:`1px solid transparent`,
