@@ -4098,6 +4098,15 @@ function CompareView({ matches, results, liveMatches, isMobile,
       {/* Floating FABs — jump to the live match, and scroll to top. Matches the
           leaderboard FAB style. */}
       <div style={{position:"fixed",bottom:20,right:18,zIndex:200,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8}}>
+        <div style={{pointerEvents:showTop?"auto":"none",opacity:showTop?1:0,
+          transform:showTop?"translateY(0)":"translateY(10px)",transition:"opacity .22s,transform .22s"}}>
+          <div onClick={()=>window.scrollTo({top:0,behavior:"smooth"})}
+            style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:600,cursor:"pointer",
+              borderRadius:22,padding:"8px 14px",boxShadow:"0 4px 18px rgba(0,0,0,.55)",
+              background:C.panel2,border:`1px solid ${C.border}`,color:C.muted}}>
+            ↑ Top
+          </div>
+        </div>
         {(() => {
           // Live game → jump to the live row. None live → jump to the latest
           // played row. Hide once that row is on-screen (or nothing's started).
@@ -4114,15 +4123,6 @@ function CompareView({ matches, results, liveMatches, isMobile,
             </div>
           );
         })()}
-        <div style={{pointerEvents:showTop?"auto":"none",opacity:showTop?1:0,
-          transform:showTop?"translateY(0)":"translateY(10px)",transition:"opacity .22s,transform .22s"}}>
-          <div onClick={()=>window.scrollTo({top:0,behavior:"smooth"})}
-            style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:600,cursor:"pointer",
-              borderRadius:22,padding:"8px 14px",boxShadow:"0 4px 18px rgba(0,0,0,.55)",
-              background:C.panel2,border:`1px solid ${C.border}`,color:C.muted}}>
-            ↑ Top
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -6467,7 +6467,7 @@ export default function App() {
                         /* ── SIMULATE mode header ── */
                         <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
                           <div style={{display:"flex",alignItems:"center",gap:6}}>
-                            <span style={{fontSize:9,fontWeight:800,color:selLive?"rgba(255,160,160,1)":"rgba(180,170,255,1)",letterSpacing:".06em"}}>SIMULATE</span>
+                            <span style={{fontSize:9,fontWeight:800,color:selLive?C.red:C.indigo,letterSpacing:".06em"}}>SIMULATE</span>
                             <button onClick={()=>{setMatchSimMode(false);setMatchSimA("");setMatchSimB("");}}
                               title="Exit simulate"
                               style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",borderRadius:5,color:"rgba(160,150,255,0.8)",fontSize:14,lineHeight:1,fontFamily:"inherit",display:"inline-flex",alignItems:"center"}}>
@@ -6477,7 +6477,7 @@ export default function App() {
                           <div style={{display:"flex",alignItems:"flex-end",gap:5}}>
                             <span style={{fontSize:14}}>{flag(ca)}</span>
                             <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                              <span style={{fontSize:9,color:selLive?"rgba(255,150,150,0.7)":"rgba(160,150,255,0.7)",fontWeight:600}}>{ca}</span>
+                              <span style={{fontSize:9,color:selLive?C.red:C.indigo,fontWeight:600}}>{ca}</span>
                               <input
                                 autoFocus
                                 type="number" min="0" max="20"
@@ -6487,13 +6487,13 @@ export default function App() {
                                 style={{width:36,height:32,borderRadius:6,
                                   border:`1px solid ${selLive?"rgba(239,68,68,0.5)":"rgba(130,120,255,0.55)"}`,
                                   background:selLive?"rgba(239,68,68,0.12)":"rgba(99,102,241,0.18)",
-                                  color:selLive?"#ffaaaa":"#c4c0ff",fontFamily:"monospace",
+                                  color:C.text,fontFamily:"monospace",
                                   fontSize:17,fontWeight:700,textAlign:"center",outline:"none",
                                   MozAppearance:"textfield",appearance:"textfield"}}/>
                             </div>
-                            <span style={{fontSize:12,color:selLive?"rgba(200,100,100,0.8)":"rgba(120,110,200,0.8)",paddingBottom:8}}>–</span>
+                            <span style={{fontSize:12,color:selLive?C.red:C.indigo,paddingBottom:8}}>–</span>
                             <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                              <span style={{fontSize:9,color:selLive?"rgba(255,150,150,0.7)":"rgba(160,150,255,0.7)",fontWeight:600}}>{cb}</span>
+                              <span style={{fontSize:9,color:selLive?C.red:C.indigo,fontWeight:600}}>{cb}</span>
                               <input
                                 type="number" min="0" max="20"
                                 value={matchSimB}
@@ -6502,7 +6502,7 @@ export default function App() {
                                 style={{width:36,height:32,borderRadius:6,
                                   border:`1px solid ${selLive?"rgba(239,68,68,0.5)":"rgba(130,120,255,0.55)"}`,
                                   background:selLive?"rgba(239,68,68,0.12)":"rgba(99,102,241,0.18)",
-                                  color:selLive?"#ffaaaa":"#c4c0ff",fontFamily:"monospace",
+                                  color:C.text,fontFamily:"monospace",
                                   fontSize:17,fontWeight:700,textAlign:"center",outline:"none",
                                   MozAppearance:"textfield",appearance:"textfield"}}/>
                             </div>
@@ -6525,7 +6525,7 @@ export default function App() {
                             <span style={{fontSize:8,color:gameMenuOpen?C.accent:C.muted}}>▾</span>
                           </button>
                           {!selRes&&(
-                            <button onClick={()=>setMatchSimMode(true)}
+                            <button onClick={()=>{setMatchSimMode(true);if(selLive&&selLiveData){setMatchSimA(String(selLiveData.score_a));setMatchSimB(String(selLiveData.score_b));}}}
                               title="Simulate a score"
                               style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",borderRadius:5,
                                 color:selLive?"rgba(239,68,68,0.5)":C.muted,fontSize:13,lineHeight:1,fontFamily:"inherit",display:"inline-flex",alignItems:"center",
