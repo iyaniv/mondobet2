@@ -2800,7 +2800,7 @@ function AdminResults({ config, matches, results, liveMatches, setResults, setLi
         </div>
       )}
       {STAGES.map(s => {
-        const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last);
+        const stageMatches = matches.filter(m => m.n >= s.first && m.n <= s.last).sort((a,b)=>a.t<b.t?-1:a.t>b.t?1:a.n-b.n);
         if (stageMatches.length === 0) return null;
         const done = stageMatches.filter(m => results[m.n] != null).length;
         const isCurrent = currentStage === s.n;
