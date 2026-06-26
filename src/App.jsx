@@ -1429,17 +1429,53 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
     const done = stageMatches.filter(m => results[m.n] != null).length;
     return { ...s, total: stageMatches.length, done };
   });
-  const curStat = stageStats[currentStage - 1] || stageStats[0];
-  const currentStageComplete = curStat && curStat.done === curStat.total && curStat.total > 0;
-  const canOpenNextStage = currentStageComplete && currentStage < 6;
+  // "Running" focus is derived, not stored: the stage whose games are actually
+  // being played. Prefer a stage that's partway through (some results, not all);
+  // otherwise the latest stage with any result. Null before the first result.
+  const runningStage = (() => {
+    const inProgress = stageStats.filter(s => s.done > 0 && s.done < s.total);
+    if (inProgress.length) return Math.max(...inProgress.map(s => s.n));
+    const played = stageStats.filter(s => s.done > 0);
+    return played.length ? Math.max(...played.map(s => s.n)) : null;
+  })();
+  const picksOpen = config.round_state === "open";
 
-  async function openNextStage() {
-    if (!canOpenNextStage) return;
-    const next = currentStage + 1;
+  // Open a stage for predictions. It becomes the single editable stage AND the
+  // round is opened in one atomic config write, so no other stage is ever
+  // briefly editable — only one stage takes picks at a time.
+  async function openStagePicks(n) {
+    const s = STAGES[n - 1];
+    const ok = await confirmDialog({
+      title: `Open Stage ${n} — ${s.name} for predictions?`,
+      message: n > currentStage
+        ? `Users will be able to fill Stage ${n} predictions${runningStage && runningStage < n ? `, while Stage ${runningStage} keeps playing` : ""}. Any other stage currently open for picks will close.`
+        : `Re-opens Stage ${n} predictions for editing.`,
+      confirmLabel: `Open Stage ${n}`,
+    });
+    if (!ok) return;
     try {
-      const cfg = await api.updateConfig({ current_stage: next });
+      const cfg = await api.updateConfig({ current_stage: n, round_state: "open" });
       setConfig(cfg);
-      showToast(`Stage ${next} — ${STAGES[next-1].name} opened! 🎯`);
+      showToast(`Stage ${n} — ${s.name} open for predictions 🎯`);
+      refreshLb();
+    } catch(e) { showToast(e.message, "err"); }
+  }
+
+  // Close the open stage's predictions (round_state only; the stage stays the
+  // current pick stage so it can be re-opened).
+  async function closeStagePicks() {
+    const ok = await confirmDialog({
+      title: "Close predictions?",
+      message: "Users won't be able to edit or submit their forms while predictions are closed. You can re-open them later.",
+      confirmLabel: "Close predictions",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const cfg = await api.updateConfig({ round_state: "closed" });
+      setConfig(cfg);
+      showToast("Predictions closed.");
+      refreshLb();
     } catch(e) { showToast(e.message, "err"); }
   }
 
@@ -1462,14 +1498,6 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
     }catch(e){showToast(e.message,"err");}
   }
 
-  async function setRoundState(state) {
-    try {
-      const cfg = await api.updateConfig({round_state: state});
-      setConfig(cfg);
-      showToast(state==="open" ? "Round opened!" : state==="closed" ? "Round closed." : "Round reset.");
-      refreshLb();
-    } catch(e) { showToast(e.message, "err"); }
-  }
 
   async function setWinner(team) {
     // Show feedback immediately; update state only after the API confirms.
@@ -1528,82 +1556,109 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
 
       <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>🗂️ Stage control</h2>
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:14,marginBottom:20}}>
-        {/* Stage + round state row */}
-        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:14}}>
-          <span style={{background:"rgba(99,102,241,0.12)",color:C.indigo,border:`1px solid ${C.indigo}`,
-            padding:"4px 12px",borderRadius:999,fontSize:13,fontWeight:700}}>
-            ▶ Stage {currentStage} — {curStat.name}
-          </span>
-          <span style={{fontSize:13,color:C.muted}}>{curStat.done}/{curStat.total} results entered</span>
-          {config.round_state==="open" && (
-            <span style={{fontSize:12,padding:"2px 8px",borderRadius:999,fontWeight:600,
-              background:"rgba(16,185,129,0.12)",color:C.green,border:`1px solid ${C.green}`}}>
-              🟢 predictions open
-            </span>
-          )}
-          {config.round_state==="closed" && (
-            <span style={{fontSize:12,padding:"2px 8px",borderRadius:999,fontWeight:600,
-              background:"rgba(239,68,68,0.1)",color:C.red,border:`1px solid ${C.red}`}}>
-              🔒 predictions closed
-            </span>
-          )}
-          {config.round_state==="idle" && (
-            <span style={{fontSize:12,padding:"2px 8px",borderRadius:999,fontWeight:600,
-              background:"rgba(148,163,184,0.1)",color:C.muted,border:`1px solid ${C.border}`}}>
-              ⏸️ not started
-            </span>
-          )}
+        <div style={{fontSize:12,color:C.muted,marginBottom:14}}>
+          Only one stage takes picks at a time — opening a stage closes the previous one. The “running” stage is detected automatically from the results entered.
         </div>
 
-        {/* Open / Close predictions */}
-        <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginBottom:14}}>
-          {config.round_state!=="open" && (
-            <Btn green onClick={()=>setRoundState("open")}>🟢 Open predictions</Btn>
-          )}
-          {config.round_state==="open" && (
-            <Btn red onClick={async ()=>{
-              const ok = await confirmDialog({
-                title: "Close predictions for this stage?",
-                message: "Users won't be able to edit or submit their forms while predictions are closed. You can re-open them later.",
-                confirmLabel: "Close predictions",
-                danger: true,
-              });
-              if (ok) setRoundState("closed");
-            }}>🔒 Close predictions</Btn>
-          )}
-          <span style={{fontSize:12,color:C.muted}}>
-            {config.round_state==="open"
-              ? "Users can enter and edit predictions."
-              : config.round_state==="closed"
-              ? "Predictions locked. Enter results in the Results tab."
-              : "Open to let users fill in predictions."}
-          </span>
+        {/* Running focus banner */}
+        {runningStage && stageStats[runningStage-1] && (() => {
+          const r = stageStats[runningStage-1];
+          return (
+            <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.indigo}`,
+              borderRadius:"0 6px 6px 0",padding:"11px 14px",marginBottom:16,display:"flex",alignItems:"center",
+              gap:14,flexWrap:"wrap"}}>
+              <div style={{display:"flex",flexDirection:"column",gap:2,minWidth:160}}>
+                <span style={{fontSize:10,letterSpacing:"0.06em",textTransform:"uppercase",color:C.indigo,fontWeight:700}}>
+                  ▶ Now running · auto
+                </span>
+                <span style={{fontSize:15,fontWeight:700,color:C.text}}>Stage {r.n} — {r.name}</span>
+              </div>
+              <div style={{display:"flex",gap:18,marginLeft:"auto",alignItems:"center",flexWrap:"wrap"}}>
+                <span style={{fontSize:12,color:C.muted}}>Matches #{r.first}–{r.last}</span>
+                <span style={{fontSize:12,color:C.text,fontFamily:"monospace"}}>{r.done}/{r.total} results</span>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Stage table header */}
+        <div style={{display:"grid",gridTemplateColumns:"1.7fr 1.1fr 1.4fr 1.3fr",gap:10,
+          fontSize:10,letterSpacing:"0.06em",textTransform:"uppercase",color:C.muted,padding:"0 10px 6px"}}>
+          <span>Stage</span><span>Status</span><span>Predictions</span><span>Results</span>
         </div>
+        <div style={{height:1,background:C.border,marginBottom:6}}/>
 
-        {/* Advance to next stage */}
-        {currentStage < 6 ? (
-          canOpenNextStage ? (
-            <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",
-              borderTop:`1px solid ${C.border}`,paddingTop:12}}>
-              <Btn green onClick={openNextStage}>
-                🎯 Advance to Stage {currentStage + 1} — {STAGES[currentStage].name}
-              </Btn>
-              <span style={{fontSize:12,color:C.muted}}>
-                All results entered. Users will be able to fill Stage {currentStage + 1} predictions.
-              </span>
-            </div>
-          ) : (
-            <div style={{fontSize:12,color:C.muted,padding:"8px 12px",background:C.panel2,borderRadius:6,
-              borderTop:`1px solid ${C.border}`,marginTop:2,paddingTop:10}}>
-              ⏳ Enter all {curStat.total} Stage {currentStage} results ({curStat.done}/{curStat.total} done) to unlock Stage {currentStage + 1}.
-            </div>
-          )
-        ) : (
-          <div style={{borderTop:`1px solid ${C.border}`,paddingTop:12}}>
-            <span style={{fontSize:13,color:C.green,fontWeight:600}}>🏆 All stages complete — tournament done!</span>
-          </div>
-        )}
+        {/* Stage rows */}
+        {stageStats.map(s => {
+          const isComplete = s.total>0 && s.done>=s.total;
+          const isRunning  = s.n===runningStage && !isComplete;
+          const isPick     = s.n===currentStage;
+          const openHere   = isPick && picksOpen;
+          const pct        = s.total ? Math.round(s.done/s.total*100) : 0;
 
+          let badge;
+          if (isRunning)       badge = {t:"Running",      c:C.indigo, bg:"rgba(99,102,241,0.14)", bd:C.indigo};
+          else if (isComplete) badge = {t:"Complete",     c:C.green,  bg:"rgba(16,185,129,0.12)", bd:"rgba(16,185,129,0.45)"};
+          else if (openHere)   badge = {t:"Taking picks", c:C.green,  bg:"rgba(16,185,129,0.12)", bd:"rgba(16,185,129,0.4)"};
+          else if (isPick)     badge = {t:"Picks closed", c:C.red,    bg:"rgba(239,68,68,0.1)",   bd:"rgba(239,68,68,0.45)"};
+          else                 badge = {t:"Upcoming",     c:C.muted,  bg:"rgba(148,163,184,0.1)", bd:C.border};
+
+          const rowBg = isRunning ? "rgba(99,102,241,0.06)" : (openHere ? "rgba(16,185,129,0.05)" : C.panel2);
+          const rowBd = isRunning ? "rgba(99,102,241,0.35)" : (openHere ? "rgba(16,185,129,0.25)" : C.border);
+
+          return (
+            <div key={s.n} style={{display:"grid",gridTemplateColumns:"1.7fr 1.1fr 1.4fr 1.3fr",gap:10,
+              alignItems:"center",padding:"10px",borderRadius:6,marginBottom:6,
+              background:rowBg,border:`1px solid ${rowBd}`}}>
+              {/* Stage */}
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{width:14,textAlign:"center",color:isRunning?C.indigo:C.muted,fontSize:11}}>{isRunning?"▶":""}</span>
+                <div style={{display:"flex",flexDirection:"column",gap:1}}>
+                  <span style={{fontSize:13,fontWeight:600,color:C.text}}>{s.n}. {s.name}</span>
+                  <span style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>#{s.first}–{s.last}</span>
+                </div>
+              </div>
+              {/* Status */}
+              <div>
+                <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,fontWeight:600,
+                  padding:"3px 9px",borderRadius:999,background:badge.bg,color:badge.c,border:`1px solid ${badge.bd}`}}>
+                  {badge.t}
+                </span>
+              </div>
+              {/* Predictions */}
+              <div>
+                {isComplete ? (
+                  <span style={{fontSize:12,color:C.muted}}>—</span>
+                ) : openHere ? (
+                  <button onClick={closeStagePicks} style={{cursor:"pointer",fontFamily:"inherit",fontSize:11,
+                    fontWeight:600,padding:"4px 11px",borderRadius:6,border:`1px solid rgba(16,185,129,0.5)`,
+                    color:C.green,background:"rgba(16,185,129,0.1)"}}>
+                    🟢 Open · close
+                  </button>
+                ) : isRunning ? (
+                  <span style={{fontSize:11,color:C.muted,display:"inline-flex",alignItems:"center",gap:5,
+                    padding:"4px 10px",borderRadius:6,border:`1px solid ${C.border}`,opacity:0.8}}>
+                    🔒 closed · live
+                  </span>
+                ) : (
+                  <button onClick={()=>openStagePicks(s.n)} style={{cursor:"pointer",fontFamily:"inherit",fontSize:11,
+                    fontWeight:600,padding:"4px 11px",borderRadius:6,border:`1px solid ${C.accent}`,
+                    color:C.accent,background:"transparent"}}>
+                    Open picks
+                  </button>
+                )}
+              </div>
+              {/* Results */}
+              <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                <span style={{fontSize:12,color:C.text,fontFamily:"monospace"}}>{s.done}/{s.total}</span>
+                <div style={{height:6,borderRadius:999,background:C.bg,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${pct}%`,borderRadius:999,
+                    background:isRunning?C.indigo:(pct>=100?C.accent:C.muted)}}/>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       <h2 style={{color:C.accent,fontSize:16,margin:"0 0 8px"}}>🏆 Tournament winner</h2>
