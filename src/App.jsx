@@ -4211,7 +4211,7 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[compareMyKey]);
   // Leave compare mode when navigating away from the leaderboard tab.
-  useEffect(()=>{ if(tab!=="leaderboard"){ setCompareKey(null); setCompareMyKey(null); setMatchSimMode(false); setMatchSimA(""); setMatchSimB(""); } },[tab]);
+  useEffect(()=>{ if(tab!=="leaderboard"){ setCompareKey(null); setCompareMyKey(null); setMatchSimMode(false); setMatchSimA(""); setMatchSimB(""); } else { setPinned(null); } },[tab]);
   const [liveMatches,setLiveMatches]=useState({});
   const [predsLoaded,setPredsLoaded]=useState(false);
   // True once the leaderboard has resolved at least once, so the table can show
