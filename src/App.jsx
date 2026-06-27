@@ -4520,7 +4520,11 @@ export default function App() {
   // The form actually being simulated right now.
   const effectiveSimEntryId = simEntryId || activeEntryId;
   const simPreds = (effectiveSimEntryId && simPredsByEntry[effectiveSimEntryId]) || myPreds;
-  const unplayedPredMatches = matches.filter(m=>!results[m.n]&&!liveMatches[m.n]&&simPreds?.[m.n]?.[0]!=null).sort((a,b)=>a.t<b.t?-1:a.t>b.t?1:a.n-b.n);
+  // Simulate only resolves games of the in-play stage. You can only meaningfully
+  // simulate the round being played now — future knockout matchups aren't known
+  // yet, and leftover earlier-stage games belong to a round that's already moved
+  // on — so scope the unplayed-prediction set to the running stage.
+  const unplayedPredMatches = matches.filter(m=>m.s===runningStage&&!results[m.n]&&!liveMatches[m.n]&&simPreds?.[m.n]?.[0]!=null).sort((a,b)=>a.t<b.t?-1:a.t>b.t?1:a.n-b.n);
   // Simulate / Actual toggle is always available for a stable UI. When there
   // are no unplayed predictions the simulated leaderboard equals the actual
   // one, so flipping the toggle is just a no-op rather than the button
@@ -6459,7 +6463,7 @@ export default function App() {
                       background:"transparent",color:C.indigo,fontWeight:700,fontSize:13,
                       textAlign:"center",outline:"none",padding:"0 2px",MozAppearance:"textfield"}}
                   />{" "}
-                  of {unplayedPredMatches.length} unplayed match{unplayedPredMatches.length!==1?"es":""} with <b>your</b> predictions as results — all users' scores are recomputed accordingly{simLoading?" · loading…":""}
+                  of {unplayedPredMatches.length} unplayed match{unplayedPredMatches.length!==1?"es":""} in the current round with <b>your</b> predictions as results — all users' scores are recomputed accordingly{simLoading?" · loading…":""}
                 </>
               : <>✨ <b>Simulation mode is on.</b> No unplayed predictions to apply — the standings here match the actual leaderboard.</>}
           </div>

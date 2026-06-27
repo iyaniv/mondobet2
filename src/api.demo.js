@@ -682,6 +682,11 @@ export const api = {
   getConfig:      async () => { await delay(30); return S.config; },
   getResults:     async () => { await delay(30); return Object.entries(S.results).map(([n,r])=>({match_n:Number(n),score_a:r[0],score_b:r[1],winner:r[2]??null,et_a:r[3]??null,et_b:r[4]??null,pen_a:r[5]??null,pen_b:r[6]??null})); },
   getLeaderboard: async () => { await delay(50); return computeLeaderboard(); },
+  // Daily rank snapshots ({ dayKey: { entryId: rank } }) drive the leaderboard's
+  // rank-movement arrows. The demo has no historical snapshots, so return an
+  // empty map — the consumers treat "no days" as "no movement to show". Without
+  // this method the prod-shaped call in App init throws and aborts the load.
+  getRankSnapshot: async () => ({}),
   // resultsOverride: { [match_n]: [score_a, score_b] }
   // winnerOverride: team name (string) — assume tournament winner for sim
   getSimulatedLeaderboard: async (resultsOverride, winnerOverride=null) => {
