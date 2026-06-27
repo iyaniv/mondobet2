@@ -4322,6 +4322,7 @@ export default function App() {
   const [renamingEntryId,setRenamingEntryId]=useState(null);
   const [renameVal,setRenameVal]=useState("");
   const [showNewMenu,setShowNewMenu]=useState(false);
+  const [copyMenuStage,setCopyMenuStage]=useState(null); // stageN whose copy dropdown is open
   const [collapsedStages,setCollapsedStages]=useState(()=>new Set());
   // Timezone for all kickoff displays. Lifted to App state (was local to
   // Settings) so changing it instantly re-renders the Today's Games panel and
@@ -5091,6 +5092,47 @@ export default function App() {
       api.setPredictionsBulk(filled.map(f => ({match_n:f.n, score_a:f.a, score_b:f.b})), targetId)
         .then(() => { refreshLb(); })
         .catch(() => {});
+    }
+
+    // Copy stage predictions from another form owned by the same user into the
+    // currently active form. Only copies matches in the given stage that don't
+    // yet have a result or live score (same guard as randomFillStage).
+    function copyStageFromEntry(stageN, srcEntryId) {
+      if (!editable || !activeEntry) return;
+      const stage = STAGES.find(s => s.n === stageN);
+      if (!stage) return;
+      const src = entries.find(e => e.id === srcEntryId);
+      if (!src) return;
+      const srcPredMap = Object.fromEntries((src.predictions||[]).map(p=>[p.match_n,[p.score_a,p.score_b]]));
+      const targetId = activeEntryId;
+      const copied = [];
+      for (let n = stage.first; n <= stage.last; n++) {
+        if (results[n] || liveMatches[n]) continue;
+        const pred = srcPredMap[n];
+        if (!pred || pred[0]==null || pred[1]==null) continue;
+        copied.push({ n, a: pred[0], b: pred[1] });
+      }
+      if (!copied.length) { showToast("Nothing to copy — source form has no predictions for this stage yet.","warn"); return; }
+      // Invalidate the stage submission (editing re-opens it).
+      const stageN_ = stageN;
+      setEntries(es => es.map(e => {
+        if (e.id !== targetId) return e;
+        const preds = [...(e.predictions||[]).filter(p => !copied.find(f=>f.n===p.match_n)),
+                       ...copied.map(f=>({match_n:f.n,score_a:f.a,score_b:f.b}))];
+        const ss = {...(e.stages_submitted||{})};
+        delete ss[stageN_]; delete ss[String(stageN_)];
+        return {...e, predictions: preds, stages_submitted: ss};
+      }));
+      setMyPreds(p => {
+        const np = {...p};
+        copied.forEach(f => { np[f.n] = [f.a, f.b]; });
+        return np;
+      });
+      if (targetId === activeEntryId) copied.forEach(f => { predBaseline.current[f.n] = [f.a, f.b]; });
+      showToast(`Copied ${copied.length} prediction${copied.length===1?"":"s"} from "${src.name}" 📋`);
+      api.setPredictionsBulk(copied.map(f=>({match_n:f.n,score_a:f.a,score_b:f.b})), targetId)
+        .then(()=>{ refreshLb(); })
+        .catch(()=>{});
     }
 
     // Import predictions from a CSV. Format: "match,home,away" per line
@@ -5887,6 +5929,41 @@ export default function App() {
                       </label>
                       <CsvHelp/>
                     </>
+                  )}
+                  {isCurrent && editable && entries.filter(e=>e.id!==activeEntryId).length > 0 && (
+                    <div style={{position:"relative"}} onClick={ev=>ev.stopPropagation()}>
+                      <button
+                        onClick={()=>setCopyMenuStage(v=>v===s.n?null:s.n)}
+                        title="Copy predictions from another one of your forms"
+                        style={{
+                          padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,
+                          background:copyMenuStage===s.n?C.panel2:"transparent",
+                          color:C.accent,border:`1px solid ${C.accent}`,cursor:"pointer",
+                        }}>
+                        📋 Copy from
+                      </button>
+                      {copyMenuStage===s.n && (
+                        <div
+                          onMouseLeave={()=>setCopyMenuStage(null)}
+                          style={{
+                            position:"absolute",right:0,top:"calc(100% + 4px)",zIndex:50,
+                            background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,
+                            minWidth:170,boxShadow:"0 4px 16px rgba(0,0,0,0.4)",overflow:"hidden",
+                          }}>
+                          <div style={{padding:"6px 12px",fontSize:11,color:C.muted,borderBottom:`1px solid ${C.border}`,fontWeight:600,letterSpacing:"0.05em",textTransform:"uppercase"}}>Copy stage picks from</div>
+                          {entries.filter(e=>e.id!==activeEntryId).map(src=>(
+                            <button key={src.id} onClick={()=>{ copyStageFromEntry(s.n,src.id); setCopyMenuStage(null); }} style={{
+                              display:"block",width:"100%",textAlign:"left",padding:"9px 14px",
+                              background:"transparent",border:"none",color:C.text,cursor:"pointer",fontSize:13,
+                              whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
+                            }}
+                            onMouseEnter={e=>e.currentTarget.style.background=C.panel}
+                            onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                            >{src.name}</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
                   <span style={{fontSize:13,color:C.muted,lineHeight:1}}>
                     {isCollapsed ? "▸" : "▾"}
