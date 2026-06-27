@@ -2107,63 +2107,81 @@ function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
 }
 
 function TournamentGoalStats({ matches, results }) {
+  const [open, setOpen] = useState(false);
+  const isMobile = useIsMobile();
   const playedMatches = matches.filter(m => { const r=results[m.n]; return r&&r.length>=2&&r[0]!=null&&r[1]!=null; });
   if (!playedMatches.length) return null;
-  const scorelineCounts={}, tFor={}, tAg={}, tApp={};
-  let totalGoals=0, cleanSheets=0, highestGoals=0, highestGame=null, biggestMargin=0, biggestWin=null;
-  playedMatches.forEach(m=>{
-    const r=results[m.n]; const ga=r[0],gb=r[1];
-    const key=`${Math.max(ga,gb)}–${Math.min(ga,gb)}`;
-    scorelineCounts[key]=(scorelineCounts[key]||0)+1;
-    tFor[m.a]=(tFor[m.a]||0)+ga; tAg[m.a]=(tAg[m.a]||0)+gb; tApp[m.a]=(tApp[m.a]||0)+1;
-    tFor[m.b]=(tFor[m.b]||0)+gb; tAg[m.b]=(tAg[m.b]||0)+ga; tApp[m.b]=(tApp[m.b]||0)+1;
-    totalGoals+=ga+gb;
-    if(ga===0||gb===0) cleanSheets++;
-    if(ga+gb>highestGoals){highestGoals=ga+gb; highestGame={m,ga,gb};}
-    const margin=Math.abs(ga-gb);
-    if(margin>biggestMargin){biggestMargin=margin; biggestWin={m,ga,gb};}
-  });
-  const avgGoals=totalGoals/playedMatches.length;
-  const scorelineSorted=Object.entries(scorelineCounts).sort((a,b)=>b[1]-a[1]);
-  const topScoreline=scorelineSorted[0]; const maxSL=topScoreline?topScoreline[1]:0;
-  const eligibleTeams=Object.keys(tApp).filter(t=>tApp[t]>=2);
-  const topScorer=eligibleTeams.map(t=>({team:t,avg:tFor[t]/tApp[t]})).sort((a,b)=>b.avg-a.avg)[0];
-  const bestDef=eligibleTeams.map(t=>({team:t,avg:tAg[t]/tApp[t]})).sort((a,b)=>a.avg-b.avg)[0];
-  const statCard=(icon,value,label,sub,border)=>(
-    <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${border}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
-      <div style={{fontSize:13,marginBottom:2}}>{icon}</div>
-      <div style={{fontSize:18,fontWeight:700,lineHeight:1.1,marginBottom:2,color:C.text}}>{value}</div>
-      <div style={{fontSize:11,color:C.text,marginBottom:1}}>{label}</div>
-      <div style={{fontSize:10,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{sub}</div>
-    </div>
-  );
   return (
-    <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 14px 10px",marginBottom:16}}>
-      <div style={{fontSize:12,fontWeight:700,color:C.muted,letterSpacing:".04em",marginBottom:10}}>TOURNAMENT STATS · {playedMatches.length} games played</div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:10}}>
-        {statCard("⚽",totalGoals,"Total goals",`${avgGoals.toFixed(2)} per game`,C.accent)}
-        {statCard("🧤",cleanSheets,"Clean sheets",`${Math.round(cleanSheets/playedMatches.length*100)}% of games`,C.indigo)}
-        {highestGame&&statCard("🔥",`${highestGame.ga}–${highestGame.gb}`,"Most goals in a game",`${withFlag(highestGame.m.a)} v ${withFlag(highestGame.m.b)}`,"#f59e0b")}
-        {biggestWin&&biggestMargin>0&&statCard("💥",`${biggestWin.ga}–${biggestWin.gb}`,"Biggest win",`${withFlag(biggestWin.m.a)} v ${withFlag(biggestWin.m.b)}`,C.red)}
-        {topScorer&&statCard("🏹",withFlag(topScorer.team),"Top scoring",`${topScorer.avg.toFixed(1)} goals/gm · ${tFor[topScorer.team]} total`,C.accent)}
-        {bestDef&&statCard("🛡️",withFlag(bestDef.team),"Best defense",`${bestDef.avg.toFixed(1)} conceded/gm · ${tAg[bestDef.team]} total`,C.indigo)}
-      </div>
-      {scorelineSorted.length>0&&(
-        <div>
-          <div style={{fontSize:11,color:C.muted,marginBottom:6}}>Most common scoreline: <b style={{color:C.text}}>{topScoreline[0]}</b> ({topScoreline[1]}×)</div>
-          <div style={{display:"flex",flexDirection:"column",gap:4}}>
-            {scorelineSorted.slice(0,6).map(([key,count],i)=>(
-              <div key={i} style={{display:"flex",alignItems:"center",gap:8}}>
-                <span style={{fontSize:12,fontWeight:600,color:C.text,width:34}}>{key}</span>
-                <div style={{flex:1,background:C.border,borderRadius:4,height:8}}>
-                  <div style={{width:`${Math.round(count/maxSL*100)}%`,height:8,borderRadius:4,background:C.accent}}/>
-                </div>
-                <span style={{fontSize:11,color:C.muted,width:24,textAlign:"right"}}>{count}×</span>
-              </div>
-            ))}
+    <div style={{position:"relative",display:"inline-block"}}>
+      <button onClick={()=>setOpen(o=>!o)} title="Tournament stats"
+        style={{background:open?"rgba(163,230,53,0.08)":"transparent",border:`1px solid ${open?C.accent:"transparent"}`,
+          borderRadius:8,padding:"4px 8px",cursor:"pointer",color:open?C.accent:C.muted,
+          display:"flex",alignItems:"center",fontSize:18,lineHeight:1,fontFamily:"inherit",transition:"all .15s"}}>
+        📊
+      </button>
+      {open&&(()=>{
+        const scorelineCounts={}, tFor={}, tAg={}, tApp={};
+        let totalGoals=0, cleanSheets=0, highestGoals=0, highestGame=null, biggestMargin=0, biggestWin=null;
+        playedMatches.forEach(m=>{
+          const r=results[m.n]; const ga=r[0],gb=r[1];
+          const key=`${Math.max(ga,gb)}–${Math.min(ga,gb)}`;
+          scorelineCounts[key]=(scorelineCounts[key]||0)+1;
+          tFor[m.a]=(tFor[m.a]||0)+ga; tAg[m.a]=(tAg[m.a]||0)+gb; tApp[m.a]=(tApp[m.a]||0)+1;
+          tFor[m.b]=(tFor[m.b]||0)+gb; tAg[m.b]=(tAg[m.b]||0)+ga; tApp[m.b]=(tApp[m.b]||0)+1;
+          totalGoals+=ga+gb;
+          if(ga===0||gb===0) cleanSheets++;
+          if(ga+gb>highestGoals){highestGoals=ga+gb; highestGame={m,ga,gb};}
+          const margin=Math.abs(ga-gb);
+          if(margin>biggestMargin){biggestMargin=margin; biggestWin={m,ga,gb};}
+        });
+        const avgGoals=totalGoals/playedMatches.length;
+        const scorelineSorted=Object.entries(scorelineCounts).sort((a,b)=>b[1]-a[1]);
+        const topScoreline=scorelineSorted[0]; const maxSL=topScoreline?topScoreline[1]:0;
+        const eligibleTeams=Object.keys(tApp).filter(t=>tApp[t]>=2);
+        const topScorer=eligibleTeams.map(t=>({team:t,avg:tFor[t]/tApp[t]})).sort((a,b)=>b.avg-a.avg)[0];
+        const bestDef=eligibleTeams.map(t=>({team:t,avg:tAg[t]/tApp[t]})).sort((a,b)=>a.avg-b.avg)[0];
+        const statCard=(icon,value,label,sub,border)=>(
+          <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${border}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
+            <div style={{fontSize:13,marginBottom:2}}>{icon}</div>
+            <div style={{fontSize:18,fontWeight:700,lineHeight:1.1,marginBottom:2,color:C.text}}>{value}</div>
+            <div style={{fontSize:11,color:C.text,marginBottom:1}}>{label}</div>
+            <div style={{fontSize:10,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{sub}</div>
           </div>
-        </div>
-      )}
+        );
+        return (<>
+          <div onClick={()=>setOpen(false)} style={STATS_BACKDROP_STYLE}/>
+          <div style={statsModalStyle(isMobile)}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:10}}>
+              <div style={{fontSize:11,color:C.text}}>{playedMatches.length} games played</div>
+              <StatsCloseBtn onClick={()=>setOpen(false)}/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:10}}>
+              {statCard("⚽",totalGoals,"Total goals",`${avgGoals.toFixed(2)} per game`,C.accent)}
+              {statCard("🧤",cleanSheets,"Clean sheets",`${Math.round(cleanSheets/playedMatches.length*100)}% of games`,C.indigo)}
+              {highestGame&&statCard("🔥",`${highestGame.ga}–${highestGame.gb}`,"Most goals in a game",`${withFlag(highestGame.m.a)} v ${withFlag(highestGame.m.b)}`,"#f59e0b")}
+              {biggestWin&&biggestMargin>0&&statCard("💥",`${biggestWin.ga}–${biggestWin.gb}`,"Biggest win",`${withFlag(biggestWin.m.a)} v ${withFlag(biggestWin.m.b)}`,C.red)}
+              {topScorer&&statCard("🏹",withFlag(topScorer.team),"Top scoring",`${topScorer.avg.toFixed(1)} goals/gm · ${tFor[topScorer.team]} total`,C.accent)}
+              {bestDef&&statCard("🛡️",withFlag(bestDef.team),"Best defense",`${bestDef.avg.toFixed(1)} conceded/gm · ${tAg[bestDef.team]} total`,C.indigo)}
+            </div>
+            {scorelineSorted.length>0&&(
+              <div>
+                <div style={{fontSize:11,color:C.muted,marginBottom:6}}>Most common scoreline: <b style={{color:C.text}}>{topScoreline[0]}</b> ({topScoreline[1]}×)</div>
+                <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                  {scorelineSorted.slice(0,6).map(([key,count],i)=>(
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{fontSize:12,fontWeight:600,color:C.text,width:34}}>{key}</span>
+                      <div style={{flex:1,background:C.border,borderRadius:4,height:8}}>
+                        <div style={{width:`${Math.round(count/maxSL*100)}%`,height:8,borderRadius:4,background:C.accent}}/>
+                      </div>
+                      <span style={{fontSize:11,color:C.muted,width:24,textAlign:"right"}}>{count}×</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </>);
+      })()}
     </div>
   );
 }
@@ -2187,9 +2205,8 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user, t
   return (
     <div>
       <TodaysGames matches={matches} results={results} liveMatches={liveMatches} tz={tz}/>
-      <TournamentGoalStats matches={matches} results={results}/>
       {/* ── Stage tabs ── */}
-      <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
+      <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
         {visibleStages.map(s => {
           const isActive  = s.n === effectiveStage;
           const isCurrent = s.n === openStage;
@@ -2213,6 +2230,7 @@ function Tournament({ matches, results, liveMatches={}, myPreds, config, user, t
             </button>
           );
         })}
+        <TournamentGoalStats matches={matches} results={results}/>
       </div>
 
       {/* ── Group Stage (stage 1) ── */}
@@ -2317,37 +2335,39 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
     const border  = isLive ? `1px solid ${C.red}` : isDone ? `1px solid rgba(16,185,129,0.2)` : `1px solid ${C.border}`;
     const pending = !isLive && !isDone;
 
-    const rowA = {display:'flex',alignItems:'center',gap:5,padding:'6px 8px',
+    const rowA = {display:'flex',alignItems:'center',gap:6,padding:'8px 10px',
       borderBottom:`1px solid ${C.border}`,
       background: winA===true ? 'rgba(163,230,53,.07)' : 'transparent'};
-    const rowB = {display:'flex',alignItems:'center',gap:5,padding:'6px 8px',
+    const rowB = {display:'flex',alignItems:'center',gap:6,padding:'8px 10px',
       background: winA===false ? 'rgba(163,230,53,.07)' : 'transparent'};
-    const nameStyle = (won) => ({fontSize:12,fontWeight:won?700:400,flex:1,
+    const nameStyle = (won) => ({fontSize:15,fontWeight:won?700:400,flex:1,
       whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',
       color: won===false ? C.muted : C.text});
-    const scoreStyle = (won) => ({fontSize:12,fontWeight:700,fontFamily:'monospace',
-      minWidth:18,textAlign:'right',
+    const scoreStyle = (won) => ({fontSize:15,fontWeight:700,fontFamily:'monospace',
+      minWidth:22,textAlign:'right',
       color: won===true ? C.accent : isDone ? C.muted : C.muted});
 
-    const koParts = pending ? kickoffParts(m.t, tz) : null;
+    // Kickoff date+time is shown on every card (all stages, all states) so the
+    // bracket doubles as a schedule — not just for the not-yet-resolved rounds.
+    const koParts = kickoffParts(m.t, tz);
     return (
-      <div data-matchup={m.n} style={{background:C.panel,border,borderRadius:8,overflow:'hidden',opacity:pending?0.6:1,margin:'0 3px'}}>
+      <div data-matchup={m.n} style={{background:C.panel,border,borderRadius:10,overflow:'hidden',opacity:pending?0.6:1,margin:'0 4px'}}>
           <div style={rowA}>
-            <span style={{fontSize:14,width:20,textAlign:'center',flexShrink:0}}>{flag(teamA)}</span>
+            <span style={{fontSize:18,width:25,textAlign:'center',flexShrink:0}}>{flag(teamA)}</span>
             <span style={nameStyle(winA===true)}>{teamA}</span>
             {isLive
-              ? <span className="live-dot" style={{width:6,height:6}}/>
+              ? <span className="live-dot" style={{width:8,height:8}}/>
               : <span style={scoreStyle(winA===true)}>{scoreA != null ? scoreA : '–'}</span>}
           </div>
           <div style={rowB}>
-            <span style={{fontSize:14,width:20,textAlign:'center',flexShrink:0}}>{flag(teamB)}</span>
+            <span style={{fontSize:18,width:25,textAlign:'center',flexShrink:0}}>{flag(teamB)}</span>
             <span style={nameStyle(winA===false)}>{teamB}</span>
             {isLive
-              ? <span className="live-dot" style={{width:6,height:6}}/>
+              ? <span className="live-dot" style={{width:8,height:8}}/>
               : <span style={scoreStyle(winA===false)}>{scoreB != null ? scoreB : '–'}</span>}
           </div>
           {koParts && (
-            <div style={{padding:'3px 8px 4px',fontSize:10,fontWeight:600,color:C.muted,
+            <div style={{padding:'4px 10px 5px',fontSize:12,fontWeight:600,color:C.muted,
               borderTop:`1px solid ${C.border}`,textAlign:'center',whiteSpace:'nowrap',
               letterSpacing:'.01em'}}>
               {koParts.md} · {koParts.time}
@@ -2363,8 +2383,8 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
   // both SF matches). The 3rd-place match floats below — no bracket lines connect to it.
   const MATCH_COUNTS  = {2:16, 3:8, 4:4, 5:2};   // stage 6 handled separately
   const BASE_COUNT    = 16;
-  const BASE_SLOT_PX  = 80;
-  const LABEL_H       = 16;
+  const BASE_SLOT_PX  = 100;
+  const LABEL_H       = 20;
 
   function aboveCardLabel(m) {
     const res = results[m.n];
@@ -2375,14 +2395,14 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
       const wt = winner==='a'
         ? resolveTeamDeep(m.a, results, matches)
         : resolveTeamDeep(m.b, results, matches);
-      return <span style={{fontSize:10,fontWeight:700,color:C.muted,
+      return <span style={{fontSize:12,fontWeight:700,color:C.muted,
         whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
         {flag(wt)} <span style={{color:C.accent}}>{wt}</span> wins
       </span>;
     }
-    if (isLive) return <span style={{fontSize:10,fontWeight:700,
+    if (isLive) return <span style={{fontSize:12,fontWeight:700,
       display:'flex',alignItems:'center',gap:3}}>
-      <span className="live-dot" style={{width:6,height:6}}/>
+      <span className="live-dot" style={{width:8,height:8}}/>
       <span style={{color:C.red}}>LIVE</span>
     </span>;
     return null;
@@ -2423,9 +2443,9 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
           return (
             <Fragment key={s.n}>
               <div data-round-col={s.n} style={{display:'flex',flexDirection:'column',
-                width:160, flexShrink:0, opacity:isCurrent?1:0.5}}>
-                <div style={{fontSize:10,fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',
-                  padding:'0 4px 8px',textAlign:'center',height:24,
+                width:200, flexShrink:0, opacity:isCurrent?1:0.5}}>
+                <div style={{fontSize:12,fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',
+                  padding:'0 4px 10px',textAlign:'center',height:30,
                   color:isCurrent?C.accent:C.muted}}>
                   {s.name}
                 </div>
@@ -2433,8 +2453,8 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
                 {bracketMs.map(m => slotCard(m, isFinalStage ? finalSlotPx : slotPx))}
                 {/* 3rd place — floating below, not connected to bracket lines */}
                 {thirdMatch && (
-                  <div style={{marginTop:4,padding:'0 3px'}}>
-                    <div style={{fontSize:10,fontWeight:700,color:C.muted,
+                  <div style={{marginTop:4,padding:'0 4px'}}>
+                    <div style={{fontSize:12,fontWeight:700,color:C.muted,
                       padding:'0 0 4px',letterSpacing:'.06em',textTransform:'uppercase'}}>
                       🥉 3rd place
                     </div>
