@@ -2188,8 +2188,15 @@ function TournamentGoalStats({ matches, results }) {
 
 function Tournament({ matches, results, liveMatches={}, myPreds, config, user, tz }) {
   const openStage = config.current_stage || 1;
+  // Default the tab to the *running* stage — the earliest stage that still has
+  // an unplayed game (live games have no final result, so they count as
+  // unplayed). The admin can open a later stage for picks while an earlier one
+  // is still being played, so this is deliberately NOT config.current_stage.
+  const runningStage = (STAGES.find(s =>
+    matches.some(m => m.n >= s.first && m.n <= s.last && !results[m.n]))
+    || {n: openStage}).n;
   const visibleStages = user?.is_admin ? STAGES : STAGES.filter(s => s.n <= openStage);
-  const [activeStage, setActiveStage] = useState(openStage);
+  const [activeStage, setActiveStage] = useState(runningStage);
   // Clamp active stage to visible list
   const effectiveStage = visibleStages.find(s => s.n === activeStage)
     ? activeStage
@@ -4709,20 +4716,21 @@ export default function App() {
   }
 
   // Pick the default tab once after auth, based on the current round state.
-  //   admin                 → Results (their primary tab)
-  //   round CLOSED          → Leaderboard
-  //   anything else         → My predictions
-  // Runs once per logged-in user (a ref one-shots it).
+  //   admin                          → Results (their primary tab)
+  //   tournament underway            → Leaderboard
+  //   pre-tournament (filling picks) → My predictions
+  // "Underway" = betting round closed OR a knockout stage is active: once games
+  // are running the leaderboard is the most useful landing spot, even though a
+  // later stage may still be open for picks. Runs once per user (a ref one-shots it).
   const tabInitForUserRef = useRef(null);
   useEffect(() => {
     if (!user) { tabInitForUserRef.current = null; return; }
     if (tabInitForUserRef.current === user.id) return;
     if (user.is_admin) { setTab("results"); tabInitForUserRef.current = user.id; return; }
-    // In demo mode always land on predictions so date/time is immediately visible.
-    const isDemoMode = import.meta.env.MODE === "demo";
-    setTab(!isDemoMode && config.round_state === "closed" ? "leaderboard" : "predictions");
+    const underway = config.round_state === "closed" || (config.current_stage || 1) > 1;
+    setTab(underway ? "leaderboard" : "predictions");
     tabInitForUserRef.current = user.id;
-  }, [user?.id, config.round_state]);
+  }, [user?.id, config.round_state, config.current_stage]);
 
   // ── Onboarding (per-user, per-tab) ──────────────────────────────────────
   // Seen-state lives on the user row (DB / demo store) — `user.help_seen` is
