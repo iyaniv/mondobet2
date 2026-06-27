@@ -2351,16 +2351,16 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
     // bracket doubles as a schedule — not just for the not-yet-resolved rounds.
     const koParts = kickoffParts(m.t, tz);
     return (
-      <div data-matchup={m.n} style={{background:C.panel,border,borderRadius:10,overflow:'hidden',opacity:pending?0.6:1,margin:'0 4px'}}>
+      <div data-matchup={m.n} style={{background:C.panel,border,borderRadius:10,overflow:'hidden',opacity:pending?0.6:1,margin:'0 4px',flexShrink:0}}>
           <div style={rowA}>
-            <span style={{fontSize:18,width:25,textAlign:'center',flexShrink:0}}>{flag(teamA)}</span>
+            <span style={{fontSize:16,width:24,textAlign:'center',flexShrink:0}}>{flag(teamA)}</span>
             <span style={nameStyle(winA===true)}>{teamA}</span>
             {isLive
               ? <span className="live-dot" style={{width:8,height:8}}/>
               : <span style={scoreStyle(winA===true)}>{scoreA != null ? scoreA : '–'}</span>}
           </div>
           <div style={rowB}>
-            <span style={{fontSize:18,width:25,textAlign:'center',flexShrink:0}}>{flag(teamB)}</span>
+            <span style={{fontSize:16,width:24,textAlign:'center',flexShrink:0}}>{flag(teamB)}</span>
             <span style={nameStyle(winA===false)}>{teamB}</span>
             {isLive
               ? <span className="live-dot" style={{width:8,height:8}}/>
@@ -2383,7 +2383,7 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
   // both SF matches). The 3rd-place match floats below — no bracket lines connect to it.
   const MATCH_COUNTS  = {2:16, 3:8, 4:4, 5:2};   // stage 6 handled separately
   const BASE_COUNT    = 16;
-  const BASE_SLOT_PX  = 100;
+  const BASE_SLOT_PX  = 140;   // tall enough for a 3-row card (teams + kickoff) without clipping
   const LABEL_H       = 20;
 
   function aboveCardLabel(m) {
