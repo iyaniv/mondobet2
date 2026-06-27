@@ -531,12 +531,12 @@ async def get_leaderboard(
     result or a live score, and (if no tournament winner is set yet) assume
     sim_winner is the eventual champion.
 
-    Privacy: while the betting round is OPEN, other users' predictions for the
-    still-open matches are hidden, so the simulated results are applied ONLY to
-    the requesting user's own forms (sim_user_id). Everyone else stays at their
-    real, currently-visible totals — otherwise simulating would leak rivals'
-    standings on a stage that hasn't closed yet. Once the round is closed
-    (forms revealed), the simulation applies to everyone.
+    The simulated results are applied to EVERY participant's forms so the
+    projected standings reorder the whole board (the UI promises "all users'
+    scores are recomputed accordingly"). The caller scopes sim_results to the
+    in-play stage, so a simulation only ever reshuffles around the games of the
+    round being played right now. sim_user_id is retained for the API signature
+    but no longer gates which forms the simulation touches.
     """
     participants     = await get_participants(db)
     all_entries_map  = await get_all_entries_by_user(db)  # single bulk query
@@ -545,8 +545,6 @@ async def get_leaderboard(
     all_winners      = await get_all_winner_picks(db)
     live_map         = await get_live_matches(db)
     cfg              = await get_config(db)
-
-    round_open = cfg.round_state == RoundStateEnum.open
 
     # Spotlight matches for the leaderboard prediction columns: while any games
     # are in play, all of them (so multiple concurrent live games each get a
@@ -581,10 +579,11 @@ async def get_leaderboard(
     rows: list[LeaderboardEntry] = []
     for user in participants:
         user_entries = all_entries_map.get(user.id, [])
-        # Apply the simulation to this entry's owner only if: not a sim at all
-        # (normal board) → no; OR the round is closed (everyone revealed); OR
-        # this is the simulating user's own form.
-        apply_sim = bool(sim_results) and (not round_open or user.id == sim_user_id)
+        # Apply the simulation to every participant's forms (not just the
+        # requester's) so the projected standings reorder the whole board. The
+        # caller scopes sim_results to the in-play stage, so this only reshuffles
+        # around games of the round being played right now.
+        apply_sim = bool(sim_results)
         results_for_scoring = sim_results_map if apply_sim else all_results
         tournament_winner   = sim_tournament_winner if apply_sim else cfg.tournament_winner
         for entry in user_entries:

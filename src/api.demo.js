@@ -556,7 +556,6 @@ function resolveEntryId(user, entryId) {
 // to treat the caller's predictions as ground truth for unplayed games.
 // `tournamentWinnerOverride` lets simulate also assume a winner pick.
 function computeLeaderboard(resultsOverride=null, tournamentWinnerOverride=null, simUserId=null) {
-  const roundOpen = S.config.round_state === "open";
   const simResults = resultsOverride ? {...S.results, ...resultsOverride} : S.results;
   const simWinner  = tournamentWinnerOverride ?? S.config.tournament_winner;
   // Spotlight matches for the "Match picks" columns: in-play games while any are
@@ -578,11 +577,12 @@ function computeLeaderboard(resultsOverride=null, tournamentWinnerOverride=null,
   const rows = [];
   for (const user of Object.values(S.users)) {
     if (user.is_admin) continue;
-    // Privacy: while the round is open, only apply the simulated results to the
-    // simulating user's own forms — others stay at their real visible totals so
-    // simulating can't reveal rivals' standings on a still-open stage. Once the
-    // round is closed, the sim applies to everyone.
-    const applySim = !!resultsOverride && (!roundOpen || user.id === simUserId);
+    // The simulated results apply to EVERY participant's forms, not just the
+    // simulating user's — so the projected standings reorder the whole board,
+    // matching the "all users' scores are recomputed accordingly" banner.
+    // Simulate is scoped client-side to the in-play stage, so this only ever
+    // reshuffles around games of the round being played right now.
+    const applySim = !!resultsOverride;
     const effectiveResults = applySim ? simResults : S.results;
     const effectiveWinner   = applySim ? simWinner  : S.config.tournament_winner;
     for (const entry of Object.values(S.entries).filter(e=>e.user_id===user.id&&e.submitted_at)) {
