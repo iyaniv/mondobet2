@@ -6250,17 +6250,18 @@ export default function App() {
                     const myFreq={};
                     Object.values(myPreds).forEach(p=>{if(p&&p[0]!=null&&p[1]!=null){const [lo,hi]=[Math.min(p[0],p[1]),Math.max(p[0],p[1])];const k=`${lo}:${hi}`;myFreq[k]=(myFreq[k]||0)+1;}});
                     const myTop3scores=Object.entries(myFreq).sort((a,b)=>b[1]-a[1]).slice(0,3);
-                    // Biggest rank change of the day — compare last two snapshot days
-                    const snapDays=Object.keys(rankSnapshots).sort();
+                    // Biggest rank change of the day — use the SAME delta the
+                    // table's per-row "since yesterday" indicator shows: the last
+                    // completed game-day's snapshot vs the current LIVE rank
+                    // (row index+1 in the leaderboard). Comparing snapshot-to-
+                    // snapshot instead under-reported the move, because the latest
+                    // snapshot lags the live standings.
                     let bigJump=null,bigFall=null;
-                    if(snapDays.length>=2){
-                      const prevSnap=rankSnapshots[snapDays[snapDays.length-2]];
-                      const currSnap=rankSnapshots[snapDays[snapDays.length-1]];
-                      leaderboard.forEach(row=>{
-                        const eid=String(row.entry_id);
-                        const prev=prevSnap[eid],curr=currSnap[eid];
-                        if(prev==null||curr==null) return;
-                        const delta=prev-curr; // positive = climbed
+                    if(showPrevRankIndicator){
+                      leaderboard.forEach((row,idx)=>{
+                        const prev=prevRankSnapshot[String(row.entry_id)];
+                        if(prev==null) return;
+                        const delta=prev-(idx+1); // positive = climbed
                         if(delta>0&&(!bigJump||delta>bigJump.delta)) bigJump={name:row.name,delta};
                         if(delta<0&&(!bigFall||delta<bigFall.delta)) bigFall={name:row.name,delta};
                       });
