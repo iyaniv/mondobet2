@@ -80,6 +80,7 @@ class EntryOut(BaseModel):
     submitted_at: Optional[datetime] = None
     stages_submitted: dict = {}
     submitted_snapshot_at: Optional[str] = None  # ISO ts of last submission, for Reset draft
+    submitted_snapshot_stage: Optional[int] = None  # stage that snapshot belongs to
 
 
 class EntryCreate(BaseModel):

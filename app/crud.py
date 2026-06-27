@@ -240,6 +240,7 @@ async def submit_entry(db: AsyncSession, entry_id: str, user: User, stage: int =
     wp_row = await db.get(WinnerPick, entry_id)
     entry.submitted_snapshot = {
         "at": now.isoformat(),
+        "stage": stage,
         "winner": wp_row.team if wp_row else None,
         "preds": {str(p.match_n): [p.score_a, p.score_b]
                   for p in preds_rows

@@ -535,7 +535,7 @@ function userOut(u) {
   return {id:u.id,name:u.name,email:u.email,phone:u.phone||"",is_admin:u.is_admin,has_paid:u.has_paid,locked_winner:u.locked_winner||null,help_seen:u.help_seen||{}};
 }
 function entryOut(e) {
-  return {id:e.id,name:e.name,created_at:e.created_at,submitted_at:e.submitted_at||null,stages_submitted:e.stages_submitted||{},submitted_snapshot_at:(e.submitted_snapshot||{}).at||null};
+  return {id:e.id,name:e.name,created_at:e.created_at,submitted_at:e.submitted_at||null,stages_submitted:e.stages_submitted||{},submitted_snapshot_at:(e.submitted_snapshot||{}).at||null,submitted_snapshot_stage:(e.submitted_snapshot||{}).stage??null};
 }
 
 function resolveEntryId(user, entryId) {
@@ -792,6 +792,7 @@ export const api = {
     // Snapshot the just-submitted state, for "Reset draft" (overwrites each submit).
     entry.submitted_snapshot = {
       at: now,
+      stage,
       winner: S.winner_picks[id] || null,
       preds: Object.fromEntries(
         Object.entries(preds)

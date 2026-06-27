@@ -80,6 +80,15 @@ class Entry(Base):
         the client so it can show/hide the Reset-draft control."""
         return (self.submitted_snapshot or {}).get("at")
 
+    @property
+    def submitted_snapshot_stage(self) -> Optional[int]:
+        """The stage the last submission snapshot belongs to (None for snapshots
+        taken before we recorded it). Lets the client distinguish a real draft
+        (edited after submitting THIS stage) from a freshly-opened later stage
+        that merely carries a snapshot from a previous stage."""
+        v = (self.submitted_snapshot or {}).get("stage")
+        return int(v) if v is not None else None
+
     user: Mapped["User"] = relationship("User", back_populates="entries")
     predictions: Mapped[list["Prediction"]] = relationship(
         "Prediction", back_populates="entry", cascade="all, delete-orphan"

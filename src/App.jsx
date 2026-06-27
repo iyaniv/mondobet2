@@ -4321,10 +4321,11 @@ export default function App() {
   // any other time display, instead of lagging until the next poll/tab switch.
   const [tz,setTz]=useState(()=>localStorage.getItem("mb_timezone")||"auto");
   function saveTz(v){ setTz(v); try{ localStorage.setItem("mb_timezone",v); }catch{} }
-  // Collapse stages below the current open stage by default (re-applied when
-  // the admin advances the stage). Manual toggles persist until then.
+  // Default the predictions tab to the current running stage: collapse every
+  // other stage (past and future) so the current one is the only section open
+  // (re-applied when the admin advances the stage). Manual toggles persist.
   useEffect(()=>{
-    setCollapsedStages(new Set(STAGES.filter(s=>s.n<(config.current_stage||1)).map(s=>s.n)));
+    setCollapsedStages(new Set(STAGES.filter(s=>s.n!==(config.current_stage||1)).map(s=>s.n)));
   },[config.current_stage]);
 
   // ── Leaderboard-tab UI state ────────────────────────────────────────────────
@@ -5556,10 +5557,14 @@ export default function App() {
           const championBlocking    = winnerNeededForSubmit && !canSubmit;
           const championOnlyBlocker = championBlocking && complete;
           const showDelete = !activeEntry.submitted_at && entries.length>1 && editable;
-          // Draft = a submission snapshot exists AND the current stage isn't
-          // submitted (i.e. the user edited after submitting) → offer Reset draft.
+          // Draft = the user edited the CURRENT stage after submitting it →
+          // offer Reset draft. The snapshot must belong to this stage; a
+          // freshly-opened later stage carries a snapshot from a previous
+          // stage, which is not a draft (and reverting it would wrongly mark
+          // this stage submitted).
           const snapAt = activeEntry.submitted_snapshot_at;
-          const inDraft = editable && !currentStageSubmitted && !!snapAt;
+          const inDraft = editable && !currentStageSubmitted && !!snapAt
+            && activeEntry.submitted_snapshot_stage === openStage;
           const snapWhen = snapAt ? (()=>{ const k=kickoffParts(snapAt,tz); return k?`${k.short} · ${k.time}`:""; })() : "";
           // Rank for the middle of the bar (points come from myLbEntry.total).
           const rank = myLbEntry ? leaderboard.indexOf(myLbEntry)+1 : null;
