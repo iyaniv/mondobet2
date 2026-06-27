@@ -5545,12 +5545,21 @@ export default function App() {
                   const favRows=leaderboard.filter(e=>(e.entry_id||e.user_id)!==(myLbEntry.entry_id||myLbEntry.user_id)&&favorites.includes(e.entry_id||e.user_id));
                   const closestFav=favRows.length?favRows.reduce((a,b)=>Math.abs(b.total-myLbEntry.total)<Math.abs(a.total-myLbEntry.total)?b:a):null;
                   const gapFav=closestFav?myLbEntry.total-closestFav.total:null;
-                  const freq={};
-                  Object.values(myPreds).forEach(p=>{if(p&&p[0]!=null&&p[1]!=null){const [lo,hi]=[Math.min(p[0],p[1]),Math.max(p[0],p[1])];const k=`${lo}:${hi}`;freq[k]=(freq[k]||0)+1;}});
-                  const top3scores=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,3);
+                  const eid=String(myLbEntry.entry_id);
+                  const sortedDays=Object.keys(rankSnapshots).sort();
+                  let biggestJump=null,biggestFall=null;
+                  for(let i=1;i<sortedDays.length;i++){
+                    const prev=rankSnapshots[sortedDays[i-1]][eid],curr=rankSnapshots[sortedDays[i]][eid];
+                    if(prev==null||curr==null) continue;
+                    const delta=prev-curr; // positive = climbed
+                    if(delta>0&&(biggestJump==null||delta>biggestJump)) biggestJump=delta;
+                    if(delta<0&&(biggestFall==null||delta<biggestFall)) biggestFall=delta;
+                  }
                   const cards=[
                     {label:"From leader",value:gapLeader===0?"+0":(gapLeader>0?`+${gapLeader}`:gapLeader),sub:(leader?.name||"")+" · "+(leader?.total||0)+" pts",border:gapLeader>=0?C.green:C.red,icon:"📉"},
                     closestFav?{label:"From favorite",value:gapFav===0?"+0":(gapFav>0?`+${gapFav}`:gapFav),sub:closestFav.name+" · "+closestFav.total+" pts"+(gapFav>0?" ↓":" ↑"),border:"#facc15",icon:"★"}:{label:"Your rank",value:`#${leaderboard.indexOf(myLbEntry)+1}`,sub:`of ${leaderboard.length}`,border:C.indigo,icon:"🏅"},
+                    {label:"Best climb",value:biggestJump!=null?`+${biggestJump} ↑`:"—",sub:biggestJump!=null?"biggest single-day jump":"no rank history yet",border:C.green,icon:"🚀"},
+                    {label:"Biggest drop",value:biggestFall!=null?`${biggestFall} ↓`:"—",sub:biggestFall!=null?"biggest single-day fall":"no rank history yet",border:C.red,icon:"📉"},
                     {label:"Correct direction",value:`${myLbEntry.scored_matches>0?Math.round(myLbEntry.correct_dir/myLbEntry.scored_matches*100):0}%`,sub:`${myLbEntry.correct_dir} of ${myLbEntry.scored_matches}`,border:C.green,icon:"↗️"},
                     {label:"Exact scores",value:`${myLbEntry.exact}/${myLbEntry.scored_matches}`,sub:`${myLbEntry.scored_matches>0?Math.round(myLbEntry.exact/myLbEntry.scored_matches*100):0}% of matches`,border:C.accent,icon:"🎯"},
                   ];
@@ -5571,7 +5580,7 @@ export default function App() {
                               </div>
                               <StatsCloseBtn onClick={()=>setStatsOpen(false)}/>
                             </div>
-                            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:7,marginBottom:top3scores.length?10:0}}>
+                            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:7}}>
                               {cards.map((s,i)=>(
                                 <div key={i} style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${s.border}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
                                   <div style={{fontSize:13,marginBottom:2}}>{s.icon}</div>
@@ -5581,19 +5590,6 @@ export default function App() {
                                 </div>
                               ))}
                             </div>
-                            {top3scores.length>0&&(
-                              <div>
-                                <div style={{fontSize:11,color:C.text,marginBottom:6}}>My top predicted scores</div>
-                                <div style={{display:"flex",gap:6}}>
-                                  {top3scores.map(([score,count],i)=>(
-                                    <div key={i} style={{flex:1,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 6px",textAlign:"center"}}>
-                                      <div style={{fontSize:15,fontWeight:700,color:C.text}}>{score}</div>
-                                      <div style={{fontSize:10,color:C.text,marginTop:2}}>{count}×</div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
                           </div>
                         </>
                       )}
@@ -6138,19 +6134,29 @@ export default function App() {
                     const playedMatches=matches.filter(m=>{const r=results[m.n];return r&&r.length>=2&&r[0]!=null&&r[1]!=null;});
                     const scorelineCounts={};
                     const tFor={},tAg={},tApp={};
+                    let totalGoals=0,cleanSheets=0,highestGoals=0,highestGame=null,biggestMargin=0,biggestWin=null;
                     playedMatches.forEach(m=>{
                       const r=results[m.n];const ga=r[0],gb=r[1];
                       const key=`${Math.max(ga,gb)}–${Math.min(ga,gb)}`;
                       scorelineCounts[key]=(scorelineCounts[key]||0)+1;
                       tFor[m.a]=(tFor[m.a]||0)+ga;tAg[m.a]=(tAg[m.a]||0)+gb;tApp[m.a]=(tApp[m.a]||0)+1;
                       tFor[m.b]=(tFor[m.b]||0)+gb;tAg[m.b]=(tAg[m.b]||0)+ga;tApp[m.b]=(tApp[m.b]||0)+1;
+                      totalGoals+=ga+gb;
+                      if(ga===0||gb===0) cleanSheets++;
+                      if(ga+gb>highestGoals){highestGoals=ga+gb;highestGame={m,ga,gb};}
+                      const margin=Math.abs(ga-gb);
+                      if(margin>biggestMargin){biggestMargin=margin;biggestWin={m,ga,gb};}
                     });
+                    const avgGoals=playedMatches.length>0?(totalGoals/playedMatches.length):0;
                     const scorelineSorted=Object.entries(scorelineCounts).sort((a,b)=>b[1]-a[1]);
                     const topScoreline=scorelineSorted[0];
                     const maxSL=topScoreline?topScoreline[1]:0;
                     const eligibleTeams=Object.keys(tApp).filter(t=>tApp[t]>=2);
                     const topScorer=eligibleTeams.map(t=>({team:t,avg:tFor[t]/tApp[t],gms:tApp[t]})).sort((a,b)=>b.avg-a.avg)[0];
                     const bestDef=eligibleTeams.map(t=>({team:t,avg:tAg[t]/tApp[t],gms:tApp[t]})).sort((a,b)=>a.avg-b.avg)[0];
+                    const myFreq={};
+                    Object.values(myPreds).forEach(p=>{if(p&&p[0]!=null&&p[1]!=null){const [lo,hi]=[Math.min(p[0],p[1]),Math.max(p[0],p[1])];const k=`${lo}:${hi}`;myFreq[k]=(myFreq[k]||0)+1;}});
+                    const myTop3scores=Object.entries(myFreq).sort((a,b)=>b[1]-a[1]).slice(0,3);
                     return (
                     <>
                       <div onClick={()=>setGroupStatsOpen(false)} style={STATS_BACKDROP_STYLE}/>
@@ -6187,18 +6193,48 @@ export default function App() {
                             </div>
                           </div>
                         )}
-                        {/* ── Real-score stats ── */}
+                        {/* ── Tournament goals stats ── */}
                         {playedMatches.length>0&&(
                           <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${C.border}`}}>
-                            <div style={{fontSize:11,color:C.text,marginBottom:8}}>Real scores · {playedMatches.length} games played</div>
+                            <div style={{fontSize:11,color:C.text,marginBottom:8}}>Tournament goals · {playedMatches.length} games played</div>
+                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:10}}>
+                              <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
+                                <div style={{fontSize:13,marginBottom:2}}>⚽</div>
+                                <div style={{fontSize:18,fontWeight:700,lineHeight:1.1,marginBottom:2,color:C.text}}>{totalGoals}</div>
+                                <div style={{fontSize:11,color:C.text,marginBottom:1}}>Total goals</div>
+                                <div style={{fontSize:10,color:C.text}}>{avgGoals.toFixed(2)} per game</div>
+                              </div>
+                              <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.indigo}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
+                                <div style={{fontSize:13,marginBottom:2}}>🧤</div>
+                                <div style={{fontSize:18,fontWeight:700,lineHeight:1.1,marginBottom:2,color:C.text}}>{cleanSheets}</div>
+                                <div style={{fontSize:11,color:C.text,marginBottom:1}}>Clean sheets</div>
+                                <div style={{fontSize:10,color:C.text}}>{playedMatches.length>0?Math.round(cleanSheets/playedMatches.length*100):0}% of games</div>
+                              </div>
+                              {highestGame&&(
+                                <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid #f59e0b`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
+                                  <div style={{fontSize:13,marginBottom:2}}>🔥</div>
+                                  <div style={{fontSize:14,fontWeight:700,lineHeight:1.15,marginBottom:2,color:C.text}}>{highestGame.ga}–{highestGame.gb}</div>
+                                  <div style={{fontSize:11,color:C.text,marginBottom:1}}>Most goals</div>
+                                  <div style={{fontSize:10,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{withFlag(highestGame.m.a)} v {withFlag(highestGame.m.b)}</div>
+                                </div>
+                              )}
+                              {biggestWin&&biggestMargin>0&&(
+                                <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.red}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
+                                  <div style={{fontSize:13,marginBottom:2}}>💥</div>
+                                  <div style={{fontSize:14,fontWeight:700,lineHeight:1.15,marginBottom:2,color:C.text}}>{biggestWin.ga}–{biggestWin.gb}</div>
+                                  <div style={{fontSize:11,color:C.text,marginBottom:1}}>Biggest win</div>
+                                  <div style={{fontSize:10,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{withFlag(biggestWin.m.a)} v {withFlag(biggestWin.m.b)}</div>
+                                </div>
+                              )}
+                            </div>
                             {(topScorer||bestDef)&&(
                               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:10}}>
                                 {topScorer&&(
                                   <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:9,padding:"10px 8px",textAlign:"center"}}>
-                                    <div style={{fontSize:13,marginBottom:2}}>⚽</div>
+                                    <div style={{fontSize:13,marginBottom:2}}>🏹</div>
                                     <div style={{fontSize:13,fontWeight:700,lineHeight:1.15,marginBottom:2,color:C.text}}>{withFlag(topScorer.team)}</div>
                                     <div style={{fontSize:11,color:C.text,marginBottom:1}}>Top scoring</div>
-                                    <div style={{fontSize:10,color:C.text}}>{topScorer.avg.toFixed(1)} goals/gm</div>
+                                    <div style={{fontSize:10,color:C.text}}>{topScorer.avg.toFixed(1)} goals/gm · {tFor[topScorer.team]} total</div>
                                   </div>
                                 )}
                                 {bestDef&&(
@@ -6206,14 +6242,14 @@ export default function App() {
                                     <div style={{fontSize:13,marginBottom:2}}>🛡️</div>
                                     <div style={{fontSize:13,fontWeight:700,lineHeight:1.15,marginBottom:2,color:C.text}}>{withFlag(bestDef.team)}</div>
                                     <div style={{fontSize:11,color:C.text,marginBottom:1}}>Best defense</div>
-                                    <div style={{fontSize:10,color:C.text}}>{bestDef.avg.toFixed(1)} conceded/gm</div>
+                                    <div style={{fontSize:10,color:C.text}}>{bestDef.avg.toFixed(1)} conceded/gm · {tAg[bestDef.team]} total</div>
                                   </div>
                                 )}
                               </div>
                             )}
                             {scorelineSorted.length>0&&(
                               <div>
-                                <div style={{fontSize:11,color:C.text,marginBottom:6}}>Most common: <span style={{fontWeight:700}}>{topScoreline[0]}</span> ({topScoreline[1]}×)</div>
+                                <div style={{fontSize:11,color:C.text,marginBottom:6}}>Most common scoreline: <span style={{fontWeight:700}}>{topScoreline[0]}</span> ({topScoreline[1]}×)</div>
                                 <div style={{display:"flex",flexDirection:"column",gap:4}}>
                                   {scorelineSorted.slice(0,6).map(([key,count],i)=>{
                                     const pct=Math.round(count/maxSL*100);
@@ -6230,6 +6266,20 @@ export default function App() {
                                 </div>
                               </div>
                             )}
+                          </div>
+                        )}
+                        {/* ── My top predicted scores ── */}
+                        {myTop3scores.length>0&&(
+                          <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${C.border}`}}>
+                            <div style={{fontSize:11,color:C.text,marginBottom:6}}>My most predicted scores</div>
+                            <div style={{display:"flex",gap:6}}>
+                              {myTop3scores.map(([score,count],i)=>(
+                                <div key={i} style={{flex:1,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 6px",textAlign:"center"}}>
+                                  <div style={{fontSize:15,fontWeight:700,color:C.text}}>{score}</div>
+                                  <div style={{fontSize:10,color:C.text,marginTop:2}}>{count}×</div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
                         {top3picks.length>0&&(
