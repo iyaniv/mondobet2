@@ -5898,38 +5898,6 @@ export default function App() {
                   {/* Per-stage Random Results — visible only while THIS stage
                       is the open one, the round is open, and the user
                       hasn't already submitted this stage on this form. */}
-                  {isCurrent && editable && !(activeEntry?.stages_submitted||{})[s.n] && (
-                    <button
-                      onClick={(ev)=>{ ev.stopPropagation(); randomFillStage(s.n); }}
-                      title="Fill empty matches in this stage with random scores"
-                      style={{
-                        padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,
-                        background:"transparent",color:C.accent,border:`1px solid ${C.accent}`,cursor:"pointer",
-                      }}>
-                      🎲 Random Results
-                    </button>
-                  )}
-                  {/* Import CSV stays available for the whole time the stage is
-                      open — even after you've submitted — so you can re-import a
-                      revised file. Importing re-opens the affected stage for
-                      editing (clears its submission), so you just Submit again. */}
-                  {isCurrent && editable && (
-                    <>
-                      <label
-                        onClick={(ev)=>ev.stopPropagation()}
-                        title="Import predictions from a CSV"
-                        style={{
-                          display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer",
-                          padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,
-                          background:"transparent",color:C.accent,border:`1px solid ${C.accent}`,
-                        }}>
-                        ⬆ Import CSV
-                        <input type="file" accept=".csv,text/csv" style={{display:"none"}}
-                          onChange={(e)=>{const f=e.target.files&&e.target.files[0]; if(f) importCsv(f, s.n); e.target.value="";}}/>
-                      </label>
-                      <CsvHelp/>
-                    </>
-                  )}
                   {isCurrent && editable && entries.filter(e=>e.id!==activeEntryId).length > 0 && (
                     <div style={{position:"relative"}} onClick={ev=>ev.stopPropagation()}>
                       <button
@@ -5964,6 +5932,38 @@ export default function App() {
                         </div>
                       )}
                     </div>
+                  )}
+                  {isCurrent && editable && !(activeEntry?.stages_submitted||{})[s.n] && (
+                    <button
+                      onClick={(ev)=>{ ev.stopPropagation(); randomFillStage(s.n); }}
+                      title="Fill empty matches in this stage with random scores"
+                      style={{
+                        padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,
+                        background:"transparent",color:C.accent,border:`1px solid ${C.accent}`,cursor:"pointer",
+                      }}>
+                      🎲 Random Results
+                    </button>
+                  )}
+                  {/* Import CSV stays available for the whole time the stage is
+                      open — even after you've submitted — so you can re-import a
+                      revised file. Importing re-opens the affected stage for
+                      editing (clears its submission), so you just Submit again. */}
+                  {isCurrent && editable && (
+                    <>
+                      <label
+                        onClick={(ev)=>ev.stopPropagation()}
+                        title="Import predictions from a CSV"
+                        style={{
+                          display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer",
+                          padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,
+                          background:"transparent",color:C.accent,border:`1px solid ${C.accent}`,
+                        }}>
+                        ⬆ Import CSV
+                        <input type="file" accept=".csv,text/csv" style={{display:"none"}}
+                          onChange={(e)=>{const f=e.target.files&&e.target.files[0]; if(f) importCsv(f, s.n); e.target.value="";}}/>
+                      </label>
+                      <CsvHelp/>
+                    </>
                   )}
                   <span style={{fontSize:13,color:C.muted,lineHeight:1}}>
                     {isCollapsed ? "▸" : "▾"}
