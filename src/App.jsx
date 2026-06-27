@@ -4321,12 +4321,20 @@ export default function App() {
   // any other time display, instead of lagging until the next poll/tab switch.
   const [tz,setTz]=useState(()=>localStorage.getItem("mb_timezone")||"auto");
   function saveTz(v){ setTz(v); try{ localStorage.setItem("mb_timezone",v); }catch{} }
-  // Default the predictions tab to the current running stage: collapse every
-  // other stage (past and future) so the current one is the only section open
-  // (re-applied when the admin advances the stage). Manual toggles persist.
+  // The "running" stage is the one whose games are actually in play: the
+  // earliest stage that still has an unplayed match (live games have no final
+  // result yet, so they count as unplayed). The admin can open a LATER stage
+  // for predictions while an earlier stage is still being played, so this is
+  // deliberately NOT config.current_stage.
+  const runningStage = (STAGES.find(s =>
+    matches.some(m => m.n>=s.first && m.n<=s.last && !results[m.n]))
+    || {n: config.current_stage||1}).n;
+  // Default the predictions tab to the running stage: collapse every other
+  // stage so it's the only section open. Re-applied when the running stage
+  // advances (its last game finishes); manual toggles persist until then.
   useEffect(()=>{
-    setCollapsedStages(new Set(STAGES.filter(s=>s.n!==(config.current_stage||1)).map(s=>s.n)));
-  },[config.current_stage]);
+    setCollapsedStages(new Set(STAGES.filter(s=>s.n!==runningStage).map(s=>s.n)));
+  },[runningStage]);
 
   // ── Leaderboard-tab UI state ────────────────────────────────────────────────
   // Lifted out of LeaderboardView so that view can render inline without
@@ -5783,6 +5791,12 @@ export default function App() {
           const stageDone   = stageMatches.filter(m => results[m.n]).length;
           const isCurrent = openStage === s.n;
           const isPast    = s.n < openStage;
+          // The running stage is the one whose games are still being played.
+          // When the admin has opened a LATER stage for predictions, this stage
+          // is "past" (s.n < openStage) yet not finished — show it as in-play,
+          // not completed.
+          const isRunning = s.n === runningStage;
+          const isClosedPast = isPast && !isRunning;   // genuinely finished
           // A match is editable while its stage is the current open one,
           // the round is open, and the match has no result / isn't live.
           // Editing after Submit is now allowed — savePred invalidates the
@@ -5794,30 +5808,33 @@ export default function App() {
             && !results[m.n]
             && !liveMatches[m.n];
 
-          // Header colors / icon vary per stage state
-          const headerColor = isPast ? C.muted : isCurrent ? C.indigo : C.muted;
-          const headerIcon  = isPast ? "✓" : isCurrent ? "▶" : "·";
-          const stageStatus = isPast
-            ? `${stageDone}/${stageMatches.length} played · stage closed`
-            : isCurrent
-              ? (editable
-                  ? `${stageFilled}/${stageMatches.length} filled · open for predictions`
-                  : `${stageFilled}/${stageMatches.length} filled · round closed`)
-              : `${stageFilled}/${stageMatches.length} filled`;
+          // Header colors / icon vary per stage state. The running stage (games
+          // in play) and the current open stage both read as active.
+          const headerColor = (isCurrent || isRunning) ? C.indigo : C.muted;
+          const headerIcon  = (isCurrent || isRunning) ? "▶" : isClosedPast ? "✓" : "·";
+          const stageStatus = isCurrent
+            ? (editable
+                ? `${stageFilled}/${stageMatches.length} filled · open for predictions`
+                : `${stageFilled}/${stageMatches.length} filled · round closed`)
+            : isRunning
+              ? `${stageDone}/${stageMatches.length} played · in play`
+              : isClosedPast
+                ? `${stageDone}/${stageMatches.length} played · stage closed`
+                : `${stageFilled}/${stageMatches.length} filled`;
 
           return (
             <div key={s.n}>
               {/* Clickable collapsible header */}
               <div onClick={()=>toggleStage(s.n)} style={{
-                background:isPast?C.panel2:isCurrent?"rgba(99,102,241,0.08)":C.panel2,
+                background:(isCurrent||isRunning)?"rgba(99,102,241,0.08)":C.panel2,
                 padding:"8px 12px",borderRadius:6,
                 margin:"16px 0 6px",fontWeight:600,color:headerColor,fontSize:14,
                 cursor:"pointer",display:"flex",alignItems:"center",
                 justifyContent:"space-between",userSelect:"none",
-                border:isCurrent?`1px solid rgba(99,102,241,0.35)`:`1px solid ${C.border}`,
+                border:(isCurrent||isRunning)?`1px solid rgba(99,102,241,0.35)`:`1px solid ${C.border}`,
               }}>
                 <span>
-                  <span style={{marginRight:6,opacity:isPast?0.7:1}}>{headerIcon}</span>
+                  <span style={{marginRight:6,opacity:isClosedPast?0.7:1}}>{headerIcon}</span>
                   Stage {s.n}: {s.name}
                   <span style={{marginLeft:8,fontSize:12,fontWeight:400,color:C.muted}}>
                     {stageStatus}
@@ -5866,8 +5883,8 @@ export default function App() {
               </div>
               {!isCollapsed && (
                 <div style={{
-                  background:isPast?"rgba(20,28,52,0.5)":C.panel,
-                  border:`1px solid ${isCurrent?"rgba(99,102,241,0.25)":C.border}`,
+                  background:isClosedPast?"rgba(20,28,52,0.5)":C.panel,
+                  border:`1px solid ${(isCurrent||isRunning)?"rgba(99,102,241,0.25)":C.border}`,
                   borderRadius:8,padding:10,
                   opacity:!predsLoaded&&config.round_state==="open"?0.6:1,
                   transition:"opacity .3s",marginBottom:8,
