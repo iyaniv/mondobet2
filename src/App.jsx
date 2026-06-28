@@ -2372,6 +2372,35 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
   const wrapRef = useRef(null);
   const knockoutStages = STAGES.filter(s => s.n >= 2);
 
+  // When the bracket opens with a live game in progress, scroll that match into
+  // view so the user lands on the action. Fires once per mount; the guard keeps
+  // it from hijacking scrolling on the many connector re-renders below.
+  const didFocusLive = useRef(false);
+  useEffect(() => {
+    if (didFocusLive.current) return;
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const liveMatch = matches
+      .filter(m => m.n >= 73 && liveMatches[m.n] && liveMatches[m.n].is_live)
+      .sort((a, b) => a.n - b.n)[0];
+    if (!liveMatch) return;
+    const card = wrap.querySelector(`[data-matchup="${liveMatch.n}"]`);
+    if (!card) return;
+    didFocusLive.current = true;
+    // Wait for the bracket to finish laying out (connectors/flags) before
+    // scrolling, and re-query the node so a mid-layout re-render can't leave us
+    // animating toward a detached element.
+    // No cleanup: a re-render (matches/liveMatches change identity) must not
+    // cancel this one-shot, and the guard above blocks rescheduling. If the
+    // bracket unmounts first, wrapRef.current is null and this is a no-op.
+    const mn = liveMatch.n;
+    setTimeout(() => {
+      wrapRef.current
+        ?.querySelector(`[data-matchup="${mn}"]`)
+        ?.scrollIntoView({ block: 'center', inline: 'nearest' });
+    }, 250);
+  }, [matches, liveMatches]);
+
   useEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap) return;
