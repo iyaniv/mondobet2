@@ -574,15 +574,19 @@ function computeLeaderboard(resultsOverride=null, tournamentWinnerOverride=null,
       spotlightNs = new Set(latest ? finished.filter(n=>(ko[n]||"")===latest) : []);
     } else spotlightNs = new Set();
   }
+  // While the running stage is open, other users' picks for it are hidden, so
+  // the sim may only touch the requesting user's own forms — projecting other
+  // users' scores would leak their not-yet-revealed picks. Once the stage is
+  // closed those picks are public and the sim reorders the whole board.
+  const stageOpen = S.config.round_state === "open";
   const rows = [];
   for (const user of Object.values(S.users)) {
     if (user.is_admin) continue;
-    // The simulated results apply to EVERY participant's forms, not just the
-    // simulating user's — so the projected standings reorder the whole board,
-    // matching the "all users' scores are recomputed accordingly" banner.
-    // Simulate is scoped client-side to the in-play stage, so this only ever
-    // reshuffles around games of the round being played right now.
-    const applySim = !!resultsOverride;
+    // Apply the simulation to this participant's forms. Simulate is scoped
+    // client-side to the in-play stage, so this only ever reshuffles around
+    // games of the round being played right now — and only the requester's own
+    // forms while that stage is still open (see note above).
+    const applySim = !!resultsOverride && (!stageOpen || user.id === simUserId);
     const effectiveResults = applySim ? simResults : S.results;
     const effectiveWinner   = applySim ? simWinner  : S.config.tournament_winner;
     for (const entry of Object.values(S.entries).filter(e=>e.user_id===user.id&&e.submitted_at)) {

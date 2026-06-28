@@ -531,12 +531,18 @@ async def get_leaderboard(
     result or a live score, and (if no tournament winner is set yet) assume
     sim_winner is the eventual champion.
 
-    The simulated results are applied to EVERY participant's forms so the
-    projected standings reorder the whole board (the UI promises "all users'
-    scores are recomputed accordingly"). The caller scopes sim_results to the
-    in-play stage, so a simulation only ever reshuffles around the games of the
-    round being played right now. sim_user_id is retained for the API signature
-    but no longer gates which forms the simulation touches.
+    The simulated results are applied to participants' forms so the projected
+    standings reorder the board (the UI promises "all users' scores are
+    recomputed accordingly"). The caller scopes sim_results to the in-play
+    stage, so a simulation only ever reshuffles around the games of the round
+    being played right now.
+
+    Privacy: while the running stage is still OPEN (round_state == "open")
+    other users' picks for that stage are hidden, so the simulation must NOT
+    reorder them either — projecting their score would leak their hidden picks.
+    In that case the sim is applied ONLY to the requester's own forms
+    (sim_user_id); everyone else is scored on real results. Once the stage is
+    closed the picks are public, so the sim reorders the whole board.
     """
     participants     = await get_participants(db)
     all_entries_map  = await get_all_entries_by_user(db)  # single bulk query
@@ -576,14 +582,20 @@ async def get_leaderboard(
         if sim_winner and not cfg.tournament_winner:
             sim_tournament_winner = sim_winner
 
+    # While the running stage is open, others' picks for it are hidden, so the
+    # sim may only touch the requester's own forms (see docstring). Once closed,
+    # picks are public and the sim reorders everyone.
+    stage_open = cfg.round_state == RoundStateEnum.open
+
     rows: list[LeaderboardEntry] = []
     for user in participants:
         user_entries = all_entries_map.get(user.id, [])
-        # Apply the simulation to every participant's forms (not just the
-        # requester's) so the projected standings reorder the whole board. The
-        # caller scopes sim_results to the in-play stage, so this only reshuffles
-        # around games of the round being played right now.
-        apply_sim = bool(sim_results)
+        # Apply the simulation to this participant's forms. The caller scopes
+        # sim_results to the in-play stage, so this only reshuffles around games
+        # of the round being played right now. While that stage is still open we
+        # only sim the requester's own forms — projecting other users' scores
+        # would leak their not-yet-revealed picks.
+        apply_sim = bool(sim_results) and (not stage_open or user.id == sim_user_id)
         results_for_scoring = sim_results_map if apply_sim else all_results
         tournament_winner   = sim_tournament_winner if apply_sim else cfg.tournament_winner
         for entry in user_entries:

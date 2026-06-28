@@ -6659,7 +6659,7 @@ export default function App() {
                       background:"transparent",color:C.indigo,fontWeight:700,fontSize:13,
                       textAlign:"center",outline:"none",padding:"0 2px",MozAppearance:"textfield"}}
                   />{" "}
-                  of {unplayedPredMatches.length} unplayed match{unplayedPredMatches.length!==1?"es":""} in the current round with <b>your</b> predictions as results — all users' scores are recomputed accordingly{simLoading?" · loading…":""}
+                  of {unplayedPredMatches.length} unplayed match{unplayedPredMatches.length!==1?"es":""} in the current round with <b>your</b> predictions as results — {config.round_state==="open"?<>only <b>your</b> standing moves while this round is open (other players' picks stay hidden)</>:"all users' scores are recomputed accordingly"}{simLoading?" · loading…":""}
                 </>
               : <>✨ <b>Simulation mode is on.</b> No unplayed predictions to apply — the standings here match the actual leaderboard.</>}
           </div>
