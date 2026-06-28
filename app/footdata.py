@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import crud
 from app.config import settings
 from app.espn import sync_live_from_espn
-from app.matches import MATCHES
+from app.knockout import build_pair_index
 
 log = logging.getLogger("footdata")
 
@@ -53,24 +53,20 @@ def _our_name(api_name: str) -> str:
     return TEAM_ALIASES.get(api_name, api_name)
 
 
-# Lookup of our group-stage matches keyed by the ordered (home, away) pair.
-# Knockout matches use slot labels until the bracket resolves, so they aren't
-# mappable by team name yet — handled best-effort once real names appear.
-_PAIR_INDEX = {(m["a"], m["b"]): m["n"] for m in MATCHES if m["s"] == 1}
-
-
-def _map_to_match_n(home: str, away: str):
+def _map_to_match_n(home: str, away: str, pair_index: dict):
     """Return (match_n, flip) for an API home/away pair, or (None, False).
 
-    `flip` is True when the API listed the fixture with home/away reversed
-    relative to our data — the caller must then swap the scores so they line
-    up with our `a`/`b` orientation.
+    `pair_index` is (a_team, b_team) -> match_n, built per-sync so knockout
+    fixtures map too (their slots resolved to real teams; see
+    app.knockout.build_pair_index). `flip` is True when the API listed the
+    fixture with home/away reversed relative to our data — the caller must then
+    swap the scores so they line up with our `a`/`b` orientation.
     """
     h, a = _our_name(home), _our_name(away)
-    if (h, a) in _PAIR_INDEX:
-        return _PAIR_INDEX[(h, a)], False
-    if (a, h) in _PAIR_INDEX:
-        return _PAIR_INDEX[(a, h)], True
+    if (h, a) in pair_index:
+        return pair_index[(h, a)], False
+    if (a, h) in pair_index:
+        return pair_index[(a, h)], True
     return None, False
 
 
@@ -158,13 +154,16 @@ async def _sync_footballdata(db: AsyncSession) -> None:
         log.warning("could not load results for live sync: %s", exc)
         finalized = {}
 
+    # (a_team, b_team) -> match_n, knockout slots resolved from group results.
+    pair_index = build_pair_index(finalized)
+
     for m in matches:
         status = m.get("status")
         if status not in _LIVE_STATUSES and status not in _DONE_STATUSES:
             continue  # TIMED / SCHEDULED / POSTPONED / CANCELLED — nothing to write
 
         match_n, flip = _map_to_match_n(
-            m["homeTeam"]["name"], m["awayTeam"]["name"]
+            m["homeTeam"]["name"], m["awayTeam"]["name"], pair_index
         )
         if match_n is None:
             continue  # unmapped (knockout slot not yet resolved)
@@ -202,7 +201,11 @@ async def _sync_footballdata(db: AsyncSession) -> None:
                 if status in _DONE_STATUSES:
                     # finalize reads the live row's score, writes it to results,
                     # and deletes the live row. Next sync sees it in `finalized`
-                    # and skips it, so this runs exactly once per match.
+                    # and skips it, so this runs exactly once per match. This is
+                    # the REGULAR branch, so for knockouts it fires only when the
+                    # tie was settled in 90' — the result IS the 90-min score.
+                    # Extra-time games take the else branch (90-min score frozen
+                    # for points; admin confirms the ET/penalty winner).
                     await crud.finalize_live_match(db, match_n)
             else:
                 # Extra time / penalties (knockout only — group matches never

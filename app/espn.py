@@ -27,7 +27,7 @@ import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import crud
-from app.matches import MATCHES
+from app.knockout import build_pair_index
 
 log = logging.getLogger("espn")
 
@@ -58,23 +58,19 @@ def _our_name(api_name: str) -> str:
     return TEAM_ALIASES.get(api_name, api_name)
 
 
-# Group-stage fixtures keyed by ordered (home, away). Knockout slots aren't
-# mappable by team name until the bracket resolves — handled best-effort once
-# real names appear.
-_PAIR_INDEX = {(m["a"], m["b"]): m["n"] for m in MATCHES if m["s"] == 1}
-
-
-def _map_to_match_n(home: str, away: str):
+def _map_to_match_n(home: str, away: str, pair_index: dict):
     """Return (match_n, flip) for an ESPN home/away pair, or (None, False).
 
-    `flip` is True when ESPN lists the fixture reversed vs our a/b orientation,
-    so the caller swaps the scores to line up.
+    `pair_index` is (a_team, b_team) -> match_n, built per-sync so it includes
+    knockout fixtures with their bracket slots resolved to real teams (see
+    app.knockout.build_pair_index). `flip` is True when ESPN lists the fixture
+    reversed vs our a/b orientation, so the caller swaps the scores to line up.
     """
     h, a = _our_name(home), _our_name(away)
-    if (h, a) in _PAIR_INDEX:
-        return _PAIR_INDEX[(h, a)], False
-    if (a, h) in _PAIR_INDEX:
-        return _PAIR_INDEX[(a, h)], True
+    if (h, a) in pair_index:
+        return pair_index[(h, a)], False
+    if (a, h) in pair_index:
+        return pair_index[(a, h)], True
     return None, False
 
 
@@ -117,12 +113,13 @@ def _is_regulation(period, type_name: str) -> bool:
 
 
 # Score blocks worth writing: in-play or finished. "pre" (scheduled) is skipped.
-def _extract(event: dict) -> Optional[dict]:
+def _extract(event: dict, pair_index: dict) -> Optional[dict]:
     """Parse one ESPN event into a normalized live record, or None to skip.
 
     Returns {match_n, score_a, score_b, minute, is_live, is_done, is_regulation}
     with scores already oriented to our a/b. Pure — used by the sync loop and
-    directly unit-testable against a saved scoreboard payload.
+    directly unit-testable against a saved scoreboard payload. `pair_index`
+    resolves the team pair to our match number (see _map_to_match_n).
     """
     comp = (event.get("competitions") or [{}])[0]
     status = comp.get("status") or event.get("status") or {}
@@ -150,6 +147,7 @@ def _extract(event: dict) -> Optional[dict]:
     match_n, flip = _map_to_match_n(
         (home.get("team") or {}).get("name", ""),
         (away.get("team") or {}).get("name", ""),
+        pair_index,
     )
     if match_n is None:
         return None
@@ -212,9 +210,13 @@ async def sync_live_from_espn(db: AsyncSession) -> bool:
         log.warning("could not load results for ESPN sync: %s", exc)
         finalized = {}
 
+    # (a_team, b_team) -> match_n for every fixture we can place — knockout
+    # slots resolved from the finalized group results, so KO games map too.
+    pair_index = build_pair_index(finalized)
+
     for event in events:
         try:
-            rec = _extract(event)
+            rec = _extract(event, pair_index)
         except Exception as exc:
             log.warning("ESPN parse failed for an event: %s", exc)
             continue
@@ -232,6 +234,13 @@ async def sync_live_from_espn(db: AsyncSession) -> bool:
                     score_a=rec["score_a"], score_b=rec["score_b"],
                     minute=rec["minute"], is_live=rec["is_live"],
                 )
+                # Auto-finalize once full-time is reached. This branch is only
+                # entered for regulation play, so for knockouts this fires only
+                # when the tie was settled inside 90' — the score written to
+                # results IS the 90-min score. Games that go to extra time take
+                # the else branch below, which freezes score_a/score_b at the
+                # 90-min mark for points and leaves the ET/penalty winner for the
+                # admin to confirm (the free feeds don't cleanly separate it).
                 if rec["is_done"]:
                     await crud.finalize_live_match(db, rec["match_n"])
             else:
