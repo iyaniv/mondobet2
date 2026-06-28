@@ -111,6 +111,30 @@ function resolveTeamDeep(name, scoresMap, matchList, depth = 0) {
     return allThirds[idx]?.name || name;
   }
 
+  // Stage-2 multi-group 3rd-place slots: "3rd A/B/C/D/F" etc.
+  // Each slot lists which groups could supply the 3rd-place qualifier.
+  // Resolve by: rank all 3rd-place teams globally, take top 8, then pick
+  // the best qualifier from among the listed groups for this slot.
+  m = name.match(/^3rd ([A-L](?:\/[A-L])+)$/);
+  if (m) {
+    const slotGroups = m[1].split('/');
+    const allGroups  = ["A","B","C","D","E","F","G","H","I","J","K","L"];
+    const allThirds  = [];
+    for (const g of allGroups) {
+      const gm = matchList.filter(x => x.s === 1 && x.g === g);
+      if (gm.length === 0) continue;
+      if (!gm.every(x => scoresMap[x.n] != null)) return name;
+      const standings = computeGroupStandings(g, matchList, scoresMap, {}, {});
+      if (standings[2]) allThirds.push({ ...standings[2], group: g });
+    }
+    if (allThirds.length === 0) return name;
+    allThirds.sort((a,b)=>b.Pts-a.Pts||b.GD-a.GD||b.GF-a.GF||a.name.localeCompare(b.name));
+    const top8groups = new Set(allThirds.slice(0, 8).map(t => t.group));
+    // Find the best-ranked qualifier from the groups listed for this slot
+    const candidate = allThirds.find(t => slotGroups.includes(t.group) && top8groups.has(t.group));
+    return candidate?.name || name;
+  }
+
   // Knockout slots: "W M73" / "L M101"
   m = name.match(/^([WL]) M(\d+)$/);
   if (!m) return name;
