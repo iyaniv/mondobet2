@@ -6841,7 +6841,10 @@ export default function App() {
                           <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
                           <b>{globalRank}</b>
                           {(() => {
-                            if (simMode || matchSimMode || !baselineRanks) return null;
+                            // Gated to a finished CT game-day (same as the "since
+                            // yesterday" arrow below) so it doesn't jitter from
+                            // live, in-progress scores — only settled days count.
+                            if (simMode || matchSimMode || !baselineRanks || !showPrevRankIndicator) return null;
                             const baseRank = baselineRanks[String(row.entry_id)];
                             if (baseRank == null) return null;
                             const delta = baseRank - globalRank;   // +climbed / -dropped
