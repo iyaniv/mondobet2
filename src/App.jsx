@@ -4489,9 +4489,6 @@ export default function App() {
   // Lifted so LeaderboardView (called inline, not mounted) can branch its
   // layout responsively without itself calling a hook conditionally.
   const isMobile = useIsMobile();
-  // Per-stage rank movement is driven by config.stage_baseline (a server-side
-  // snapshot of the standings taken when the stage last advanced) — see
-  // LeaderboardView. No client-side tracking needed.
   const [simMode,setSimMode]=useState(false);
   const [simLb,setSimLb]=useState(null);
   const [simLoading,setSimLoading]=useState(false);
@@ -6104,14 +6101,6 @@ export default function App() {
       && displayLb.some(r=>r.user_id!==user?.id);
     const HINT_GOLD = "#facc15";
 
-    // Per-stage rank movement: standings snapshot taken when the current stage
-    // opened (server-side, in config.stage_baseline). A row's movement = its
-    // rank at the start of this stage minus its current rank (+N climbed,
-    // -N dropped). Only for the current stage's baseline, and not in Simulate.
-    const baselineRanks = (config.stage_baseline
-      && config.stage_baseline.stage === (config.current_stage || 1))
-      ? config.stage_baseline.ranks : null;
-
     // "Match picks" — a single column (right of Points) showing every form's
     // prediction for ONE game, chosen via the header dropdown. By default the
     // column follows the current game (Auto: live → latest-finished → next game
@@ -6840,20 +6829,21 @@ export default function App() {
                         <td style={{...td,textAlign:"center",width:40,padding:"8px 4px"}}>
                           <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
                           <b>{globalRank}</b>
-                          {(() => {
-                            // Gated to a finished CT game-day (same as the "since
-                            // yesterday" arrow below) so it doesn't jitter from
-                            // live, in-progress scores — only settled days count.
-                            if (simMode || matchSimMode || !baselineRanks || !showPrevRankIndicator) return null;
-                            const baseRank = baselineRanks[String(row.entry_id)];
-                            if (baseRank == null) return null;
-                            const delta = baseRank - globalRank;   // +climbed / -dropped
+                          {(()=>{
+                            // Single rank-change arrow: movement vs the last
+                            // fully-finished CT game-day. Gated on
+                            // showPrevRankIndicator so it stays hidden while a
+                            // day's games are still in play (no live jitter).
+                            if (simMode || matchSimMode || !showPrevRankIndicator) return null;
+                            const prevRank = prevRankSnapshot[String(row.entry_id)];
+                            if (prevRank==null) return null;
+                            const delta = prevRank - globalRank; // positive = climbed
                             if (delta === 0) return null;
                             return (
                               <div style={{fontSize:10,fontWeight:700,lineHeight:1,
                                 color:delta>0?C.green:C.red}}
-                                title={delta>0?`Up ${delta} place${delta===1?"":"s"} this stage`:`Down ${-delta} place${delta===-1?"":"s"} this stage`}>
-                                {delta>0?`+${delta}`:`${delta}`}
+                                title={delta>0?`↑ Up ${delta} since yesterday`:`↓ Down ${Math.abs(delta)} since yesterday`}>
+                                {delta>0?`↑${delta}`:`↓${Math.abs(delta)}`}
                               </div>
                             );
                           })()}
