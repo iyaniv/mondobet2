@@ -2556,12 +2556,70 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
     );
   }
 
+  // Bracket display order. Matches are numbered by SCHEDULE, not bracket
+  // position (e.g. M89 is fed by M74 & M77, not M73 & M74), so a plain numeric
+  // sort mis-pairs the tree. Position each match between its two feeders by
+  // doing an in-order walk from the final and averaging feeder positions, so
+  // each column reads top-to-bottom like a real bracket and the feeders of
+  // consecutive next-round matches sit adjacent (matching the official bracket).
+  const bracketPos = (() => {
+    const byN = {};
+    matches.forEach(m => { byN[m.n] = m; });
+    const feeders = (n) => {
+      const m = byN[n];
+      if (!m) return [null, null];
+      const p = (s) => { const r = /^[WL] M(\d+)$/.exec(String(s || '')); return r ? Number(r[1]) : null; };
+      return [p(m.a), p(m.b)];
+    };
+    const finalMatch = matches.find(m => m.g === 'FIN');
+    const koMatches = matches.filter(m => m.s >= 2);
+    const root = finalMatch ? finalMatch.n
+      : (koMatches.length ? Math.max(...koMatches.map(m => m.n)) : null);
+    const leafIndex = {};
+    let idx = 0;
+    const visit = (n, depth) => {
+      if (depth > 12 || leafIndex[n] != null) return;
+      const [a, b] = feeders(n);
+      if (a == null && b == null) { leafIndex[n] = idx++; return; }
+      if (a != null) visit(a, depth + 1);
+      if (b != null) visit(b, depth + 1);
+    };
+    if (root != null) visit(root, 0);
+    // Only trust this ordering when the feeder graph is fully connected (every
+    // first-round knockout match is reachable as a leaf). Production defines the
+    // whole tree with "W M##" refs so it is; the demo seed hardcodes some R16
+    // teams (no refs), leaving an incomplete graph — there we fall back to the
+    // numeric order, which already matches that seed's sequential pairing.
+    const firstKoStage = Math.min(...koMatches.map(m => m.s));
+    const complete = koMatches
+      .filter(m => m.s === firstKoStage)
+      .every(m => leafIndex[m.n] != null);
+    if (!complete) return null;
+    const pos = {};
+    const compute = (n, depth) => {
+      if (pos[n] != null) return pos[n];
+      if (depth > 12) return n;
+      const [a, b] = feeders(n);
+      if (a == null && b == null) return (pos[n] = leafIndex[n] != null ? leafIndex[n] : n);
+      const parts = [a, b].filter(x => x != null).map(x => compute(x, depth + 1));
+      return (pos[n] = parts.length ? parts.reduce((s, v) => s + v, 0) / parts.length : n);
+    };
+    koMatches.forEach(m => compute(m.n, 0));
+    return pos;
+  })();
+  // When bracketPos is null (incomplete graph), keep the numeric order.
+  const inBracketOrder = (a, b) =>
+    bracketPos
+      ? (bracketPos[a.n] != null ? bracketPos[a.n] : a.n) -
+        (bracketPos[b.n] != null ? bracketPos[b.n] : b.n)
+      : a.n - b.n;
+
   return (
     <div style={{overflowX:'auto',overflowY:'visible',paddingBottom:8}}>
       <div ref={wrapRef} style={{display:'flex',alignItems:'flex-start',minWidth:'min-content'}}>
         {knockoutStages.map((s, colIdx) => {
           const isCurrent  = s.n === currentStage;
-          const stageMs    = matches.filter(m => m.n >= s.first && m.n <= s.last);
+          const stageMs    = matches.filter(m => m.n >= s.first && m.n <= s.last).sort(inBracketOrder);
           const isFinalStage = s.n === 6;
           const count      = MATCH_COUNTS[s.n] || 1;
           const slotPx     = (BASE_COUNT / count) * BASE_SLOT_PX;
