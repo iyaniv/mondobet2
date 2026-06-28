@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Bracket card layout — date on top</title>
+<style>
+  :root{
+    --c-bg:#0b1020; --c-panel:#141c34; --c-panel2:#1a2547;
+    --c-border:#2a3658; --c-text:#e7ecf3; --c-muted:#6b7a99;
+    --c-accent:#a3e635;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--c-bg);color:var(--c-text);padding:24px;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;}
+  h1{font-size:18px;margin:0 0 4px;}
+  .sub{color:var(--c-muted);font-size:13px;margin:0 0 16px;max-width:820px;}
+  .toolbar{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;align-items:center;}
+  .toolbar button{background:var(--c-panel);color:var(--c-text);border:1px solid var(--c-border);
+    border-radius:999px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;}
+  .toolbar button.on{background:var(--c-accent);color:#0b1020;border-color:var(--c-accent);}
+
+  .bracket{display:flex;align-items:flex-start;position:relative;}
+  .col{display:flex;flex-direction:column;width:250px;flex-shrink:0;}
+  .conn{width:34px;flex-shrink:0;align-self:stretch;position:relative;}
+  .conn svg{position:absolute;inset:0;overflow:visible;}
+  .slot{display:flex;flex-direction:column;justify-content:center;}
+  .card{border-radius:12px;overflow:hidden;margin:0 5px;background:var(--c-panel2);
+    border:1px solid #34436e;}
+  .row{display:flex;align-items:center;gap:8px;padding:9px 12px;}
+  .flag{width:24px;text-align:center;flex-shrink:0;font-size:17px;}
+  .name{font-size:16px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .name.win{font-weight:700;color:var(--c-text);}
+  .name.lose{color:var(--c-muted);}
+  .row.win{background:rgba(163,230,53,.07);}
+  .score{font-size:16px;font-weight:700;font-family:monospace;min-width:18px;text-align:right;}
+  .score.win{color:var(--c-accent);} .score.muted{color:var(--c-muted);}
+  /* date variants */
+  .date{font-size:13px;font-weight:600;color:var(--c-muted);white-space:nowrap;}
+  .date.top{padding:9px 12px 4px;}                 /* header — reference style */
+  .date.bottom{padding:4px 12px 6px;border-top:1px solid #34436e;text-align:center;}
+  .seam{border-top:1px solid #34436e;}             /* divider between the two team rows (only when no border via row) */
+</style>
+</head>
+<body>
+  <h1>Bracket cards — move the date to the top (match the reference)</h1>
+  <p class="sub">The connector always meets the card at the midpoint between the two team rows.
+  With the date at the <b>bottom</b> (current) that midpoint sits high and the date hangs below it — looks unbalanced.
+  With the date as a <b>top header</b> (reference) the two teams are the card's body and the line meets them dead-center.</p>
+
+  <div class="toolbar">
+    <button id="m-top" class="on" onclick="setMode('top')">Date on top (reference)</button>
+    <button id="m-bottom" onclick="setMode('bottom')">Date at bottom (current)</button>
+  </div>
+
+  <div class="bracket" id="bracket"></div>
+
+<script>
+  const FLAG={'South Africa':'🇿🇦','Canada':'🇨🇦','Germany':'🇩🇪','Paraguay':'🇵🇾',
+    'Netherlands':'🇳🇱','Morocco':'🇲🇦','Brazil':'🇧🇷','Japan':'🇯🇵','France':'🇫🇷','Sweden':'🇸🇪'};
+  const f=n=>FLAG[n]||'🏳️';
+  const R32=[
+    {a:'South Africa',sa:0,b:'Canada',sb:1,ko:'Today, 22:00'},
+    {a:'Germany',sa:2,b:'Paraguay',sb:0,ko:'Tomorrow, 23:30'},
+    {a:'Netherlands',sa:3,b:'Morocco',sb:1,ko:'Tue, 30 Jun, 4:00'},
+    {a:'Brazil',sa:3,b:'Japan',sb:0,ko:'Wed, 1 Jul, 0:00'},
+  ];
+  const R16=[
+    {a:'TBD',b:'TBD',ko:'Sat, 4 Jul, 20:00',pending:true},
+    {a:'TBD',b:'TBD',ko:'Sun, 5 Jul, 0:00',pending:true},
+  ];
+  const BASE=160, MODE={cur:'top'};
+
+  function teamRow(name,sa,win,top){
+    const score = sa!=null ? `<span class="score ${win?'win':'muted'}">${sa}</span>` : '';
+    const cls = sa==null?'':(win?'win':'lose');
+    return `<div class="row ${top?'top':''} ${sa!=null&&win?'win':''}">
+      <span class="flag">${name==='TBD'?'🛡️':f(name)}</span>
+      <span class="name ${cls}">${name}</span>${score}</div>`;
+  }
+  function card(c){
+    const winA=c.sa!=null?(c.sa>c.sb):null;
+    const dateTop = MODE.cur==='top' ? `<div class="date top">${c.ko}</div>` : '';
+    const dateBottom = MODE.cur==='bottom' ? `<div class="date bottom">${c.ko}</div>` : '';
+    // when date is on top, put the seam border between the two team rows
+    const rowB = `<div class="row ${MODE.cur==='top'?'seam':''} ${c.sa!=null&&winA===false?'win':''}">
+      <span class="flag">${c.b==='TBD'?'🛡️':f(c.b)}</span>
+      <span class="name ${c.sa==null?'':winA===false?'win':'lose'}">${c.b}</span>
+      ${c.sb!=null?`<span class="score ${winA===false?'win':'muted'}">${c.sb}</span>`:''}</div>`;
+    const rowA = teamRow(c.a,c.sa,winA===true, MODE.cur==='bottom'); // top border on rowA only in bottom mode
+    return `<div class="card" data-card>${dateTop}${rowA}${rowB}${dateBottom}</div>`;
+  }
+  function render(){
+    const root=document.getElementById('bracket');
+    root.innerHTML=`
+      <div class="col" data-col="0">${R32.map(c=>`<div class="slot" style="height:${BASE}px">${card(c)}</div>`).join('')}</div>
+      <div class="conn"><svg data-svg></svg></div>
+      <div class="col" data-col="1">${R16.map(c=>`<div class="slot" style="height:${BASE*2}px">${card(c)}</div>`).join('')}</div>`;
+    draw();
+  }
+  // attach at the midpoint between the two team rows (works for either date position)
+  function teamMid(cardEl, svgTop){
+    const rows=[...cardEl.querySelectorAll('.row')];
+    const a=rows[0].getBoundingClientRect(), b=rows[1].getBoundingClientRect();
+    return (a.top+b.bottom)/2 - svgTop;
+  }
+  function draw(){
+    const svg=document.querySelector('[data-svg]');
+    const cols=[...document.querySelectorAll('[data-col]')];
+    const L=[...cols[0].querySelectorAll('[data-card]')];
+    const R=[...cols[1].querySelectorAll('[data-card]')];
+    const st=svg.getBoundingClientRect().top;
+    svg.innerHTML='';
+    R.forEach((rm,ri)=>{
+      const l1=L[ri*2],l2=L[ri*2+1];
+      const y1=teamMid(l1,st),y2=teamMid(l2,st),yM=(y1+y2)/2;
+      const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+      p.setAttribute('d',`M0,${y1} H14 M0,${y2} H14 M14,${y1} V${y2} M14,${yM} H34`);
+      p.setAttribute('stroke','rgba(163,230,53,.45)');p.setAttribute('stroke-width','1.5');p.setAttribute('fill','none');
+      svg.appendChild(p);
+    });
+  }
+  function setMode(m){MODE.cur=m;['top','bottom'].forEach(k=>document.getElementById('m-'+k).classList.toggle('on',k===m));render();}
+  render();
+  window.addEventListener('resize',draw);
+</script>
+</body>
+</html>

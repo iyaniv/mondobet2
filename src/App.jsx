@@ -2418,16 +2418,16 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
         const li2 = leftCards[ri * 2 + 1];
         const rm  = rightCards[ri];
         if (!li1 || !rm) continue;
-        // Attach at the team-vs-team divider (bottom of the first team row), not
-        // the card's geometric center — the third "date" row would otherwise drag
-        // the join ~14px below the seam where the eye expects it.
-        const seamY = (el) => {
-          const row = el.firstElementChild;
-          const r = (row || el).getBoundingClientRect();
-          return (row ? r.bottom : (r.top + r.bottom) / 2) - svgRect.top;
+        // Attach at the vertical centre of the two-team block (the date header
+        // sits above it), so the join lands between the teams where the eye
+        // expects it rather than being dragged off by the date row.
+        const teamsY = (el) => {
+          const block = el.querySelector('[data-teams]') || el;
+          const r = block.getBoundingClientRect();
+          return (r.top + r.bottom) / 2 - svgRect.top;
         };
-        const y1 = seamY(li1);
-        const y2 = seamY(li2 || li1);
+        const y1 = teamsY(li1);
+        const y2 = teamsY(li2 || li1);
         const yM = (y1 + y2) / 2;
         const d = `M0,${y1} H12 M0,${y2} H12 M12,${y1} V${y2} M12,${yM} H28`;
         const path = document.createElementNS('http://www.w3.org/2000/svg','path');
@@ -2479,28 +2479,32 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
       minWidth:22,textAlign:'right',
       color: isLive ? C.red : won===true ? C.accent : C.muted});
 
-    // Kickoff date+time is shown on every card (all stages, all states) so the
-    // bracket doubles as a schedule — not just for the not-yet-resolved rounds.
+    // Kickoff date+time sits as a header on top of every card (all stages, all
+    // states) so the bracket doubles as a schedule. Keeping it on top means the
+    // two team rows are the card's body, so the connector — which meets the card
+    // at the midpoint between the teams — lands dead-centre on that body.
     const koParts = kickoffParts(m.t, tz);
     return (
       <div data-matchup={m.n} style={{background:cardBg,border,borderRadius:10,overflow:'hidden',opacity:cardOpacity,margin:'0 4px',flexShrink:0}}>
-          <div style={rowA}>
-            <span style={{fontSize:16,width:24,textAlign:'center',flexShrink:0}}>{flag(teamA)}</span>
-            <span style={nameStyle(winA===true)}>{teamA}</span>
-            <span style={scoreStyle(winA===true)}>{scoreA != null ? scoreA : '–'}</span>
-          </div>
-          <div style={rowB}>
-            <span style={{fontSize:16,width:24,textAlign:'center',flexShrink:0}}>{flag(teamB)}</span>
-            <span style={nameStyle(winA===false)}>{teamB}</span>
-            <span style={scoreStyle(winA===false)}>{scoreB != null ? scoreB : '–'}</span>
-          </div>
           {koParts && (
-            <div style={{padding:'4px 10px 5px',fontSize:12,fontWeight:600,color:C.muted,
-              borderTop:`1px solid ${C.border}`,textAlign:'center',whiteSpace:'nowrap',
-              letterSpacing:'.01em'}}>
+            <div style={{padding:'7px 10px 4px',fontSize:12,fontWeight:600,color:C.muted,
+              whiteSpace:'nowrap',letterSpacing:'.01em'}}>
               {koParts.md} · {koParts.time}
             </div>
           )}
+          {/* data-teams: the connector attaches at the vertical centre of this block */}
+          <div data-teams>
+            <div style={rowA}>
+              <span style={{fontSize:16,width:24,textAlign:'center',flexShrink:0}}>{flag(teamA)}</span>
+              <span style={nameStyle(winA===true)}>{teamA}</span>
+              <span style={scoreStyle(winA===true)}>{scoreA != null ? scoreA : '–'}</span>
+            </div>
+            <div style={rowB}>
+              <span style={{fontSize:16,width:24,textAlign:'center',flexShrink:0}}>{flag(teamB)}</span>
+              <span style={nameStyle(winA===false)}>{teamB}</span>
+              <span style={scoreStyle(winA===false)}>{scoreB != null ? scoreB : '–'}</span>
+            </div>
+          </div>
         </div>
     );
   }
