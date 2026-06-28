@@ -4107,11 +4107,13 @@ function CompareView({ matches, results, liveMatches, isMobile,
     let ws=null; if(eff){ if(eff[0]>eff[1])ws=0; else if(eff[1]>eff[0])ws=1; else if(eff[2]==='a')ws=0; else if(eff[2]==='b')ws=1; }
     const rowBg = isLive?"rgba(239,68,68,0.05)":C.panel;
     const rowBorder = `1px solid ${isLive?"rgba(239,68,68,0.55)":C.border}`;
+    // Resolve knockout slot labels ("2nd A" → actual team) like the main views do.
+    const rm = resolvedMatch(m, results, matches);
     const teams = (
       <span style={{fontSize:11,whiteSpace:"normal",textAlign:"center",lineHeight:1.3}}>
-        <span style={{color:ws===0?C.accent:C.text,fontWeight:ws===0?700:400}}>{flag(m.a)} {m.a}</span>
+        <span style={{color:ws===0?C.accent:C.text,fontWeight:ws===0?700:400}}>{flag(rm.a)} {rm.a}</span>
         <span style={{color:C.muted}}> v </span>
-        <span style={{color:ws===1?C.accent:C.text,fontWeight:ws===1?700:400}}>{m.b} {flag(m.b)}</span>
+        <span style={{color:ws===1?C.accent:C.text,fontWeight:ws===1?700:400}}>{rm.b} {flag(rm.b)}</span>
       </span>
     );
     const cmpKo = !eff ? kickoffParts(m.t, tz) : null;
