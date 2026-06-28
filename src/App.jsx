@@ -6857,20 +6857,6 @@ export default function App() {
                               </div>
                             );
                           })()}
-                          {(()=>{
-                            if (simMode || matchSimMode || !showPrevRankIndicator) return null;
-                            const prevRank = prevRankSnapshot[String(row.entry_id)];
-                            if (prevRank==null) return null;
-                            const delta = prevRank - globalRank; // positive = climbed
-                            if (delta === 0) return null;
-                            return (
-                              <div style={{fontSize:9,fontWeight:700,
-                                color:delta>0?C.green:C.red,lineHeight:1}}
-                                title={delta>0?`↑ Up ${delta} since yesterday`:`↓ Down ${Math.abs(delta)} since yesterday`}>
-                                {delta>0?`↑${delta}`:`↓${Math.abs(delta)}`}
-                              </div>
-                            );
-                          })()}
                           {simMode&&(()=>{
                             const origRank = actualRankByEntry[row.entry_id];
                             if (origRank==null) return null;
