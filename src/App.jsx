@@ -2418,13 +2418,17 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
         const li2 = leftCards[ri * 2 + 1];
         const rm  = rightCards[ri];
         if (!li1 || !rm) continue;
-        const r1 = li1.getBoundingClientRect();
-        const r2 = (li2 || li1).getBoundingClientRect();
-        const rr = rm.getBoundingClientRect();
-        const y1 = (r1.top + r1.bottom) / 2 - svgRect.top;
-        const y2 = (r2.top + r2.bottom) / 2 - svgRect.top;
+        // Attach at the team-vs-team divider (bottom of the first team row), not
+        // the card's geometric center — the third "date" row would otherwise drag
+        // the join ~14px below the seam where the eye expects it.
+        const seamY = (el) => {
+          const row = el.firstElementChild;
+          const r = (row || el).getBoundingClientRect();
+          return (row ? r.bottom : (r.top + r.bottom) / 2) - svgRect.top;
+        };
+        const y1 = seamY(li1);
+        const y2 = seamY(li2 || li1);
         const yM = (y1 + y2) / 2;
-        const yT = (rr.top + rr.bottom) / 2 - svgRect.top;
         const d = `M0,${y1} H12 M0,${y2} H12 M12,${y1} V${y2} M12,${yM} H28`;
         const path = document.createElementNS('http://www.w3.org/2000/svg','path');
         path.setAttribute('d', d);
