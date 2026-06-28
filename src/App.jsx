@@ -75,6 +75,55 @@ function computeAutoMatchN(matches, results, liveMatches, nowMs, viewable) {
 }
 
 // Recursive variant: resolves through multiple rounds using any scores map
+// Compute a one-to-one assignment of 3rd-place teams to "3rd X/Y/Z" slots.
+// Uses minimum-remaining-values greedy, which finds the unique valid assignment
+// (FIFA designed the slots so exactly one valid assignment exists for any top-8
+// combination). Cached by results size so it only recomputes when results change.
+let _thirdCache = null, _thirdCacheKey = null;
+function getThirdSlotAssignment(matchList, scoresMap) {
+  const key = Object.keys(scoresMap).length;
+  if (key === _thirdCacheKey && _thirdCache !== undefined) return _thirdCache;
+  const ALL_GROUPS = ["A","B","C","D","E","F","G","H","I","J","K","L"];
+  const allThirds = [];
+  for (const g of ALL_GROUPS) {
+    const gm = matchList.filter(x => x.s === 1 && x.g === g);
+    if (!gm.length) continue;
+    if (!gm.every(x => scoresMap[x.n] != null)) { _thirdCacheKey = null; return null; }
+    const standings = computeGroupStandings(g, matchList, scoresMap, {}, {});
+    if (standings[2]) allThirds.push({ ...standings[2], group: g });
+  }
+  if (!allThirds.length) { _thirdCacheKey = null; return null; }
+  allThirds.sort((a,b) => b.Pts-a.Pts||b.GD-a.GD||b.GF-a.GF||a.name.localeCompare(b.name));
+  const top8 = new Set(allThirds.slice(0, 8).map(t => t.group));
+  const groupToTeam = Object.fromEntries(allThirds.map(t => [t.group, t.name]));
+  // Collect all distinct "3rd X/Y/Z" slot strings from the match data
+  const slotDefs = [];
+  for (const m of matchList) {
+    for (const side of ['a', 'b']) {
+      const val = m[side];
+      if (typeof val === 'string' && /^3rd [A-L](\/[A-L])+$/.test(val) && !slotDefs.find(s => s.slot === val))
+        slotDefs.push({ slot: val, groups: val.slice(4).split('/').filter(g => top8.has(g)) });
+    }
+  }
+  // Greedy: always assign the most constrained (fewest candidates) slot first
+  const assignment = {}, usedGroups = new Set();
+  for (let i = 0; i < slotDefs.length; i++) {
+    const unassigned = slotDefs.filter(s => !(s.slot in assignment));
+    unassigned.sort((a, b) =>
+      a.groups.filter(g => !usedGroups.has(g)).length -
+      b.groups.filter(g => !usedGroups.has(g)).length);
+    const slot = unassigned[0];
+    if (!slot) break;
+    const available = slot.groups.filter(g => !usedGroups.has(g));
+    const best = allThirds.find(t => available.includes(t.group));
+    assignment[slot.slot] = best ? groupToTeam[best.group] : null;
+    if (best) usedGroups.add(best.group);
+  }
+  _thirdCache = assignment;
+  _thirdCacheKey = key;
+  return assignment;
+}
+
 // (results or sim preds). Also resolves Stage-2 slot labels: "1st A" / "2nd B"
 // (from group standings) and "Best 3rd (N)" (Nth best 3rd-place across groups).
 function resolveTeamDeep(name, scoresMap, matchList, depth = 0) {
@@ -112,27 +161,11 @@ function resolveTeamDeep(name, scoresMap, matchList, depth = 0) {
   }
 
   // Stage-2 multi-group 3rd-place slots: "3rd A/B/C/D/F" etc.
-  // Each slot lists which groups could supply the 3rd-place qualifier.
-  // Resolve by: rank all 3rd-place teams globally, take top 8, then pick
-  // the best qualifier from among the listed groups for this slot.
-  m = name.match(/^3rd ([A-L](?:\/[A-L])+)$/);
-  if (m) {
-    const slotGroups = m[1].split('/');
-    const allGroups  = ["A","B","C","D","E","F","G","H","I","J","K","L"];
-    const allThirds  = [];
-    for (const g of allGroups) {
-      const gm = matchList.filter(x => x.s === 1 && x.g === g);
-      if (gm.length === 0) continue;
-      if (!gm.every(x => scoresMap[x.n] != null)) return name;
-      const standings = computeGroupStandings(g, matchList, scoresMap, {}, {});
-      if (standings[2]) allThirds.push({ ...standings[2], group: g });
-    }
-    if (allThirds.length === 0) return name;
-    allThirds.sort((a,b)=>b.Pts-a.Pts||b.GD-a.GD||b.GF-a.GF||a.name.localeCompare(b.name));
-    const top8groups = new Set(allThirds.slice(0, 8).map(t => t.group));
-    // Find the best-ranked qualifier from the groups listed for this slot
-    const candidate = allThirds.find(t => slotGroups.includes(t.group) && top8groups.has(t.group));
-    return candidate?.name || name;
+  // Use the globally-computed one-to-one assignment so each team appears once.
+  if (/^3rd [A-L](\/[A-L])+$/.test(name)) {
+    const assignment = getThirdSlotAssignment(matchList, scoresMap);
+    if (!assignment) return name;
+    return assignment[name] || name;
   }
 
   // Knockout slots: "W M73" / "L M101"
