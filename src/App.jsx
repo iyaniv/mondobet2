@@ -2418,16 +2418,15 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
         const li2 = leftCards[ri * 2 + 1];
         const rm  = rightCards[ri];
         if (!li1 || !rm) continue;
-        // Attach at the vertical centre of the two-team block (the date header
-        // sits above it), so the join lands between the teams where the eye
-        // expects it rather than being dragged off by the date row.
-        const teamsY = (el) => {
-          const block = el.querySelector('[data-teams]') || el;
-          const r = block.getBoundingClientRect();
+        // Attach at the card box's centre. The box now holds only the two team
+        // rows (the date is a caption above it), so its centre is the seam
+        // between the teams — where the eye expects the join.
+        const boxY = (el) => {
+          const r = el.getBoundingClientRect();
           return (r.top + r.bottom) / 2 - svgRect.top;
         };
-        const y1 = teamsY(li1);
-        const y2 = teamsY(li2 || li1);
+        const y1 = boxY(li1);
+        const y2 = boxY(li2 || li1);
         const yM = (y1 + y2) / 2;
         const d = `M0,${y1} H12 M0,${y2} H12 M12,${y1} V${y2} M12,${yM} H28`;
         const path = document.createElementNS('http://www.w3.org/2000/svg','path');
@@ -2479,31 +2478,20 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
       minWidth:22,textAlign:'right',
       color: isLive ? C.red : won===true ? C.accent : C.muted});
 
-    // Kickoff date+time sits as a header on top of every card (all stages, all
-    // states) so the bracket doubles as a schedule. Keeping it on top means the
-    // two team rows are the card's body, so the connector — which meets the card
-    // at the midpoint between the teams — lands dead-centre on that body.
-    const koParts = kickoffParts(m.t, tz);
+    // The bordered box holds only the two team rows — the kickoff date is a
+    // caption rendered ABOVE the box (see slotCard), so the box is symmetric and
+    // the connector meets it dead-centre between the teams (Google-bracket style).
     return (
       <div data-matchup={m.n} style={{background:cardBg,border,borderRadius:10,overflow:'hidden',opacity:cardOpacity,margin:'0 4px',flexShrink:0}}>
-          {koParts && (
-            <div style={{padding:'7px 10px 4px',fontSize:12,fontWeight:600,color:C.muted,
-              whiteSpace:'nowrap',letterSpacing:'.01em'}}>
-              {koParts.md} · {koParts.time}
-            </div>
-          )}
-          {/* data-teams: the connector attaches at the vertical centre of this block */}
-          <div data-teams>
-            <div style={rowA}>
-              <span style={{fontSize:16,width:24,textAlign:'center',flexShrink:0}}>{flag(teamA)}</span>
-              <span style={nameStyle(winA===true)}>{teamA}</span>
-              <span style={scoreStyle(winA===true)}>{scoreA != null ? scoreA : '–'}</span>
-            </div>
-            <div style={rowB}>
-              <span style={{fontSize:16,width:24,textAlign:'center',flexShrink:0}}>{flag(teamB)}</span>
-              <span style={nameStyle(winA===false)}>{teamB}</span>
-              <span style={scoreStyle(winA===false)}>{scoreB != null ? scoreB : '–'}</span>
-            </div>
+          <div style={rowA}>
+            <span style={{fontSize:16,width:24,textAlign:'center',flexShrink:0}}>{flag(teamA)}</span>
+            <span style={nameStyle(winA===true)}>{teamA}</span>
+            <span style={scoreStyle(winA===true)}>{scoreA != null ? scoreA : '–'}</span>
+          </div>
+          <div style={rowB}>
+            <span style={{fontSize:16,width:24,textAlign:'center',flexShrink:0}}>{flag(teamB)}</span>
+            <span style={nameStyle(winA===false)}>{teamB}</span>
+            <span style={scoreStyle(winA===false)}>{scoreB != null ? scoreB : '–'}</span>
           </div>
         </div>
     );
@@ -2541,14 +2529,26 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
     return null;
   }
 
+  // Kickoff date+time, shown as a caption ABOVE the box so the box stays a
+  // clean two-team card (used by both the slot layout and the 3rd-place card).
+  function dateCaption(m) {
+    const k = kickoffParts(m.t, tz);
+    if (!k) return null;
+    return <span style={{fontSize:12,fontWeight:600,color:C.muted,
+      whiteSpace:'nowrap',letterSpacing:'.01em'}}>{k.md} · {k.time}</span>;
+  }
+
   function slotCard(m, slotPx) {
     return (
       <div key={m.n} style={{
         height:slotPx, display:'flex', flexDirection:'column',
         justifyContent:'center', paddingTop:LABEL_H, position:'relative',
       }}>
-        <div style={{position:'absolute',top:0,left:4,right:4,height:LABEL_H,
-          overflow:'hidden',display:'flex',alignItems:'flex-end'}}>
+        {/* Above the box: kickoff date on the left, LIVE / "X wins" tag on the right. */}
+        <div style={{position:'absolute',top:0,left:8,right:8,height:LABEL_H,
+          overflow:'hidden',display:'flex',alignItems:'flex-end',
+          justifyContent:'space-between',gap:6}}>
+          {dateCaption(m)}
           {aboveCardLabel(m)}
         </div>
         {renderMatchup(m)}
@@ -2588,8 +2588,10 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
                 {thirdMatch && (
                   <div style={{marginTop:4,padding:'0 4px'}}>
                     <div style={{fontSize:12,fontWeight:700,color:C.muted,
-                      padding:'0 0 4px',letterSpacing:'.06em',textTransform:'uppercase'}}>
-                      🥉 3rd place
+                      padding:'0 8px 4px',letterSpacing:'.06em',textTransform:'uppercase',
+                      display:'flex',alignItems:'center',justifyContent:'space-between',gap:6}}>
+                      <span>🥉 3rd place</span>
+                      {dateCaption(thirdMatch)}
                     </div>
                     {renderMatchup(thirdMatch)}
                   </div>
