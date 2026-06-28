@@ -6085,6 +6085,17 @@ export default function App() {
                   </span>
                 </span>
               </div>
+              {/* Knockout reminder: scoring is on the 90-minute result only. */}
+              {s.n >= 2 && !isCollapsed && (
+                <div style={{
+                  fontSize:12,color:C.muted,fontWeight:400,lineHeight:1.4,
+                  margin:"-2px 0 6px",padding:"0 4px",
+                  display:"flex",alignItems:"center",gap:6,
+                }}>
+                  <span style={{color:C.indigo}}>ℹ</span>
+                  For every match you predict the final 90-minute score (extra time / penalties don't count).
+                </div>
+              )}
               {!isCollapsed && (
                 <div style={{
                   background:isClosedPast?"rgba(20,28,52,0.5)":C.panel,

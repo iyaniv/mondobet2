@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Stage header · 90-minute note mock</title>
+<style>
+  :root{
+    --c-bg:#0b1020; --c-panel:#141c34; --c-panel2:#1a2547; --c-border:#2a3658;
+    --c-text:#e7ecf3; --c-muted:#6b7a99; --c-accent:#a3e635; --c-indigo:#6366f1;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--c-bg);color:var(--c-text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;margin:0;padding:24px;}
+  .wrap{max-width:720px;margin:0 auto;}
+  h2{font-size:14px;color:var(--c-muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin:28px 0 4px;}
+
+  /* header reproduced from App.jsx StageCard */
+  .hdr{
+    background:rgba(99,102,241,0.08);
+    padding:8px 12px;border-radius:6px;margin:16px 0 6px;
+    font-weight:600;color:var(--c-indigo);font-size:14px;cursor:pointer;
+    display:flex;align-items:center;justify-content:space-between;
+    border:1px solid rgba(99,102,241,0.35);
+  }
+  .hdr.past{background:var(--c-panel2);color:var(--c-muted);border:1px solid var(--c-border);}
+  .status{margin-left:8px;font-size:12px;font-weight:400;color:var(--c-muted);}
+  .icon{margin-right:6px;}
+  .chev{font-size:13px;color:var(--c-muted);}
+  .btn{padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;background:transparent;color:var(--c-accent);border:1px solid var(--c-accent);cursor:pointer;}
+  .right{display:flex;align-items:center;gap:10px;}
+
+  /* the new note line */
+  .note{
+    font-size:12px;color:var(--c-muted);font-weight:400;line-height:1.4;
+    margin:-2px 0 6px;padding:0 4px;
+    display:flex;align-items:center;gap:6px;
+  }
+  .note .pin{color:var(--c-indigo);}
+
+  .body{background:var(--c-panel);border:1px solid rgba(99,102,241,0.25);border-radius:8px;padding:10px;margin-bottom:8px;color:var(--c-muted);font-size:13px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h2>Stage 1 — Group stage (no note)</h2>
+  <div class="hdr">
+    <span><span class="icon">✓</span>Stage 1: Group Stage<span class="status">48/48 played · stage closed</span></span>
+    <span class="right"><span class="chev">▾</span></span>
+  </div>
+  <div class="body">match rows …</div>
+
+  <h2>Stage 2+ — knockout (with new note)</h2>
+  <div class="hdr">
+    <span><span class="icon">▶</span>Stage 2: Round of 32<span class="status">4/16 filled · open for predictions</span></span>
+    <span class="right">
+      <button class="btn">🎲 Random Results</button>
+      <button class="btn">⬆ Import CSV</button>
+      <span class="chev">▾</span>
+    </span>
+  </div>
+  <div class="note"><span class="pin">ℹ</span>Predict the final 90-minute score — extra time &amp; penalties don't count.</div>
+  <div class="body">match rows …</div>
+
+  <div class="hdr">
+    <span><span class="icon">▶</span>Stage 3: Round of 16<span class="status">0/8 filled · open for predictions</span></span>
+    <span class="right">
+      <button class="btn">🎲 Random Results</button>
+      <button class="btn">⬆ Import CSV</button>
+      <span class="chev">▾</span>
+    </span>
+  </div>
+  <div class="note"><span class="pin">ℹ</span>Predict the final 90-minute score — extra time &amp; penalties don't count.</div>
+  <div class="body">match rows …</div>
+
+</div>
+</body>
+</html>
