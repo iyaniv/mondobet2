@@ -75,10 +75,23 @@ function computeAutoMatchN(matches, results, liveMatches, nowMs, viewable) {
 }
 
 // Recursive variant: resolves through multiple rounds using any scores map
+// FIFA WC 2026 official 3rd-place slot assignments.
+// Slot order: [S1="3rd C/E/F/H/I", S2="3rd E/F/G/I/J", S3="3rd B/E/F/I/J",
+//              S4="3rd A/B/C/D/F",  S5="3rd A/E/H/I/J", S6="3rd C/D/F/G/H",
+//              S7="3rd D/E/I/J/L",  S8="3rd E/H/I/J/K"]
+// Key = sorted qualifying 8-group letters; value = [s1..s8] group assignments.
+// Verified from official WC 2026 results (Switzerland vs Algeria, USA vs Bosnia, etc.)
+const FIFA_THIRD_TABLE = {
+  "BDEFIJKL": ["E","J","B","D","I","F","L","K"],
+};
+const FIFA_THIRD_SLOT_LABELS = [
+  "3rd C/E/F/H/I","3rd E/F/G/I/J","3rd B/E/F/I/J","3rd A/B/C/D/F",
+  "3rd A/E/H/I/J","3rd C/D/F/G/H","3rd D/E/I/J/L","3rd E/H/I/J/K",
+];
+
 // Compute a one-to-one assignment of 3rd-place teams to "3rd X/Y/Z" slots.
-// Uses minimum-remaining-values greedy, which finds the unique valid assignment
-// (FIFA designed the slots so exactly one valid assignment exists for any top-8
-// combination). Cached by results size so it only recomputes when results change.
+// Uses FIFA official lookup table; falls back to greedy for simulated combinations.
+// Cached by results size so it only recomputes when results change.
 let _thirdCache = null, _thirdCacheKey = null;
 function getThirdSlotAssignment(matchList, scoresMap) {
   const key = Object.keys(scoresMap).length;
@@ -94,31 +107,43 @@ function getThirdSlotAssignment(matchList, scoresMap) {
   }
   if (!allThirds.length) { _thirdCacheKey = null; return null; }
   allThirds.sort((a,b) => b.Pts-a.Pts||b.GD-a.GD||b.GF-a.GF||a.name.localeCompare(b.name));
-  const top8 = new Set(allThirds.slice(0, 8).map(t => t.group));
+  const top8groups = allThirds.slice(0, 8).map(t => t.group);
   const groupToTeam = Object.fromEntries(allThirds.map(t => [t.group, t.name]));
-  // Collect all distinct "3rd X/Y/Z" slot strings from the match data
-  const slotDefs = [];
-  for (const m of matchList) {
-    for (const side of ['a', 'b']) {
-      const val = m[side];
-      if (typeof val === 'string' && /^3rd [A-L](\/[A-L])+$/.test(val) && !slotDefs.find(s => s.slot === val))
-        slotDefs.push({ slot: val, groups: val.slice(4).split('/').filter(g => top8.has(g)) });
+  const qualKey = [...top8groups].sort().join("");
+
+  const assignment = {};
+  const tableRow = FIFA_THIRD_TABLE[qualKey];
+  if (tableRow) {
+    for (let i = 0; i < FIFA_THIRD_SLOT_LABELS.length; i++) {
+      const grp = tableRow[i];
+      if (grp && groupToTeam[grp]) assignment[FIFA_THIRD_SLOT_LABELS[i]] = groupToTeam[grp];
+    }
+  } else {
+    // Fallback greedy for simulated combinations not in the lookup table
+    const top8 = new Set(top8groups);
+    const slotDefs = [];
+    for (const m of matchList) {
+      for (const side of ['a', 'b']) {
+        const val = m[side];
+        if (typeof val === 'string' && /^3rd [A-L](\/[A-L])+$/.test(val) && !slotDefs.find(s => s.slot === val))
+          slotDefs.push({ slot: val, groups: val.slice(4).split('/').filter(g => top8.has(g)) });
+      }
+    }
+    const usedGroups = new Set();
+    for (let i = 0; i < slotDefs.length; i++) {
+      const unassigned = slotDefs.filter(s => !(s.slot in assignment));
+      unassigned.sort((a, b) =>
+        a.groups.filter(g => !usedGroups.has(g)).length -
+        b.groups.filter(g => !usedGroups.has(g)).length);
+      const slot = unassigned[0];
+      if (!slot) break;
+      const available = slot.groups.filter(g => !usedGroups.has(g));
+      const best = allThirds.find(t => available.includes(t.group));
+      assignment[slot.slot] = best ? groupToTeam[best.group] : null;
+      if (best) usedGroups.add(best.group);
     }
   }
-  // Greedy: always assign the most constrained (fewest candidates) slot first
-  const assignment = {}, usedGroups = new Set();
-  for (let i = 0; i < slotDefs.length; i++) {
-    const unassigned = slotDefs.filter(s => !(s.slot in assignment));
-    unassigned.sort((a, b) =>
-      a.groups.filter(g => !usedGroups.has(g)).length -
-      b.groups.filter(g => !usedGroups.has(g)).length);
-    const slot = unassigned[0];
-    if (!slot) break;
-    const available = slot.groups.filter(g => !usedGroups.has(g));
-    const best = allThirds.find(t => available.includes(t.group));
-    assignment[slot.slot] = best ? groupToTeam[best.group] : null;
-    if (best) usedGroups.add(best.group);
-  }
+
   _thirdCache = assignment;
   _thirdCacheKey = key;
   return assignment;
