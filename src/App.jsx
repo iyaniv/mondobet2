@@ -2417,12 +2417,22 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
     const scoreA  = isLive ? live.score_a : (res ? res[0] : null);
     const scoreB  = isLive ? live.score_b : (res ? res[1] : null);
     const winner  = isLive ? live.winner  : (res ? res[2] : null);
-    const winA    = scoreA != null
+    // Winner highlight only once a match is FINAL — a live leader isn't a winner yet.
+    const winA    = isDone && scoreA != null
       ? (scoreA > scoreB ? true : scoreB > scoreA ? false
          : winner === 'a' ? true : winner === 'b' ? false : null)
       : null;
+    // A matchup whose teams aren't decided yet still carries a slot label
+    // ("W M74", "1st A", "Best 3rd (3)", "3rd A/B/C"). Keep those quiet.
+    const isSlot    = (s) => /^[WL] M\d+$/.test(s) || /^(1st|2nd|3rd)\s+[A-L]$/.test(s)
+      || /^Best 3rd \(\d+\)$/.test(s) || /^3rd [A-L](\/[A-L])+$/.test(s);
+    const undecided = isSlot(teamA) || isSlot(teamB);
+    const pending   = !isLive && !isDone;
+    // Lighter treatment: decided-upcoming cards use the brighter panel2; undecided
+    // placeholders stay on the flat panel and fade back so they read as TBD.
     const border  = isLive ? `1px solid ${C.red}` : isDone ? `1px solid rgba(16,185,129,0.2)` : `1px solid ${C.border}`;
-    const pending = !isLive && !isDone;
+    const cardBg  = isLive ? 'rgba(239,68,68,0.06)' : undecided ? C.panel : C.panel2;
+    const cardOpacity = undecided ? 0.5 : 1;
 
     const rowA = {display:'flex',alignItems:'center',gap:6,padding:'8px 10px',
       borderBottom:`1px solid ${C.border}`,
@@ -2431,29 +2441,25 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
       background: winA===false ? 'rgba(163,230,53,.07)' : 'transparent'};
     const nameStyle = (won) => ({fontSize:15,fontWeight:won?700:400,flex:1,
       whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',
-      color: won===false ? C.muted : C.text});
+      color: won===false ? C.muted : undecided ? C.muted : C.text});
     const scoreStyle = (won) => ({fontSize:15,fontWeight:700,fontFamily:'monospace',
       minWidth:22,textAlign:'right',
-      color: won===true ? C.accent : isDone ? C.muted : C.muted});
+      color: isLive ? C.red : won===true ? C.accent : C.muted});
 
     // Kickoff date+time is shown on every card (all stages, all states) so the
     // bracket doubles as a schedule — not just for the not-yet-resolved rounds.
     const koParts = kickoffParts(m.t, tz);
     return (
-      <div data-matchup={m.n} style={{background:C.panel,border,borderRadius:10,overflow:'hidden',opacity:pending?0.6:1,margin:'0 4px',flexShrink:0}}>
+      <div data-matchup={m.n} style={{background:cardBg,border,borderRadius:10,overflow:'hidden',opacity:cardOpacity,margin:'0 4px',flexShrink:0}}>
           <div style={rowA}>
             <span style={{fontSize:16,width:24,textAlign:'center',flexShrink:0}}>{flag(teamA)}</span>
             <span style={nameStyle(winA===true)}>{teamA}</span>
-            {isLive
-              ? <span className="live-dot" style={{width:8,height:8}}/>
-              : <span style={scoreStyle(winA===true)}>{scoreA != null ? scoreA : '–'}</span>}
+            <span style={scoreStyle(winA===true)}>{scoreA != null ? scoreA : '–'}</span>
           </div>
           <div style={rowB}>
             <span style={{fontSize:16,width:24,textAlign:'center',flexShrink:0}}>{flag(teamB)}</span>
             <span style={nameStyle(winA===false)}>{teamB}</span>
-            {isLive
-              ? <span className="live-dot" style={{width:8,height:8}}/>
-              : <span style={scoreStyle(winA===false)}>{scoreB != null ? scoreB : '–'}</span>}
+            <span style={scoreStyle(winA===false)}>{scoreB != null ? scoreB : '–'}</span>
           </div>
           {koParts && (
             <div style={{padding:'4px 10px 5px',fontSize:12,fontWeight:600,color:C.muted,
@@ -2493,6 +2499,7 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
       display:'flex',alignItems:'center',gap:3}}>
       <span className="live-dot" style={{width:8,height:8}}/>
       <span style={{color:C.red}}>LIVE</span>
+      {live.minute!=null && <span style={{color:C.red}}>{live.minute===45?"HT":`${live.minute}'`}</span>}
     </span>;
     return null;
   }
@@ -2532,7 +2539,7 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
           return (
             <Fragment key={s.n}>
               <div data-round-col={s.n} style={{display:'flex',flexDirection:'column',
-                width:200, flexShrink:0, opacity:isCurrent?1:0.5}}>
+                width:200, flexShrink:0, opacity:isCurrent?1:0.85}}>
                 <div style={{fontSize:12,fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',
                   padding:'0 4px 10px',textAlign:'center',height:30,
                   color:isCurrent?C.accent:C.muted}}>

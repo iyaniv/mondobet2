@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Bracket — lighter cards mock</title>
+<style>
+  :root{
+    --c-bg:#0b1020; --c-panel:#141c34; --c-panel2:#1a2547;
+    --c-border:#2a3658; --c-text:#e7ecf3; --c-muted:#6b7a99;
+    --c-accent:#a3e635; --c-green:#10b981; --c-red:#ef4444;
+    --c-font-display:'Bebas Neue', Impact, 'Arial Narrow', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--c-bg);color:var(--c-text);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    padding:24px;}
+  h1{font-size:18px;margin:0 0 4px;}
+  .sub{color:var(--c-muted);font-size:13px;margin:0 0 18px;}
+
+  .toolbar{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap;align-items:center;}
+  .toolbar button{background:var(--c-panel);color:var(--c-text);border:1px solid var(--c-border);
+    border-radius:999px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;}
+  .toolbar button.on{background:var(--c-accent);color:#0b1020;border-color:var(--c-accent);}
+  .toolbar .note{color:var(--c-muted);font-size:12px;}
+
+  /* ── Bracket layout ─────────────────────────────────────── */
+  .scroll{overflow-x:auto;padding-bottom:8px;}
+  .bracket{display:flex;align-items:flex-start;min-width:min-content;}
+  .col{display:flex;flex-direction:column;width:200px;flex-shrink:0;}
+  .col.dim{opacity:.5;}
+  .col-title{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+    padding:0 4px 10px;text-align:center;height:30px;color:var(--c-muted);}
+  .col.current .col-title{color:var(--c-accent);}
+
+  .slot{display:flex;flex-direction:column;justify-content:center;padding-top:20px;position:relative;}
+  .above{position:absolute;top:0;left:4px;right:4px;height:20px;overflow:hidden;
+    display:flex;align-items:flex-end;font-size:12px;font-weight:700;}
+  .above .win{color:var(--c-accent);}
+  .above .muted{color:var(--c-muted);}
+  .live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c-red);
+    margin-right:4px;box-shadow:0 0 0 0 rgba(239,68,68,.6);animation:pulse 1.4s infinite;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(239,68,68,.5);}70%{box-shadow:0 0 0 6px rgba(239,68,68,0);}100%{box-shadow:0 0 0 0 rgba(239,68,68,0);}}
+
+  .card{border-radius:10px;overflow:hidden;margin:0 4px;flex-shrink:0;
+    background:var(--c-panel);border:1px solid var(--c-border);}
+  .card.pending{opacity:.6;}
+  .card.done{border-color:rgba(16,185,129,.2);}
+  .card.live{border-color:var(--c-red);background:rgba(239,68,68,.06);}
+  /* placeholder = next-round matchups whose teams aren't determined yet */
+  .card.placeholder .name{color:var(--c-muted);font-weight:400;}
+  .score.live{color:var(--c-red);}
+  .min{font-size:11px;font-weight:700;color:var(--c-red);margin-left:5px;}
+  .row{display:flex;align-items:center;gap:6px;padding:8px 10px;}
+  .row.top{border-bottom:1px solid var(--c-border);}
+  .row .flag{font-size:16px;width:24px;text-align:center;flex-shrink:0;}
+  .row .name{font-size:15px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--c-text);}
+  .row .name.lose{color:var(--c-muted);font-weight:400;}
+  .row .name.win{font-weight:700;}
+  .row.win{background:rgba(163,230,53,.07);}
+  .score{font-size:15px;font-weight:700;font-family:monospace;min-width:22px;text-align:right;color:var(--c-muted);}
+  .score.win{color:var(--c-accent);}
+  .ko{padding:4px 10px 5px;font-size:12px;font-weight:600;color:var(--c-muted);
+    border-top:1px solid var(--c-border);text-align:center;white-space:nowrap;}
+
+  /* ── LIGHTER variant overrides ──────────────────────────── */
+  body.lighter .col.dim{opacity:.85;}                 /* future rounds no longer half-faded */
+  body.lighter .card{background:var(--c-panel2);border-color:#34436e;}
+  body.lighter .card.pending{opacity:1;}              /* upcoming games full strength… */
+  body.lighter .card.pending .name{color:#c3ccdc;}    /* …with brighter team names */
+  body.lighter .card.pending .flag{filter:saturate(1.15);}
+  body.lighter .card.pending .score{color:#8a98b8;}
+  body.lighter .card.pending .ko{color:#8a98b8;border-top-color:#34436e;}
+  body.lighter .row.top{border-bottom-color:#34436e;}
+  /* …but undetermined next-round cards stay quiet: flat bg, faded, muted names */
+  body.lighter .card.placeholder{background:var(--c-panel);border-color:var(--c-border);opacity:.5;}
+  body.lighter .card.placeholder .name{color:var(--c-muted);}
+  body.lighter .card.placeholder .ko{color:var(--c-muted);border-top-color:var(--c-border);}
+  body.lighter .card.placeholder .row.top{border-bottom-color:var(--c-border);}
+</style>
+</head>
+<body class="lighter">
+  <h1>Bracket — lighter cards</h1>
+  <p class="sub">Toggle to compare. The "lighter" version stops half-fading future rounds, drops the 60% dim on
+  upcoming matchups, and gives their cards a brighter panel + text — closer to how the LIVE strip reads at the top.</p>
+
+  <div class="toolbar">
+    <button id="bLight" class="on" onclick="setMode('lighter')">Lighter (proposed)</button>
+    <button id="bCur" onclick="setMode('current')">Current</button>
+    <span class="note" id="note"></span>
+  </div>
+
+  <div class="scroll">
+    <div class="bracket" id="bracket"></div>
+  </div>
+
+<script>
+  // ── Data mirrors the screenshot: R32 (current) → R16 → QF ──
+  const FLAG = { 'South Africa':'🇿🇦','Canada':'🇨🇦','Germany':'🇩🇪','Paraguay':'🇵🇾',
+    'Netherlands':'🇳🇱','Morocco':'🇲🇦','Brazil':'🇧🇷','Argentina':'🇦🇷' };
+
+  // Each card: {a,b, sa,sb, state:'done'|'live'|'pending', ko, above}
+  const R32 = [
+    {a:'South Africa', b:'Canada',    sa:null, sb:null, state:'pending', ko:'28 Jun · 22:00'},
+    {a:'Germany',      b:'Paraguay',  sa:null, sb:null, state:'pending', ko:'29 Jun · 23:30'},
+    {a:'Netherlands',  b:'Morocco',   sa:null, sb:null, state:'pending', ko:'30 Jun · 04:00'},
+    {a:'Brazil',       b:'Argentina', sa:2,    sb:1,    state:'live',    ko:'30 Jun · 20:00', minute:67},
+  ];
+  const R16 = [
+    {a:'W M74', b:'W M77', sa:null, sb:null, state:'pending', ko:'5 Jul · 00:00', placeholder:true},
+    {a:'W M73', b:'W M75', sa:null, sb:null, state:'pending', ko:'4 Jul · 20:00', placeholder:true},
+  ];
+  const QF = [
+    {a:'W M89', b:'W M90', sa:null, sb:null, state:'pending', ko:'9 Jul · 00:00', placeholder:true},
+  ];
+
+  const BASE=140;
+  const COLS=[
+    {title:'Round of 32', current:true,  slot:BASE,   cards:R32},
+    {title:'Round of 16', current:false, slot:BASE*2, cards:R16},
+    {title:'Quarterfinals',current:false,slot:BASE*4, cards:QF},
+  ];
+
+  function flag(n){ return FLAG[n] || '🏳️'; }
+
+  function cardEl(c){
+    const winA = c.sa!=null && c.sb!=null ? (c.sa>c.sb?true: c.sb>c.sa?false:null) : null;
+    const live = c.state==='live', done=c.state==='done', pending=c.state==='pending';
+    const cls = ['card', c.state, c.placeholder?'placeholder':''].join(' ').trim();
+    // Live games show the actual running score (red), not just a dot.
+    const scoreCell = (s, win)=> live
+      ? `<span class="score live">${s!=null?s:'–'}</span>`
+      : `<span class="score${win===true?' win':''}">${s!=null?s:'–'}</span>`;
+    // Live games don't declare a winner yet — keep both names neutral, no row tint.
+    const nameCls = (win)=> 'name'+(!live && win===true?' win':!live && win===false?' lose':'');
+    const rowWin = (win)=> (!live && win) ? ' win' : '';
+    return `
+      <div class="${cls}">
+        <div class="row top${rowWin(winA===true)}">
+          <span class="flag">${c.placeholder?'🏳️':flag(c.a)}</span>
+          <span class="${nameCls(winA===true)}">${c.a}</span>
+          ${scoreCell(c.sa, winA===true)}
+        </div>
+        <div class="row${rowWin(winA===false)}">
+          <span class="flag">${c.placeholder?'🏳️':flag(c.b)}</span>
+          <span class="${nameCls(winA===false)}">${c.b}</span>
+          ${scoreCell(c.sb, winA===false)}
+        </div>
+        <div class="ko">${c.ko}</div>
+      </div>`;
+  }
+
+  function aboveEl(c){
+    if(c.state==='live') return `<span class="above"><span class="live-dot"></span><span style="color:var(--c-red)">LIVE</span>${c.minute!=null?`<span class="min">${c.minute}'</span>`:''}</span>`;
+    return '<span class="above"></span>';
+  }
+
+  function render(){
+    const root = document.getElementById('bracket');
+    root.innerHTML = COLS.map(col=>{
+      const slots = col.cards.map(c=>`
+        <div class="slot" style="height:${col.slot}px">
+          ${aboveEl(c)}
+          ${cardEl(c)}
+        </div>`).join('');
+      return `<div class="col ${col.current?'current':'dim'}">
+        <div class="col-title">${col.title}</div>
+        ${slots}
+      </div>`;
+    }).join('');
+  }
+
+  function setMode(m){
+    document.body.classList.toggle('lighter', m==='lighter');
+    document.getElementById('bLight').classList.toggle('on', m==='lighter');
+    document.getElementById('bCur').classList.toggle('on', m==='current');
+    document.getElementById('note').textContent = m==='lighter'
+      ? 'Future rounds 85% • upcoming cards full opacity, panel2 bg, brighter names'
+      : 'Future rounds 50% • upcoming cards 60% opacity (the dim look in the screenshot)';
+  }
+
+  render();
+  setMode('lighter');
+</script>
+</body>
+</html>
