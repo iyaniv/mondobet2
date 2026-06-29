@@ -14,9 +14,11 @@ Score handling mirrors footdata exactly:
 - Regulation (≤ 2nd half): the running score IS the 90-min score → written to
   score_a/score_b, and FINAL-on-completion auto-finalizes the match.
 - Extra time / penalties (knockouts only): the 90-min score is FROZEN (we leave
-  score_a/score_b from the regulation syncs untouched) and the evolving total
-  goes into et_a/et_b for display only. We do NOT auto-finalize — the admin
-  confirms ET/penalty outcomes by hand, exactly like the football-data path.
+  score_a/score_b from the regulation syncs untouched), the evolving total goes
+  into et_a/et_b, and the shootout tally (ESPN's `shootoutScore`) goes into
+  pen_a/pen_b. Once ESPN flags the match completed (STATUS_FINAL_AET /
+  STATUS_FINAL_PEN) we auto-finalize: the winner is derived penalties -> ET ->
+  90-min, so the bracket advances without an admin step.
 """
 
 import logging
@@ -134,15 +136,18 @@ def _extract(event: dict, pair_index: dict) -> Optional[dict]:
     if not home or not away:
         return None
 
-    def _score(c):
+    def _int_field(c, key):
         try:
-            return int(c.get("score"))
+            return int(c.get(key))
         except (TypeError, ValueError):
             return None
 
-    sa, sb = _score(home), _score(away)
+    sa, sb = _int_field(home, "score"), _int_field(away, "score")
     if sa is None or sb is None:
         return None
+    # Penalty shootout count, present only once a tie goes to spot-kicks
+    # (STATUS_FINAL_PEN). None for everything else.
+    pa, pb = _int_field(home, "shootoutScore"), _int_field(away, "shootoutScore")
 
     match_n, flip = _map_to_match_n(
         (home.get("team") or {}).get("name", ""),
@@ -153,11 +158,14 @@ def _extract(event: dict, pair_index: dict) -> Optional[dict]:
         return None
     if flip:
         sa, sb = sb, sa
+        pa, pb = pb, pa
 
     return {
         "match_n": match_n,
         "score_a": sa,
         "score_b": sb,
+        "pen_a": pa,
+        "pen_b": pb,
         "minute": _parse_minute(status.get("displayClock"), status.get("clock")),
         "is_live": state == "in",
         "is_done": state == "post" and bool(stype.get("completed")),
@@ -245,14 +253,24 @@ async def sync_live_from_espn(db: AsyncSession) -> bool:
                     await crud.finalize_live_match(db, rec["match_n"])
             else:
                 # ET / penalties (knockouts only): FREEZE the 90-min score
-                # (score_a/score_b left untouched from the regulation syncs) and
-                # write the evolving total into et_a/et_b for display. Points
-                # stay pegged to the 90-min score; admin confirms the final.
+                # (score_a/score_b left untouched from the regulation syncs),
+                # write the evolving total into et_a/et_b, and — once spot-kicks
+                # start — the shootout tally into pen_a/pen_b. Points stay pegged
+                # to the 90-min score; the winner is derived pens -> ET -> 90'.
+                pen_kw = {}
+                if rec["pen_a"] is not None and rec["pen_b"] is not None:
+                    pen_kw = {"pen_a": rec["pen_a"], "pen_b": rec["pen_b"]}
                 await crud.upsert_live_match(
                     db, rec["match_n"],
                     minute=rec["minute"], is_live=rec["is_live"],
-                    et_a=rec["score_a"], et_b=rec["score_b"],
+                    et_a=rec["score_a"], et_b=rec["score_b"], **pen_kw,
                 )
+                # ESPN marks the match completed (STATUS_FINAL_AET /
+                # STATUS_FINAL_PEN) once ET or the shootout settles it, so we
+                # can auto-finalize: move to results (FINAL, locked) and let the
+                # bracket advance without an admin step.
+                if rec["is_done"]:
+                    await crud.finalize_live_match(db, rec["match_n"])
         except Exception as exc:
             log.warning("ESPN live write failed for #%s: %s", rec["match_n"], exc)
 
