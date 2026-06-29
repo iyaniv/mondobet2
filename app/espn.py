@@ -170,6 +170,7 @@ def _extract(event: dict, pair_index: dict) -> Optional[dict]:
         "is_live": state == "in",
         "is_done": state == "post" and bool(stype.get("completed")),
         "is_regulation": _is_regulation(status.get("period"), stype.get("name")),
+        "status_name": stype.get("name"),  # e.g. STATUS_FINAL_PEN — logged on finalize
     }
 
 
@@ -260,7 +261,7 @@ async def sync_live_from_espn(db: AsyncSession) -> bool:
                 pen_kw = {}
                 if rec["pen_a"] is not None and rec["pen_b"] is not None:
                     pen_kw = {"pen_a": rec["pen_a"], "pen_b": rec["pen_b"]}
-                await crud.upsert_live_match(
+                lm = await crud.upsert_live_match(
                     db, rec["match_n"],
                     minute=rec["minute"], is_live=rec["is_live"],
                     et_a=rec["score_a"], et_b=rec["score_b"], **pen_kw,
@@ -270,7 +271,27 @@ async def sync_live_from_espn(db: AsyncSession) -> bool:
                 # can auto-finalize: move to results (FINAL, locked) and let the
                 # bracket advance without an admin step.
                 if rec["is_done"]:
-                    await crud.finalize_live_match(db, rec["match_n"])
+                    # Wrong-score guard: if regulation was never synced (poller
+                    # first saw the match already in ET) the frozen 90' score is
+                    # the 0:0 default, so 90'-based points would be scored
+                    # against a bogus line. Not fatal — but log loudly.
+                    if (lm.score_a or 0) == 0 and (lm.score_b or 0) == 0 \
+                            and (rec["score_a"] or rec["score_b"]):
+                        log.warning(
+                            "ESPN auto-finalize #%s: 90' score is 0:0 but ET total "
+                            "is %s:%s — regulation likely never synced; 90' points "
+                            "may be wrong", rec["match_n"], rec["score_a"], rec["score_b"],
+                        )
+                    res = await crud.finalize_live_match(db, rec["match_n"])
+                    # Logged at WARNING (root logger sits at WARNING) so every
+                    # auto-finalize leaves a greppable trail of exactly what was
+                    # locked in and who advanced — the audit point for shootouts.
+                    log.warning(
+                        "ESPN auto-finalize #%s [%s]: 90'=%s:%s et=%s:%s pen=%s:%s -> winner=%s",
+                        rec["match_n"], rec["status_name"],
+                        lm.score_a, lm.score_b, lm.et_a, lm.et_b, lm.pen_a, lm.pen_b,
+                        getattr(res, "winner", None),
+                    )
         except Exception as exc:
             log.warning("ESPN live write failed for #%s: %s", rec["match_n"], exc)
 
