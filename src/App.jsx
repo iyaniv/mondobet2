@@ -2132,11 +2132,17 @@ function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
           // in parentheses; in ET we show the running ET score.
           const inPens=isLive&&!!live&&(live.pen_a!=null||live.pen_b!=null);
           const inEt  =isLive&&!!live&&!inPens&&live.et_a!=null;
+          // A finished knockout that went the distance: result tuple carries
+          // et_a/et_b (slots 3/4) and pen_a/pen_b (slots 5/6).
+          const finPens = !!res && res[5]!=null;
+          const finEt   = !!res && res[3]!=null;
           const liveMain=live?((inPens||inEt)?[live.et_a??live.score_a,live.et_b??live.score_b]:[live.score_a,live.score_b]):null;
-          const score=res?[res[0],res[1]]:liveMain;
+          // Show the score that actually decided it: ET-inclusive when a tie
+          // went to extra time, otherwise the 90' score.
+          const score=res?(finEt?[res[3],res[4]]:[res[0],res[1]]):liveMain;
           // Penalty tally to surface: live shootout, or a finished knockout
           // decided on pens (result tuple slots 5/6).
-          const penScore=(res&&res[5]!=null)?[res[5],res[6]]:(inPens?[live.pen_a,live.pen_b]:null);
+          const penScore=finPens?[res[5],res[6]]:(inPens?[live.pen_a,live.pen_b]:null);
           const finished=!isLive&&!!score;
           const k=kickoffParts(m.t,tz);
           const winA=(()=>{
@@ -2149,7 +2155,7 @@ function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
           const badge = isLive
             ? <span style={{display:"inline-flex",alignItems:"center",gap:5,color:C.red,fontWeight:800,letterSpacing:".5px",whiteSpace:"nowrap",flexShrink:0}}><span className="live-dot"/> LIVE {liveTag}</span>
             : finished
-              ? <span style={{color:C.green,fontWeight:800,letterSpacing:".5px",whiteSpace:"nowrap",flexShrink:0}}>✓ FULL TIME</span>
+              ? <span style={{color:C.green,fontWeight:800,letterSpacing:".5px",whiteSpace:"nowrap",flexShrink:0}}>✓ {finPens?"FT · PENS":finEt?"FT · ET":"FULL TIME"}</span>
               : <span style={{color:C.accent,fontWeight:800,letterSpacing:".5px",whiteSpace:"nowrap",flexShrink:0}}>◷ UPCOMING</span>;
           // Red cards per side — live-only signal (gone once finalized).
           const redA = live ? (live.red_a||0) : 0;
