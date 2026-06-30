@@ -2127,12 +2127,27 @@ function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
           const live=liveMatches[m.n];
           const res=results[m.n];
           const isLive=!!(live&&live.is_live);
-          const score=res?[res[0],res[1]]:(live?[live.score_a,live.score_b]:null);
+          // Knockout phase (live only). The feed sets et_a/pen_a once a tie
+          // passes 90'. In pens we show the ET/90 score with the shootout tally
+          // in parentheses; in ET we show the running ET score.
+          const inPens=isLive&&!!live&&(live.pen_a!=null||live.pen_b!=null);
+          const inEt  =isLive&&!!live&&!inPens&&live.et_a!=null;
+          const liveMain=live?((inPens||inEt)?[live.et_a??live.score_a,live.et_b??live.score_b]:[live.score_a,live.score_b]):null;
+          const score=res?[res[0],res[1]]:liveMain;
+          // Penalty tally to surface: live shootout, or a finished knockout
+          // decided on pens (result tuple slots 5/6).
+          const penScore=(res&&res[5]!=null)?[res[5],res[6]]:(inPens?[live.pen_a,live.pen_b]:null);
           const finished=!isLive&&!!score;
           const k=kickoffParts(m.t,tz);
-          const winA=score?(score[0]>score[1]?true:score[1]>score[0]?false:(res&&res[2]==='a'?true:res&&res[2]==='b'?false:null)):null;
+          const winA=(()=>{
+            if(!score) return null;
+            if(res) return res[2]==='a'?true:res[2]==='b'?false:(score[0]>score[1]?true:score[1]>score[0]?false:null);
+            const w=deriveWinner(live.score_a,live.score_b,live.et_a,live.et_b,live.pen_a,live.pen_b);
+            return w==='a'?true:w==='b'?false:(score[0]>score[1]?true:score[1]>score[0]?false:null);
+          })();
+          const liveTag=inPens?"· PENS":inEt?`· ET ${live.minute!=null?`${live.minute}'`:""}`.trim():(live&&live.minute===45?"HT":live&&live.minute!=null?`${live.minute}'`:"");
           const badge = isLive
-            ? <span style={{display:"inline-flex",alignItems:"center",gap:5,color:C.red,fontWeight:800,letterSpacing:".5px",whiteSpace:"nowrap",flexShrink:0}}><span className="live-dot"/> LIVE {live.minute===45?"HT":live.minute!=null?`${live.minute}'`:""}</span>
+            ? <span style={{display:"inline-flex",alignItems:"center",gap:5,color:C.red,fontWeight:800,letterSpacing:".5px",whiteSpace:"nowrap",flexShrink:0}}><span className="live-dot"/> LIVE {liveTag}</span>
             : finished
               ? <span style={{color:C.green,fontWeight:800,letterSpacing:".5px",whiteSpace:"nowrap",flexShrink:0}}>✓ FULL TIME</span>
               : <span style={{color:C.accent,fontWeight:800,letterSpacing:".5px",whiteSpace:"nowrap",flexShrink:0}}>◷ UPCOMING</span>;
@@ -2145,17 +2160,18 @@ function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
               {n>1 && <span style={{fontSize:10,fontWeight:800,color:C.red,fontVariantNumeric:"tabular-nums"}}>{n}</span>}
             </span>
           ) : null;
-          const teamRow=(name,won,sc,reds=0)=>(
+          const teamRow=(name,won,sc,reds=0,pen=null)=>(
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
               <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:14,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
                 color:won===true?C.accent:won===false?C.muted:C.text}}>
                 <span style={{fontSize:15,flexShrink:0}}>{flag(name)}</span>
                 <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{name}</span>
               </span>
-              <span style={{display:"inline-flex",alignItems:"center",gap:4,flexShrink:0}}>
+              <span style={{display:"inline-flex",alignItems:"baseline",gap:4,flexShrink:0}}>
                 {redChip(reds)}
                 {score
-                  ? <span style={{fontFamily:"var(--c-font-display)",fontSize:17,letterSpacing:.5,minWidth:14,textAlign:"right",color:won===true?C.accent:won===false?C.muted:(isLive?C.red:C.text)}}>{sc}</span>
+                  ? <><span style={{fontFamily:"var(--c-font-display)",fontSize:17,letterSpacing:.5,minWidth:14,textAlign:"right",color:won===true?C.accent:won===false?C.muted:(isLive?C.red:C.text)}}>{sc}</span>
+                      {pen!=null&&<span title="penalty shootout" style={{fontSize:11,fontWeight:700,color:won===true?C.accent:C.muted}}>({pen})</span>}</>
                   : <span style={{color:C.muted,fontSize:11}}>{won==="lead"?"vs":""}</span>}
               </span>
             </div>
@@ -2177,8 +2193,8 @@ function TodaysGames({ matches=[], results={}, liveMatches={}, tz }){
                 </span>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                {teamRow(rm.a, winA===true?true:(winA===false?false:(score?null:"lead")), score?score[0]:null, redA)}
-                {teamRow(rm.b, winA===false?true:(winA===true?false:null), score?score[1]:null, redB)}
+                {teamRow(rm.a, winA===true?true:(winA===false?false:(score?null:"lead")), score?score[0]:null, redA, penScore?penScore[0]:null)}
+                {teamRow(rm.b, winA===false?true:(winA===true?false:null), score?score[1]:null, redB, penScore?penScore[1]:null)}
               </div>
             </div>
           );
@@ -6314,6 +6330,15 @@ export default function App() {
     const selScore = selMatch
       ? (selLive ? [selLiveData.score_a, selLiveData.score_b] : (selRes ? [selRes[0], selRes[1]] : null))
       : null;
+    // Every pick is graded on the 90' score, which the feed freezes the moment
+    // a tie passes 90' (it then only touches et_a/pen_a). So a live match in
+    // ET/pens is already settled for this column — present it locked/final,
+    // not as still-in-play. selLiveOpen = physically live AND 90' not yet locked.
+    const selInPens = !!(selLiveData && (selLiveData.pen_a!=null || selLiveData.pen_b!=null));
+    const selInEt = !!(selLiveData && !selInPens && selLiveData.et_a!=null);
+    const selNinetyLocked = selInPens || selInEt;
+    const selNinetyFinal = !!selRes || (selLive && selNinetyLocked);
+    const selLiveOpen = selLive && !selNinetyLocked;
     const selKoParts = selMatch ? kickoffParts(selMatch.t, tz) : null;
     const selPinned = pinnedMatchN!=null && selMatch && pinnedMatchN===selMatch.n;
     const hasFocus = !!selMatch;
@@ -6806,10 +6831,10 @@ export default function App() {
                   {["Name","Points"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Points"?"center":"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}
                   {showFocusCols&&(()=>{
                     const ca=resolveTeamDeep(selMatch.a,results,matches), cb=resolveTeamDeep(selMatch.b,results,matches);
-                    const badge = selLive
+                    const badge = selLiveOpen
                       ? <span style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:9,fontWeight:800,color:C.red,background:"rgba(239,68,68,0.12)",border:`1px solid rgba(239,68,68,0.35)`,borderRadius:999,padding:"1px 6px"}}>{selPinned&&"📌"}<span className="live-dot"/>{selLiveData.minute!=null?`${selLiveData.minute}'`:"LIVE"}</span>
-                      : selRes
-                        ? <span style={{fontSize:9,fontWeight:800,color:C.green,background:"rgba(16,185,129,0.12)",border:`1px solid rgba(16,185,129,0.35)`,borderRadius:999,padding:"1px 6px"}}>{selPinned&&"📌 "}FT</span>
+                      : selNinetyFinal
+                        ? <span style={{fontSize:9,fontWeight:800,color:C.green,background:"rgba(16,185,129,0.12)",border:`1px solid rgba(16,185,129,0.35)`,borderRadius:999,padding:"1px 6px"}}>{selPinned&&"📌 "}{selRes?"FT":"FT 90'"}{!selRes&&selInPens?" · pens":!selRes&&selInEt?" · ET":""}</span>
                         : <span style={{fontSize:9,fontWeight:800,color:C.muted,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:999,padding:"1px 6px"}}>{selPinned&&"📌 "}{selKoParts?selKoParts.time:"—"}</span>;
                     const menuStyle = gameMenuPos
                       ? {position:"fixed",top:gameMenuPos.bottom+5,left:Math.max(8,Math.min(gameMenuPos.left+gameMenuPos.width/2-124,(typeof window!=="undefined"?window.innerWidth:1000)-256))}
@@ -6820,7 +6845,7 @@ export default function App() {
                     return (
                     <th style={{padding:"6px 8px",textAlign:"center",color:C.text,fontWeight:600,
                       borderBottom:`1px solid ${C.border}`,borderLeft:`1px solid ${C.border}`,
-                      background:matchSimMode?(selLive?"rgba(239,68,68,0.14)":"rgba(99,102,241,0.18)"):selLive?"rgba(239,68,68,0.05)":"rgba(99,102,241,0.05)",
+                      background:matchSimMode?(selLiveOpen?"rgba(239,68,68,0.14)":"rgba(99,102,241,0.18)"):selLiveOpen?"rgba(239,68,68,0.05)":"rgba(99,102,241,0.05)",
                       whiteSpace:"nowrap",position:"relative",transition:"background .2s"}}>
                       {matchSimMode ? (
                         /* ── SIMULATE mode header ── */
@@ -6883,7 +6908,7 @@ export default function App() {
                             {badge}
                             <span style={{fontSize:8,color:gameMenuOpen?C.accent:C.muted}}>▾</span>
                           </button>
-                          {!selRes&&(
+                          {!selNinetyFinal&&(
                             <button onClick={()=>{setMatchSimMode(true);if(selLive&&selLiveData){setMatchSimA(String(selLiveData.score_a));setMatchSimB(String(selLiveData.score_b));}}}
                               title="Simulate a score"
                               style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",borderRadius:5,
@@ -7120,7 +7145,7 @@ export default function App() {
                           }
                           return (
                             <td style={{...td,textAlign:"center",borderLeft:`1px solid ${C.border}`,
-                              background:matchSimMode?(selLive?"rgba(239,68,68,0.06)":"rgba(99,102,241,0.07)"):selLive?"rgba(239,68,68,0.02)":"rgba(99,102,241,0.02)"}}>
+                              background:matchSimMode?(selLiveOpen?"rgba(239,68,68,0.06)":"rgba(99,102,241,0.07)"):selLiveOpen?"rgba(239,68,68,0.02)":"rgba(99,102,241,0.02)"}}>
                               {pred?(
                                 <span style={{display:"inline-flex",alignItems:"center",gap:1,fontFamily:"monospace",fontSize:15,fontWeight:700,
                                   padding:"2px 8px",borderRadius:7,border:`1px solid ${plain?C.border:bd}`,background:plain?C.bg:bg}}>
