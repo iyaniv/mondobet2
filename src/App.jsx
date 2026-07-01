@@ -2519,8 +2519,15 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
     // data-team-row so the connector still meets the seam between them, not the
     // box centre (which now sits lower because of the footer).
     const winTeam = winA===true ? teamA : winA===false ? teamB : null;
+    const k = kickoffParts(m.t, tz);
     return (
       <div data-matchup={m.n} style={{background:cardBg,border,borderRadius:10,overflow:'hidden',opacity:cardOpacity,margin:'0 4px',flexShrink:0}}>
+          {k && (
+            <div style={{padding:'5px 10px 4px',borderBottom:`1px solid ${C.border}`,
+              fontSize:11,fontWeight:600,color:C.muted,whiteSpace:'nowrap',letterSpacing:'.01em'}}>
+              {k.md} · {k.time}
+            </div>
+          )}
           <div data-team-row style={rowA}>
             <span style={{fontSize:16,width:24,textAlign:'center',flexShrink:0}}>{flag(teamA)}</span>
             <span style={nameStyle(winA===true)}>{teamA}</span>
@@ -2561,30 +2568,17 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
   // both SF matches). The 3rd-place match floats below — no bracket lines connect to it.
   const MATCH_COUNTS  = {2:16, 3:8, 4:4, 5:2};   // stage 6 handled separately
   const BASE_COUNT    = 16;
-  const BASE_SLOT_PX  = 140;   // tall enough for a 3-row card (teams + kickoff) without clipping
-  const LABEL_H       = 20;
-
-  // Kickoff date+time, shown as a caption ABOVE the box so the box stays a
-  // clean two-team card (used by both the slot layout and the 3rd-place card).
-  function dateCaption(m) {
-    const k = kickoffParts(m.t, tz);
-    if (!k) return null;
-    return <span style={{fontSize:12,fontWeight:600,color:C.muted,
-      whiteSpace:'nowrap',letterSpacing:'.01em'}}>{k.md} · {k.time}</span>;
-  }
+  const BASE_SLOT_PX  = 156;   // fits a 4-row card (date + teams + footer, ~139px) with breathing room
 
   function slotCard(m, slotPx) {
+    // The box is fully self-contained now: kickoff date (header), the two teams,
+    // and a LIVE/winner footer. Centre it in the slot; connectors attach to the
+    // team-row seam via data-team-row.
     return (
       <div key={m.n} style={{
         height:slotPx, display:'flex', flexDirection:'column',
-        justifyContent:'center', paddingTop:LABEL_H, position:'relative',
+        justifyContent:'center', position:'relative',
       }}>
-        {/* Above the box: just the kickoff date. LIVE status and the winner are
-            footers inside the box so they're clearly tied to this game. */}
-        <div style={{position:'absolute',top:0,left:8,right:8,height:LABEL_H,
-          overflow:'hidden',display:'flex',alignItems:'flex-end',gap:6}}>
-          {dateCaption(m)}
-        </div>
         {renderMatchup(m)}
       </div>
     );
@@ -2681,9 +2675,8 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
                   <div style={{marginTop:4,padding:'0 4px'}}>
                     <div style={{fontSize:12,fontWeight:700,color:C.muted,
                       padding:'0 8px 4px',letterSpacing:'.06em',textTransform:'uppercase',
-                      display:'flex',alignItems:'center',justifyContent:'space-between',gap:6}}>
+                      display:'flex',alignItems:'center',gap:6}}>
                       <span>🥉 3rd place</span>
-                      {dateCaption(thirdMatch)}
                     </div>
                     {renderMatchup(thirdMatch)}
                   </div>
