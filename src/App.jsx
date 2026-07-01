@@ -2440,10 +2440,16 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
         const li2 = leftCards[ri * 2 + 1];
         const rm  = rightCards[ri];
         if (!li1 || !rm) continue;
-        // Attach at the card box's centre. The box now holds only the two team
-        // rows (the date is a caption above it), so its centre is the seam
-        // between the teams — where the eye expects the join.
+        // Attach at the seam between the two team rows — where the eye expects
+        // the join. A decided card carries a winner footer below the teams, so
+        // we target the team-row boundary rather than the (lower) box centre.
         const boxY = (el) => {
+          const rows = el.querySelectorAll('[data-team-row]');
+          if (rows.length >= 2) {
+            const r1 = rows[0].getBoundingClientRect();
+            const r2 = rows[1].getBoundingClientRect();
+            return (r1.bottom + r2.top) / 2 - svgRect.top;
+          }
           const r = el.getBoundingClientRect();
           return (r.top + r.bottom) / 2 - svgRect.top;
         };
@@ -2508,21 +2514,33 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
       minWidth:22,textAlign:'right',
       color: isLive ? C.red : won===true ? C.accent : C.muted});
 
-    // The bordered box holds only the two team rows — the kickoff date is a
-    // caption rendered ABOVE the box (see slotCard), so the box is symmetric and
-    // the connector meets it dead-centre between the teams (Google-bracket style).
+    // The winner is announced in a footer strip INSIDE the box (below the teams)
+    // so it's unambiguously tied to this game. The two team rows carry
+    // data-team-row so the connector still meets the seam between them, not the
+    // box centre (which now sits lower because of the footer).
+    const winTeam = winA===true ? teamA : winA===false ? teamB : null;
     return (
       <div data-matchup={m.n} style={{background:cardBg,border,borderRadius:10,overflow:'hidden',opacity:cardOpacity,margin:'0 4px',flexShrink:0}}>
-          <div style={rowA}>
+          <div data-team-row style={rowA}>
             <span style={{fontSize:16,width:24,textAlign:'center',flexShrink:0}}>{flag(teamA)}</span>
             <span style={nameStyle(winA===true)}>{teamA}</span>
             <span style={scoreStyle(winA===true)}>{scoreA != null ? scoreA : '–'}{penA!=null&&<span style={{fontSize:11,fontWeight:700,color:winA===true?C.accent:C.muted}}> ({penA})</span>}</span>
           </div>
-          <div style={rowB}>
+          <div data-team-row style={rowB}>
             <span style={{fontSize:16,width:24,textAlign:'center',flexShrink:0}}>{flag(teamB)}</span>
             <span style={nameStyle(winA===false)}>{teamB}</span>
             <span style={scoreStyle(winA===false)}>{scoreB != null ? scoreB : '–'}{penB!=null&&<span style={{fontSize:11,fontWeight:700,color:winA===false?C.accent:C.muted}}> ({penB})</span>}</span>
           </div>
+          {isDone && !isLive && winTeam && (
+            <div style={{display:'flex',alignItems:'center',gap:5,padding:'5px 10px',
+              borderTop:`1px solid ${C.border}`,background:'rgba(163,230,53,.05)',
+              fontSize:11,fontWeight:700,color:C.muted,
+              whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+              <span style={{fontSize:12,flexShrink:0}}>{flag(winTeam)}</span>
+              <span style={{color:C.accent,overflow:'hidden',textOverflow:'ellipsis'}}>{winTeam}</span>
+              <span style={{flexShrink:0}}>wins{finPens?' (pens)':finEt?' (a.e.t.)':''}</span>
+            </div>
+          )}
         </div>
     );
   }
@@ -2540,18 +2558,8 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
     const res = results[m.n];
     const live = liveMatches[m.n];
     const isLive = !!(live && live.is_live);
-    const winner = isLive ? live.winner : (res ? res[2] : null);
-    if (res && winner) {
-      const wt = winner==='a'
-        ? resolveTeamDeep(m.a, results, matches)
-        : resolveTeamDeep(m.b, results, matches);
-      // Note how the tie was broken so a non-90' scoreline reads correctly.
-      const phase = res[5]!=null ? " (pens)" : res[3]!=null ? " (a.e.t.)" : "";
-      return <span style={{fontSize:12,fontWeight:700,color:C.muted,
-        whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-        {flag(wt)} <span style={{color:C.accent}}>{wt}</span> wins{phase}
-      </span>;
-    }
+    // Finished matches announce the winner in a footer inside the box now, so
+    // above the box we only surface the LIVE indicator.
     if (isLive) {
       const inPens = live.pen_a!=null || live.pen_b!=null;
       const inEt   = !inPens && live.et_a!=null;
