@@ -2468,8 +2468,16 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
     const res     = results[m.n];
     const isLive  = !!(live && live.is_live);
     const isDone  = !!res;
-    const scoreA  = isLive ? live.score_a : (res ? res[0] : null);
-    const scoreB  = isLive ? live.score_b : (res ? res[1] : null);
+    // Knockout tie broken by ET/pens — mirror the Today's Games card so a draw
+    // shows the deciding score plus the shootout tally in parentheses.
+    const inPens  = isLive && !!live && (live.pen_a != null || live.pen_b != null);
+    const inEt    = isLive && !!live && !inPens && live.et_a != null;
+    const finPens = !!res && res[5] != null;
+    const finEt   = !!res && res[3] != null;
+    const scoreA  = isLive ? ((inPens||inEt) ? (live.et_a??live.score_a) : live.score_a) : (res ? (finEt?res[3]:res[0]) : null);
+    const scoreB  = isLive ? ((inPens||inEt) ? (live.et_b??live.score_b) : live.score_b) : (res ? (finEt?res[4]:res[1]) : null);
+    const penA    = finPens ? res[5] : (inPens ? live.pen_a : null);
+    const penB    = finPens ? res[6] : (inPens ? live.pen_b : null);
     const winner  = isLive ? live.winner  : (res ? res[2] : null);
     // Winner highlight only once a match is FINAL — a live leader isn't a winner yet.
     const winA    = isDone && scoreA != null
@@ -2508,12 +2516,12 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
           <div style={rowA}>
             <span style={{fontSize:16,width:24,textAlign:'center',flexShrink:0}}>{flag(teamA)}</span>
             <span style={nameStyle(winA===true)}>{teamA}</span>
-            <span style={scoreStyle(winA===true)}>{scoreA != null ? scoreA : '–'}</span>
+            <span style={scoreStyle(winA===true)}>{scoreA != null ? scoreA : '–'}{penA!=null&&<span style={{fontSize:11,fontWeight:700,color:winA===true?C.accent:C.muted}}> ({penA})</span>}</span>
           </div>
           <div style={rowB}>
             <span style={{fontSize:16,width:24,textAlign:'center',flexShrink:0}}>{flag(teamB)}</span>
             <span style={nameStyle(winA===false)}>{teamB}</span>
-            <span style={scoreStyle(winA===false)}>{scoreB != null ? scoreB : '–'}</span>
+            <span style={scoreStyle(winA===false)}>{scoreB != null ? scoreB : '–'}{penB!=null&&<span style={{fontSize:11,fontWeight:700,color:winA===false?C.accent:C.muted}}> ({penB})</span>}</span>
           </div>
         </div>
     );
@@ -2537,17 +2545,25 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
       const wt = winner==='a'
         ? resolveTeamDeep(m.a, results, matches)
         : resolveTeamDeep(m.b, results, matches);
+      // Note how the tie was broken so a non-90' scoreline reads correctly.
+      const phase = res[5]!=null ? " (pens)" : res[3]!=null ? " (a.e.t.)" : "";
       return <span style={{fontSize:12,fontWeight:700,color:C.muted,
         whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-        {flag(wt)} <span style={{color:C.accent}}>{wt}</span> wins
+        {flag(wt)} <span style={{color:C.accent}}>{wt}</span> wins{phase}
       </span>;
     }
-    if (isLive) return <span style={{fontSize:12,fontWeight:700,
-      display:'flex',alignItems:'center',gap:3}}>
-      <span className="live-dot" style={{width:8,height:8}}/>
-      <span style={{color:C.red}}>LIVE</span>
-      {live.minute!=null && <span style={{color:C.red}}>{live.minute===45?"HT":`${live.minute}'`}</span>}
-    </span>;
+    if (isLive) {
+      const inPens = live.pen_a!=null || live.pen_b!=null;
+      const inEt   = !inPens && live.et_a!=null;
+      return <span style={{fontSize:12,fontWeight:700,
+        display:'flex',alignItems:'center',gap:3}}>
+        <span className="live-dot" style={{width:8,height:8}}/>
+        <span style={{color:C.red}}>LIVE</span>
+        {inPens ? <span style={{color:C.red}}>PENS</span>
+          : inEt ? <span style={{color:C.red}}>ET {live.minute!=null?`${live.minute}'`:""}</span>
+          : live.minute!=null && <span style={{color:C.red}}>{live.minute===45?"HT":`${live.minute}'`}</span>}
+      </span>;
+    }
     return null;
   }
 
