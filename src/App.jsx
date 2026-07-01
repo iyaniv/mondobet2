@@ -2531,7 +2531,17 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
             <span style={nameStyle(winA===false)}>{teamB}</span>
             <span style={scoreStyle(winA===false)}>{scoreB != null ? scoreB : '–'}{penB!=null&&<span style={{fontSize:11,fontWeight:700,color:winA===false?C.accent:C.muted}}> ({penB})</span>}</span>
           </div>
-          {isDone && !isLive && winTeam && (
+          {isLive ? (
+            <div style={{display:'flex',alignItems:'center',gap:5,padding:'5px 10px',
+              borderTop:`1px solid ${C.border}`,background:'rgba(239,68,68,.06)',
+              fontSize:11,fontWeight:700,color:C.red,whiteSpace:'nowrap'}}>
+              <span className="live-dot" style={{width:8,height:8}}/>
+              <span>LIVE</span>
+              {inPens ? <span>PENS</span>
+                : inEt ? <span>ET {live.minute!=null?`${live.minute}'`:''}</span>
+                : live.minute!=null && <span>{live.minute===45?'HT':`${live.minute}'`}</span>}
+            </div>
+          ) : isDone && winTeam && (
             <div style={{display:'flex',alignItems:'center',gap:5,padding:'5px 10px',
               borderTop:`1px solid ${C.border}`,background:'rgba(163,230,53,.05)',
               fontSize:11,fontWeight:700,color:C.muted,
@@ -2554,27 +2564,6 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
   const BASE_SLOT_PX  = 140;   // tall enough for a 3-row card (teams + kickoff) without clipping
   const LABEL_H       = 20;
 
-  function aboveCardLabel(m) {
-    const res = results[m.n];
-    const live = liveMatches[m.n];
-    const isLive = !!(live && live.is_live);
-    // Finished matches announce the winner in a footer inside the box now, so
-    // above the box we only surface the LIVE indicator.
-    if (isLive) {
-      const inPens = live.pen_a!=null || live.pen_b!=null;
-      const inEt   = !inPens && live.et_a!=null;
-      return <span style={{fontSize:12,fontWeight:700,
-        display:'flex',alignItems:'center',gap:3}}>
-        <span className="live-dot" style={{width:8,height:8}}/>
-        <span style={{color:C.red}}>LIVE</span>
-        {inPens ? <span style={{color:C.red}}>PENS</span>
-          : inEt ? <span style={{color:C.red}}>ET {live.minute!=null?`${live.minute}'`:""}</span>
-          : live.minute!=null && <span style={{color:C.red}}>{live.minute===45?"HT":`${live.minute}'`}</span>}
-      </span>;
-    }
-    return null;
-  }
-
   // Kickoff date+time, shown as a caption ABOVE the box so the box stays a
   // clean two-team card (used by both the slot layout and the 3rd-place card).
   function dateCaption(m) {
@@ -2590,12 +2579,11 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
         height:slotPx, display:'flex', flexDirection:'column',
         justifyContent:'center', paddingTop:LABEL_H, position:'relative',
       }}>
-        {/* Above the box: kickoff date on the left, LIVE / "X wins" tag on the right. */}
+        {/* Above the box: just the kickoff date. LIVE status and the winner are
+            footers inside the box so they're clearly tied to this game. */}
         <div style={{position:'absolute',top:0,left:8,right:8,height:LABEL_H,
-          overflow:'hidden',display:'flex',alignItems:'flex-end',
-          justifyContent:'space-between',gap:6}}>
+          overflow:'hidden',display:'flex',alignItems:'flex-end',gap:6}}>
           {dateCaption(m)}
-          {aboveCardLabel(m)}
         </div>
         {renderMatchup(m)}
       </div>
