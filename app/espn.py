@@ -149,6 +149,28 @@ def _extract(event: dict, pair_index: dict) -> Optional[dict]:
     # (STATUS_FINAL_PEN). None for everything else.
     pa, pb = _int_field(home, "shootoutScore"), _int_field(away, "shootoutScore")
 
+    # Red cards per side. ESPN exposes no tally, but the play-by-play `details`
+    # carry a redCard boolean + the team that received it (a second yellow /
+    # "Yellow-Red Card" sets redCard too). Count them by team id. We only touch
+    # red_a/red_b when `details` is present, so a payload that omits it doesn't
+    # wipe an admin-entered value (None = leave untouched downstream).
+    def _team_ids(c):
+        return {str(c.get("id")), str((c.get("team") or {}).get("id"))} - {"None"}
+    details = comp.get("details")
+    if isinstance(details, list):
+        home_ids, away_ids = _team_ids(home), _team_ids(away)
+        ra = rb = 0
+        for d in details:
+            if not d.get("redCard"):
+                continue
+            tid = str((d.get("team") or {}).get("id"))
+            if tid in home_ids:
+                ra += 1
+            elif tid in away_ids:
+                rb += 1
+    else:
+        ra = rb = None
+
     match_n, flip = _map_to_match_n(
         (home.get("team") or {}).get("name", ""),
         (away.get("team") or {}).get("name", ""),
@@ -159,6 +181,7 @@ def _extract(event: dict, pair_index: dict) -> Optional[dict]:
     if flip:
         sa, sb = sb, sa
         pa, pb = pb, pa
+        ra, rb = rb, ra
 
     return {
         "match_n": match_n,
@@ -166,6 +189,8 @@ def _extract(event: dict, pair_index: dict) -> Optional[dict]:
         "score_b": sb,
         "pen_a": pa,
         "pen_b": pb,
+        "red_a": ra,
+        "red_b": rb,
         "minute": _parse_minute(status.get("displayClock"), status.get("clock")),
         "is_live": state == "in",
         "is_done": state == "post" and bool(stype.get("completed")),
@@ -234,6 +259,12 @@ async def sync_live_from_espn(db: AsyncSession) -> bool:
         if rec["match_n"] in finalized:
             continue  # admin finalized this match — leave it locked
 
+        # Red-card tally (only when the payload carried play-by-play details;
+        # None means leave whatever's there untouched). Applied in both branches.
+        red_kw = {}
+        if rec["red_a"] is not None:
+            red_kw = {"red_a": rec["red_a"], "red_b": rec["red_b"]}
+
         try:
             if rec["is_regulation"]:
                 # Running score IS the 90-min score; track it live and finalize
@@ -241,7 +272,7 @@ async def sync_live_from_espn(db: AsyncSession) -> bool:
                 await crud.upsert_live_match(
                     db, rec["match_n"],
                     score_a=rec["score_a"], score_b=rec["score_b"],
-                    minute=rec["minute"], is_live=rec["is_live"],
+                    minute=rec["minute"], is_live=rec["is_live"], **red_kw,
                 )
                 # Auto-finalize once full-time is reached. This branch is only
                 # entered for regulation play, so for knockouts this fires only
@@ -264,7 +295,7 @@ async def sync_live_from_espn(db: AsyncSession) -> bool:
                 lm = await crud.upsert_live_match(
                     db, rec["match_n"],
                     minute=rec["minute"], is_live=rec["is_live"],
-                    et_a=rec["score_a"], et_b=rec["score_b"], **pen_kw,
+                    et_a=rec["score_a"], et_b=rec["score_b"], **pen_kw, **red_kw,
                 )
                 # ESPN marks the match completed (STATUS_FINAL_AET /
                 # STATUS_FINAL_PEN) once ET or the shootout settles it, so we
