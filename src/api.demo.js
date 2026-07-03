@@ -574,21 +574,40 @@ function computeLeaderboard(resultsOverride=null, tournamentWinnerOverride=null,
       spotlightNs = new Set(latest ? finished.filter(n=>(ko[n]||"")===latest) : []);
     } else spotlightNs = new Set();
   }
-  // While the running stage is open, other users' picks for it are hidden, so
-  // the sim may only touch the requesting user's own forms — projecting other
-  // users' scores would leak their not-yet-revealed picks. Once the stage is
-  // closed those picks are public and the sim reorders the whole board.
-  const stageOpen = S.config.round_state === "open";
+  // Privacy is PER-MATCH, not global. Picks are hidden only for matches in the
+  // currently-open stage (round_state == "open" AND match's stage ==
+  // current_stage). Leftover games of an earlier, already-closed stage that are
+  // still being played (e.g. stage 2 wrapping up while stage 3 is open for
+  // predictions) have public picks, so their sim scores must reorder everyone.
+  // Applying a sim score for a still-hidden match would leak that pick, so those
+  // are only ever applied to the requester's own forms. Mirrors crud.get_leaderboard.
+  const stageOpen  = S.config.round_state === "open";
+  const openStageN = S.config.current_stage || 1;
+  const matchStage = Object.fromEntries(MATCHES.map(m=>[m.n,m.s]));
+  // Sim scores for still-hidden (open-stage) matches — kept out of everyone
+  // else's board.
+  const othersResults = {...S.results};
+  if (resultsOverride) {
+    for (const [n,v] of Object.entries(resultsOverride)) {
+      const mn = Number(n);
+      if (stageOpen && matchStage[mn] === openStageN) continue; // hidden pick — requester only
+      othersResults[mn] = v;
+    }
+  }
   const rows = [];
   for (const user of Object.values(S.users)) {
     if (user.is_admin) continue;
-    // Apply the simulation to this participant's forms. Simulate is scoped
-    // client-side to the in-play stage, so this only ever reshuffles around
-    // games of the round being played right now — and only the requester's own
-    // forms while that stage is still open (see note above).
-    const applySim = !!resultsOverride && (!stageOpen || user.id === simUserId);
-    const effectiveResults = applySim ? simResults : S.results;
-    const effectiveWinner   = applySim ? simWinner  : S.config.tournament_winner;
+    // The requester sees every simulated score applied to their own forms;
+    // everyone else is scored with the public sim scores only (open-stage picks
+    // stay hidden). Simulate is scoped client-side to the in-play stage.
+    let effectiveResults, effectiveWinner;
+    if (resultsOverride) {
+      effectiveResults = user.id === simUserId ? simResults : othersResults;
+      effectiveWinner  = simWinner;
+    } else {
+      effectiveResults = S.results;
+      effectiveWinner  = S.config.tournament_winner;
+    }
     for (const entry of Object.values(S.entries).filter(e=>e.user_id===user.id&&e.submitted_at)) {
       const preds = S.predictions[entry.id]||{};
       const wp    = S.winner_picks[entry.id]||null;

@@ -537,12 +537,13 @@ async def get_leaderboard(
     stage, so a simulation only ever reshuffles around the games of the round
     being played right now.
 
-    Privacy: while the running stage is still OPEN (round_state == "open")
-    other users' picks for that stage are hidden, so the simulation must NOT
-    reorder them either — projecting their score would leak their hidden picks.
-    In that case the sim is applied ONLY to the requester's own forms
-    (sim_user_id); everyone else is scored on real results. Once the stage is
-    closed the picks are public, so the sim reorders the whole board.
+    Privacy (per-match): picks are hidden only for matches in the currently-open
+    stage (round_state == "open" AND match's stage == current_stage). A sim score
+    for one of those matches is applied ONLY to the requester's own forms
+    (sim_user_id) so it can't leak the hidden picks. Sim scores for already-public
+    matches — including leftover games of an earlier, closed stage that are still
+    being played while a later stage is open for predictions — reorder the whole
+    board.
     """
     participants     = await get_participants(db)
     all_entries_map  = await get_all_entries_by_user(db)  # single bulk query
@@ -570,7 +571,11 @@ async def get_leaderboard(
             spotlight_ns = set()
 
     # Build the simulated results (real results win; sim fills unplayed matches).
+    # sim_added_ns tracks which match numbers the sim actually filled in (as
+    # opposed to matches that already had a real/live result), so we can decide
+    # per-match whose picks are safe to reveal.
     sim_results_map = dict(all_results)
+    sim_added_ns = set()
     sim_tournament_winner = cfg.tournament_winner
     if sim_results:
         for n, v in sim_results.items():
@@ -579,25 +584,43 @@ async def get_leaderboard(
                 continue
             if v and len(v) >= 2 and v[0] is not None and v[1] is not None:
                 sim_results_map[mn] = [int(v[0]), int(v[1])]
+                sim_added_ns.add(mn)
         if sim_winner and not cfg.tournament_winner:
             sim_tournament_winner = sim_winner
 
-    # While the running stage is open, others' picks for it are hidden, so the
-    # sim may only touch the requester's own forms (see docstring). Once closed,
-    # picks are public and the sim reorders everyone.
-    stage_open = cfg.round_state == RoundStateEnum.open
+    # Privacy is PER-MATCH, not global. Picks are hidden only for matches in the
+    # currently-open stage (round_state == "open" AND match's stage ==
+    # current_stage). Leftover games of an EARLIER, already-closed stage that are
+    # still being played (e.g. stage 2 wrapping up while stage 3 is open for
+    # predictions) have public picks, so their sim scores must reorder everyone.
+    # Applying a sim score for a still-hidden match would leak that pick, so we
+    # split those out and only ever apply them to the requester's own forms.
+    stage_open   = cfg.round_state == RoundStateEnum.open
+    open_stage_n = cfg.current_stage or 1
+    match_stage  = {m["n"]: m["s"] for m in MATCHES}
+    private_ns   = {
+        mn for mn in sim_added_ns
+        if stage_open and match_stage.get(mn) == open_stage_n
+    }
+    # Sim map for everyone but the requester: real results + public sim scores,
+    # with the still-hidden (open-stage) sim scores removed.
+    others_results_map = {
+        n: v for n, v in sim_results_map.items() if n not in private_ns
+    }
 
     rows: list[LeaderboardEntry] = []
     for user in participants:
         user_entries = all_entries_map.get(user.id, [])
-        # Apply the simulation to this participant's forms. The caller scopes
-        # sim_results to the in-play stage, so this only reshuffles around games
-        # of the round being played right now. While that stage is still open we
-        # only sim the requester's own forms — projecting other users' scores
-        # would leak their not-yet-revealed picks.
-        apply_sim = bool(sim_results) and (not stage_open or user.id == sim_user_id)
-        results_for_scoring = sim_results_map if apply_sim else all_results
-        tournament_winner   = sim_tournament_winner if apply_sim else cfg.tournament_winner
+        # Apply the simulation to this participant's forms. The requester sees
+        # every simulated score applied to their own forms; everyone else is
+        # scored with the public sim scores only (open-stage picks stay hidden).
+        if sim_results:
+            is_requester = user.id == sim_user_id
+            results_for_scoring = sim_results_map if is_requester else others_results_map
+            tournament_winner   = sim_tournament_winner
+        else:
+            results_for_scoring = all_results
+            tournament_winner   = cfg.tournament_winner
         for entry in user_entries:
             if entry.submitted_at is None:
                 continue  # drafts don't appear on leaderboard
