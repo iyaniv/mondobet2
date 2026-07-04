@@ -1452,11 +1452,8 @@ function AuthView({ roundState, onSuccess }) {
 // ADMIN DASHBOARD — outside App so TeamPicker never remounts on App re-renders
 // ─────────────────────────────────────────────────────────────────────────────
 function AdminDashboard({ config, setConfig, matches, teams, results, participants, setParticipants, adminParticipants, setAdminParticipants, leaderboard, showToast, refreshLb }) {
-  const [expandedUsers,setExpandedUsers]=useState(new Set());
   const tableData=adminParticipants.length>0?adminParticipants:null;
   const statData=tableData||participants;
-  const multiEntryUsers=tableData?tableData.filter(u=>(u.entries||[]).length>1):[];
-  function toggleExpand(uid){setExpandedUsers(s=>{const n=new Set(s);n.has(uid)?n.delete(uid):n.add(uid);return n;});}
 
   // Stage management
   const currentStage = config.current_stage || 1;
@@ -1751,24 +1748,12 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
 
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
         <h2 style={{color:C.accent,fontSize:16,margin:0}}>Participants ({statData.length})</h2>
-        {tableData&&multiEntryUsers.length>0&&(
-          <div style={{display:"flex",gap:6}}>
-            <button onClick={()=>setExpandedUsers(new Set(multiEntryUsers.map(u=>u.id)))}
-              style={{background:"transparent",border:`1px solid ${C.accent}`,color:C.accent,padding:"3px 12px",borderRadius:4,cursor:"pointer",fontSize:12,fontWeight:600}}>
-              Expand all
-            </button>
-            <button onClick={()=>setExpandedUsers(new Set())}
-              style={{background:"transparent",border:`1px solid ${C.accent}`,color:C.accent,padding:"3px 12px",borderRadius:4,cursor:"pointer",fontSize:12,fontWeight:600}}>
-              Collapse all
-            </button>
-          </div>
-        )}
       </div>
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead><tr style={{background:C.panel2}}>
             {(tableData
-              ?[{h:"",w:28},{h:"Name"},{h:"Forms"},{h:"Best total",a:"right"},{h:"Paid",a:"center"}]
+              ?[{h:"Name / Form"},{h:"Forms"},{h:"Best total",a:"right"},{h:"Paid",a:"center"}]
               :[{h:"Name"},{h:"Forms"},{h:"Best total",a:"right"},{h:"Paid",a:"center"}]
             ).map(({h,w,a})=>(
               <th key={h} style={{padding:"9px 12px",textAlign:a||"left",color:C.muted,fontWeight:600,
@@ -1780,51 +1765,60 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
           <tbody>
             {tableData
               ? tableData.length===0
-                ? <tr><td colSpan={5} style={{padding:24,textAlign:"center",color:C.muted}}>No participants yet</td></tr>
+                ? <tr><td colSpan={4} style={{padding:24,textAlign:"center",color:C.muted}}>No participants yet</td></tr>
                 : tableData.map(u=>{
                   const uEntries=u.entries||[];
                   const multi=uEntries.length>1;
-                  const expanded=expandedUsers.has(u.id);
-                  return (
-                    <Fragment key={u.id}>
-                      {/* User row */}
-                      <tr onClick={()=>multi&&toggleExpand(u.id)}
-                        style={{cursor:multi?"pointer":"default",borderTop:`1px solid ${C.border}`}}>
-                        <td style={{...td,width:28,paddingRight:0}}>
-                          {multi&&<span style={{display:"inline-block",transition:"transform .2s",
-                            transform:expanded?"rotate(90deg)":"none",fontSize:10,color:C.muted}}>▶</span>}
-                        </td>
-                        <td style={{...td,paddingLeft:6}}>
-                          <div style={{fontWeight:600,color:C.text}}>{u.name}</div>
-                          <div style={{fontSize:11,color:C.muted,marginTop:1}}>{u.email}</div>
-                          {u.phone&&<div style={{fontSize:11,color:C.muted,marginTop:1}}>📞 <a href={`tel:${u.phone}`} style={{color:C.muted,textDecoration:"none"}}>{u.phone}</a></div>}
-                        </td>
+                  // Heavier divider (2px) above each new participant; the identity
+                  // block appears once, then one flat row per form beneath it.
+                  const personTop=`2px solid ${C.border}`;
+                  const nameBlock=(
+                    <>
+                      <div style={{fontWeight:600,color:C.text}}>
+                        {u.name}
+                        {multi&&<span style={{fontSize:11,color:C.muted,fontWeight:500}}> · {uEntries.length} forms</span>}
+                      </div>
+                      <div style={{fontSize:11,color:C.muted,marginTop:1}}>{u.email}</div>
+                      {u.phone&&<div style={{fontSize:11,color:C.muted,marginTop:1}}>📞 <a href={`tel:${u.phone}`} style={{color:C.muted,textDecoration:"none"}}>{u.phone}</a></div>}
+                    </>
+                  );
+                  const paidCell=(
+                    <td style={{...td,textAlign:"center"}}>
+                      <input type="checkbox" checked={u.has_paid} onChange={e=>togglePaid(u.id,e.target.checked)}/>
+                    </td>
+                  );
+                  if(!multi){
+                    // Single (or zero) form → one flat row.
+                    return (
+                      <tr key={u.id} style={{borderTop:personTop}}>
+                        <td style={td}>{nameBlock}</td>
                         <td style={td}>
                           {uEntries.length===0
                             ? <span style={{color:C.muted}}>no forms</span>
-                            : multi
-                              ? <span style={{fontSize:12,color:C.muted}}>
-                                  <b style={{color:C.text}}>{uEntries.length}</b> forms ·{" "}
-                                  <span style={{color:C.green,fontWeight:600}}>{u.submitted_count??0} submitted</span> ·{" "}
-                                  <span style={{color:"#f59e0b",fontWeight:600}}>{u.draft_count??0} not</span>
-                                  <span> — click to expand</span>
-                                </span>
-                              : renderStageBadges(uEntries[0])
-                          }
+                            : renderStageBadges(uEntries[0])}
                         </td>
                         <td style={{...td,textAlign:"right",color:C.accent,fontWeight:700,fontFamily:"monospace",fontSize:14}}>
                           {u.best_total??0}
                         </td>
-                        <td style={{...td,textAlign:"center"}} onClick={e=>e.stopPropagation()}>
-                          <input type="checkbox" checked={u.has_paid} onChange={e=>togglePaid(u.id,e.target.checked)}/>
-                        </td>
+                        {paidCell}
                       </tr>
-                      {/* Entry sub-rows — only for multi-form users when expanded */}
-                      {multi&&expanded&&uEntries.map(entry=>{
+                    );
+                  }
+                  // Multi-form → identity header row + one row per form.
+                  return (
+                    <Fragment key={u.id}>
+                      <tr style={{borderTop:personTop}}>
+                        <td style={td}>{nameBlock}</td>
+                        <td style={td}/>
+                        <td style={{...td,textAlign:"right",color:C.muted,fontFamily:"monospace",fontSize:12}}>
+                          best {u.best_total??0}
+                        </td>
+                        {paidCell}
+                      </tr>
+                      {uEntries.map(entry=>{
                         const isDraft=!entry.submitted_at;
                         return (
-                          <tr key={entry.id} style={{background:C.bg,borderTop:`1px solid ${C.border}`}}>
-                            <td style={td}/>
+                          <tr key={entry.id} style={{borderTop:`1px solid ${C.border}`}}>
                             <td style={{...td,paddingLeft:28}}>
                               <span style={{color:C.muted,marginRight:4}}>↳</span>
                               <span style={{fontWeight:500}}>{entry.name}</span>

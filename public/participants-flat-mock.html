@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Participants — flat layout mock</title>
+<style>
+  :root{
+    --c-bg:#0b1020; --c-panel:#141c34; --c-panel2:#1a2547; --c-border:#2a3658;
+    --c-text:#e7ecf3; --c-muted:#6b7a99; --c-accent:#a3e635; --c-green:#10b981;
+    --c-red:#ef4444; --c-indigo:#6366f1; --c-amber:#f59e0b;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--c-bg);color:var(--c-text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding:32px 24px 80px;}
+  .wrap{max-width:1100px;margin:0 auto;}
+  h1{color:var(--c-accent);font-size:22px;margin:0 0 4px;}
+  .sub{color:var(--c-muted);font-size:13px;margin:0 0 28px;}
+  h2{color:var(--c-accent);font-size:16px;margin:0;}
+  .variant-note{font-size:12px;color:var(--c-muted);margin:6px 0 12px;line-height:1.5;}
+  .head-row{display:flex;align-items:center;justify-content:space-between;margin:36px 0 8px;}
+  .panel{background:var(--c-panel);border:1px solid var(--c-border);border-radius:8px;overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead tr{background:var(--c-panel2);}
+  th{padding:9px 12px;text-align:left;color:var(--c-muted);font-weight:600;
+     border-bottom:1px solid var(--c-border);white-space:nowrap;}
+  td{padding:10px 12px;vertical-align:middle;}
+  .name{font-weight:600;color:var(--c-text);}
+  .email{font-size:11px;color:var(--c-muted);margin-top:1px;}
+  .phone{font-size:11px;color:var(--c-muted);margin-top:1px;}
+  .total{text-align:right;color:var(--c-accent);font-weight:700;font-family:monospace;font-size:14px;}
+  .paid{text-align:center;}
+  .badges{display:inline-flex;gap:3px;flex-wrap:wrap;align-items:center;}
+  .b{padding:1px 5px;border-radius:3px;font-size:10px;font-weight:700;font-family:monospace;
+     white-space:nowrap;line-height:1.5;border:1px solid var(--c-border);}
+  .b.done{background:rgba(16,185,129,0.15);color:var(--c-green);border-color:rgba(16,185,129,0.4);}
+  .b.cur{background:rgba(245,158,11,0.10);color:var(--c-amber);border-color:rgba(245,158,11,0.35);}
+  .b.fut{background:transparent;color:var(--c-muted);border-color:var(--c-border);}
+  .fname{font-weight:500;color:var(--c-text);}
+  .winner{margin-left:8px;color:var(--c-muted);font-size:11px;}
+  .winner b{color:var(--c-accent);}
+  input[type=checkbox]{width:16px;height:16px;accent-color:var(--c-indigo);}
+  /* ---- Variant A: one row per form ---- */
+  .grp-top td{border-top:2px solid var(--c-border);}
+  .frow td{border-top:1px solid rgba(42,54,88,0.5);}
+  .frow.sub td{}
+  .arrow{color:var(--c-muted);margin-right:4px;}
+  .ftotal{text-align:right;font-family:monospace;font-weight:700;}
+  .single-form td{border-top:2px solid var(--c-border);}
+  /* ---- Variant B: one row per user, stacked forms ---- */
+  .formlist{display:flex;flex-direction:column;gap:7px;}
+  .formline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .formline .fname{min-width:70px;}
+  .brow td{border-top:1px solid var(--c-border);}
+  .fpts{font-family:monospace;font-weight:700;color:var(--c-accent);font-size:12px;}
+  .fpts.na{color:var(--c-muted);}
+  .btn{background:transparent;border:1px solid var(--c-accent);color:var(--c-accent);
+    padding:3px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Participants — flat layout</h1>
+  <p class="sub">No expand/collapse. Every form's stage status is visible at a glance. Two options below — pick one.</p>
+
+  <!-- ========================= VARIANT A ========================= -->
+  <div class="head-row">
+    <h2>Option A · One row per form</h2>
+  </div>
+  <p class="variant-note">
+    Each form gets its own row. A participant's identity block appears once, above their forms, with a heavier
+    divider separating people. Single-form participants are just a one-line row. This reads like the leaderboard
+    and keeps every column (name / form+winner / badges / points / paid) perfectly aligned.
+  </p>
+  <div class="panel">
+    <table>
+      <thead><tr>
+        <th>Name / Form</th><th>Forms</th><th style="text-align:right">Total</th><th style="text-align:center">Paid</th>
+      </tr></thead>
+      <tbody>
+        <!-- Ofer Fort — single form -->
+        <tr class="single-form">
+          <td>
+            <div class="name">Ofer Fort</div>
+            <div class="email">ofer.fort@personetics.com</div>
+            <div class="phone">📞 0545678339</div>
+          </td>
+          <td><span class="badges">
+            <span class="b done">S1✓</span><span class="b done">S2✓</span><span class="b done">S3✓</span>
+            <span class="b fut">S4</span><span class="b fut">S5</span><span class="b fut">S6</span>
+          </span></td>
+          <td class="total">368</td>
+          <td class="paid"><input type="checkbox" checked></td>
+        </tr>
+
+        <!-- שלומי סיטון — single form -->
+        <tr class="single-form">
+          <td>
+            <div class="name" dir="rtl">שלומי סיטון</div>
+            <div class="email">shlomi.sutton@gmail.com</div>
+            <div class="phone">📞 0522359949</div>
+          </td>
+          <td><span class="badges">
+            <span class="b done">S1✓</span><span class="b done">S2✓</span><span class="b done">S3✓</span>
+            <span class="b fut">S4</span><span class="b fut">S5</span><span class="b fut">S6</span>
+          </span></td>
+          <td class="total">324</td>
+          <td class="paid"><input type="checkbox" checked></td>
+        </tr>
+
+        <!-- Ron Maayan — 3 forms -->
+        <tr class="grp-top">
+          <td>
+            <div class="name">Ron Maayan &nbsp;<span style="font-size:11px;color:var(--c-muted);font-weight:500">· 3 forms</span></div>
+            <div class="email">ronmaayan@gmail.com</div>
+            <div class="phone">📞 0544678894</div>
+          </td>
+          <td></td>
+          <td class="total" style="font-size:13px;color:var(--c-muted)">best 358</td>
+          <td class="paid"><input type="checkbox" checked></td>
+        </tr>
+        <tr class="frow">
+          <td style="padding-left:28px"><span class="arrow">↳</span><span class="fname">Brunson</span><span class="winner">winner: <b>🇪🇸 Spain</b></span></td>
+          <td><span class="badges">
+            <span class="b done">S1✓</span><span class="b done">S2✓</span><span class="b cur">S3 8/8</span>
+            <span class="b fut">S4</span><span class="b fut">S5</span><span class="b fut">S6</span>
+          </span></td>
+          <td class="ftotal" style="color:var(--c-accent)">358</td>
+          <td></td>
+        </tr>
+        <tr class="frow">
+          <td style="padding-left:28px"><span class="arrow">↳</span><span class="fname">KAT</span><span class="winner">winner: <b>🇫🇷 France</b></span></td>
+          <td><span class="badges">
+            <span class="b done">S1✓</span><span class="b done">S2✓</span><span class="b cur">S3 0/8</span>
+            <span class="b fut">S4</span><span class="b fut">S5</span><span class="b fut">S6</span>
+          </span></td>
+          <td class="ftotal" style="color:var(--c-accent)">302</td>
+          <td></td>
+        </tr>
+        <tr class="frow">
+          <td style="padding-left:28px"><span class="arrow">↳</span><span class="fname">OG</span><span class="winner">winner: <b>🏴 England</b></span></td>
+          <td><span class="badges">
+            <span class="b done">S1✓</span><span class="b done">S2✓</span><span class="b cur">S3 0/8</span>
+            <span class="b fut">S4</span><span class="b fut">S5</span><span class="b fut">S6</span>
+          </span></td>
+          <td class="ftotal" style="color:var(--c-accent)">349</td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ========================= VARIANT B ========================= -->
+  <div class="head-row">
+    <h2>Option B · One row per participant, forms stacked</h2>
+  </div>
+  <p class="variant-note">
+    Still one row per participant (compact list of people), but the Forms column stacks each form on its own line —
+    name, badges and points together. Nothing is hidden, and the participant count stays honest (35 people = 35 rows).
+  </p>
+  <div class="panel">
+    <table>
+      <thead><tr>
+        <th>Name</th><th>Forms</th><th style="text-align:right">Best total</th><th style="text-align:center">Paid</th>
+      </tr></thead>
+      <tbody>
+        <tr class="brow">
+          <td>
+            <div class="name">Ofer Fort</div>
+            <div class="email">ofer.fort@personetics.com</div>
+            <div class="phone">📞 0545678339</div>
+          </td>
+          <td><span class="badges">
+            <span class="b done">S1✓</span><span class="b done">S2✓</span><span class="b done">S3✓</span>
+            <span class="b fut">S4</span><span class="b fut">S5</span><span class="b fut">S6</span>
+          </span></td>
+          <td class="total">368</td>
+          <td class="paid"><input type="checkbox" checked></td>
+        </tr>
+        <tr class="brow">
+          <td>
+            <div class="name" dir="rtl">שלומי סיטון</div>
+            <div class="email">shlomi.sutton@gmail.com</div>
+            <div class="phone">📞 0522359949</div>
+          </td>
+          <td><span class="badges">
+            <span class="b done">S1✓</span><span class="b done">S2✓</span><span class="b done">S3✓</span>
+            <span class="b fut">S4</span><span class="b fut">S5</span><span class="b fut">S6</span>
+          </span></td>
+          <td class="total">324</td>
+          <td class="paid"><input type="checkbox" checked></td>
+        </tr>
+        <tr class="brow">
+          <td>
+            <div class="name">Ron Maayan</div>
+            <div class="email">ronmaayan@gmail.com</div>
+            <div class="phone">📞 0544678894</div>
+          </td>
+          <td>
+            <div class="formlist">
+              <div class="formline">
+                <span class="fname">Brunson</span>
+                <span class="badges">
+                  <span class="b done">S1✓</span><span class="b done">S2✓</span><span class="b cur">S3 8/8</span>
+                  <span class="b fut">S4</span><span class="b fut">S5</span><span class="b fut">S6</span>
+                </span>
+                <span class="winner">🇪🇸 Spain</span>
+                <span class="fpts">358</span>
+              </div>
+              <div class="formline">
+                <span class="fname">KAT</span>
+                <span class="badges">
+                  <span class="b done">S1✓</span><span class="b done">S2✓</span><span class="b cur">S3 0/8</span>
+                  <span class="b fut">S4</span><span class="b fut">S5</span><span class="b fut">S6</span>
+                </span>
+                <span class="winner">🇫🇷 France</span>
+                <span class="fpts">302</span>
+              </div>
+              <div class="formline">
+                <span class="fname">OG</span>
+                <span class="badges">
+                  <span class="b done">S1✓</span><span class="b done">S2✓</span><span class="b cur">S3 0/8</span>
+                  <span class="b fut">S4</span><span class="b fut">S5</span><span class="b fut">S6</span>
+                </span>
+                <span class="winner">🏴 England</span>
+                <span class="fpts">349</span>
+              </div>
+            </div>
+          </td>
+          <td class="total">358</td>
+          <td class="paid"><input type="checkbox" checked></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+</body>
+</html>
