@@ -4619,6 +4619,11 @@ export default function App() {
   const [gameMenuOpen,setGameMenuOpen]=useState(false);
   const [gameMenuPos,setGameMenuPos]=useState(null);
   const gameBtnRef=useRef(null);
+  // Prediction-spread popover (📊 next to the game chip) — same lifted-state
+  // treatment as the game menu so the 10s poll doesn't close it.
+  const [matchStatsOpen,setMatchStatsOpen]=useState(false);
+  const [matchStatsPos,setMatchStatsPos]=useState(null);
+  const matchStatsBtnRef=useRef(null);
   const [matchSimMode,setMatchSimMode]=useState(false);
   const [matchSimA,setMatchSimA]=useState("");
   const [matchSimB,setMatchSimB]=useState("");
@@ -4669,7 +4674,7 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[startingKey,matches.length]);
   // Reset match sim mode whenever the focused game changes
-  useEffect(()=>{ setMatchSimMode(false); setMatchSimA(""); setMatchSimB(""); },[selectedMatchN]);
+  useEffect(()=>{ setMatchSimMode(false); setMatchSimA(""); setMatchSimB(""); setMatchStatsOpen(false); },[selectedMatchN]);
   // Cache of {match_n: {entry_id:[a,b]}} for games not covered by the rows'
   // spotlight_preds (i.e. a pinned/older game). Fetched on demand.
   const [matchPicks,setMatchPicks]=useState({});
@@ -6837,6 +6842,7 @@ export default function App() {
                   :false;
                 setLbFabState({showTop:st>30,showMe:canSc,meAbove});
                 if(gameMenuOpen) setGameMenuOpen(false);
+                if(matchStatsOpen) setMatchStatsOpen(false);
               }}
               style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:14,minWidth:320}}>
@@ -6936,7 +6942,7 @@ export default function App() {
                       ) : (
                         /* ── normal (idle) header ── */
                         <div style={{display:"inline-flex",alignItems:"center",gap:5}}>
-                          <button ref={gameBtnRef} onClick={(e)=>{e.stopPropagation();const r=gameBtnRef.current?.getBoundingClientRect();setGameMenuPos(r||null);setGameMenuOpen(o=>!o);}}
+                          <button ref={gameBtnRef} onClick={(e)=>{e.stopPropagation();const r=gameBtnRef.current?.getBoundingClientRect();setGameMenuPos(r||null);setGameMenuOpen(o=>!o);setMatchStatsOpen(false);}}
                             title="Pick which game's predictions to show"
                             style={{display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer",border:0,background:"transparent",
                               padding:0,margin:0,fontFamily:"inherit",color:C.text}}>
@@ -6959,6 +6965,115 @@ export default function App() {
                               ✏️
                             </button>
                           )}
+                          {(()=>{
+                            // Prediction spread for the selected game — who-wins % and
+                            // exact-score counts, computed from the picks this column
+                            // already shows (locked games have no picks ⇒ no button).
+                            const statPicks=leaderboard.map(r=>pickFor(r)).filter(p=>Array.isArray(p)&&p[0]!=null&&p[1]!=null);
+                            if(!statPicks.length) return null;
+                            const total=statPicks.length;
+                            const nA=statPicks.filter(p=>p[0]>p[1]).length;
+                            const nX=statPicks.filter(p=>p[0]===p[1]).length;
+                            const nB=total-nA-nX;
+                            const pct=(n)=>Math.round(n/total*100);
+                            const segs=[
+                              {n:nA,color:C.accent,label:<span>{flag(ca)}</span>},
+                              {n:nX,color:"#8b9bbd",label:<span>Draw</span>},
+                              {n:nB,color:"#f59e0b",label:<span>{flag(cb)}</span>},
+                            ];
+                            const groups={};
+                            statPicks.forEach(p=>{const k=`${p[0]}-${p[1]}`;groups[k]=(groups[k]||0)+1;});
+                            const scoreRows=Object.entries(groups)
+                              .map(([k,c])=>{const [a,b]=k.split("-").map(Number);return {a,b,c};})
+                              .sort((x,y)=>y.c-x.c||(x.a+x.b)-(y.a+y.b)||x.a-y.a);
+                            const popStyle = matchStatsPos
+                              ? {position:"fixed",top:matchStatsPos.bottom+6,left:Math.max(8,Math.min(matchStatsPos.left+matchStatsPos.width/2-135,(typeof window!=="undefined"?window.innerWidth:1000)-278))}
+                              : {position:"absolute",top:"100%",left:0};
+                            const sectTtl={fontSize:9,fontWeight:800,letterSpacing:".06em",textTransform:"uppercase",color:C.muted,marginBottom:8,textAlign:"left"};
+                            return (
+                              <>
+                                <button ref={matchStatsBtnRef}
+                                  onClick={(e)=>{e.stopPropagation();const r=matchStatsBtnRef.current?.getBoundingClientRect();setMatchStatsPos(r||null);setMatchStatsOpen(o=>!o);setGameMenuOpen(false);}}
+                                  title="Prediction spread"
+                                  style={{background:matchStatsOpen?"rgba(163,230,53,0.12)":"none",
+                                    border:`1px solid ${matchStatsOpen?C.accent:"transparent"}`,borderRadius:5,
+                                    cursor:"pointer",padding:"2px 4px",color:matchStatsOpen?C.accent:C.muted,
+                                    fontSize:13,lineHeight:1,fontFamily:"inherit",display:"inline-flex",alignItems:"center",
+                                    transition:"color .15s,background .15s"}}
+                                  onMouseEnter={e=>{if(!matchStatsOpen){e.currentTarget.style.color=C.accent;e.currentTarget.style.background="rgba(163,230,53,0.08)";}}}
+                                  onMouseLeave={e=>{if(!matchStatsOpen){e.currentTarget.style.color=C.muted;e.currentTarget.style.background="none";}}}>
+                                  📊
+                                </button>
+                                {matchStatsOpen&&(
+                                  <>
+                                    <div onClick={()=>setMatchStatsOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
+                                    <div onClick={e=>e.stopPropagation()} style={{...popStyle,width:270,zIndex:99,cursor:"default",
+                                      background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,
+                                      boxShadow:"0 12px 34px rgba(0,0,0,0.55)",overflow:"hidden",textAlign:"left"}}>
+                                      {/* header: game chip + pick count */}
+                                      <div style={{display:"flex",alignItems:"center",gap:7,padding:"9px 12px",
+                                        borderBottom:`1px solid ${C.border}`,background:C.panel2,fontSize:12,fontWeight:700}}>
+                                        <span style={{fontSize:14}}>{flag(ca)}</span>
+                                        {selScore
+                                          ? <b style={{fontFamily:"monospace",fontSize:14}}>{selScore[0]}–{selScore[1]}</b>
+                                          : <span style={{color:C.muted,fontSize:11,fontWeight:600}}>v</span>}
+                                        <span style={{fontSize:14}}>{flag(cb)}</span>
+                                        {badge}
+                                        <span style={{marginLeft:"auto",fontSize:10,color:C.muted,fontWeight:600}}>{total} picks</span>
+                                      </div>
+                                      {/* who wins */}
+                                      <div style={{padding:"10px 12px 12px"}}>
+                                        <div style={sectTtl}>🏆 Who wins</div>
+                                        <div style={{display:"flex",height:22,borderRadius:6,overflow:"hidden",border:`1px solid ${C.border}`,marginBottom:7}}>
+                                          {segs.filter(s=>s.n>0).map((s,i)=>(
+                                            <div key={i} style={{flex:s.n,background:s.color,display:"flex",alignItems:"center",justifyContent:"center",
+                                              fontSize:11,fontWeight:800,color:"#0b1020",minWidth:0,overflow:"hidden",whiteSpace:"nowrap"}}>
+                                              {pct(s.n)>=14?`${pct(s.n)}%`:""}
+                                            </div>
+                                          ))}
+                                        </div>
+                                        <div style={{display:"flex",gap:10,fontSize:10,color:C.muted,fontWeight:600,flexWrap:"wrap"}}>
+                                          {segs.map((s,i)=>(
+                                            <span key={i} style={{display:"inline-flex",alignItems:"center",gap:4}}>
+                                              <span style={{width:8,height:8,borderRadius:2,background:s.color,display:"inline-block"}}/>
+                                              {s.label}
+                                              <b style={{color:C.text,fontWeight:800}}>{pct(s.n)}%</b>
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                      {/* exact-score spread */}
+                                      <div style={{padding:"10px 12px 12px",borderTop:`1px solid ${C.border}`}}>
+                                        <div style={sectTtl}>🎯 Score picks</div>
+                                        <div style={{maxHeight:180,overflowY:"auto"}}>
+                                          {scoreRows.map(s=>{
+                                            const hit=!!selScore&&s.a===selScore[0]&&s.b===selScore[1];
+                                            const p=pct(s.c);
+                                            return (
+                                              <div key={`${s.a}-${s.b}`} style={{display:"flex",alignItems:"center",gap:8,padding:"3px 0",fontSize:12}}>
+                                                <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",
+                                                  fontFamily:"monospace",fontWeight:700,fontSize:13,padding:"1px 8px",borderRadius:6,minWidth:48,
+                                                  border:`1px solid ${hit?"rgba(16,185,129,0.6)":C.border}`,
+                                                  background:hit?"rgba(16,185,129,0.12)":C.panel2,color:hit?C.green:C.text}}>
+                                                  {s.a}–{s.b}{hit&&<span style={{fontSize:9,marginLeft:3}}>✓</span>}
+                                                </span>
+                                                <span style={{flex:1,height:7,background:C.panel2,borderRadius:4,overflow:"hidden"}}>
+                                                  <span style={{display:"block",height:"100%",width:`${p}%`,borderRadius:4,background:hit?C.green:C.indigo}}/>
+                                                </span>
+                                                <span style={{fontSize:11,color:C.muted,fontWeight:700,minWidth:52,textAlign:"right",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>
+                                                  <b style={{color:C.text}}>{s.c}</b> · {p}%
+                                                </span>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </>
+                                )}
+                              </>
+                            );
+                          })()}
                           {gameMenuOpen&&(
                             <>
                               <div onClick={()=>setGameMenuOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>
