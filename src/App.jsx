@@ -6997,7 +6997,8 @@ export default function App() {
                                 <button ref={matchStatsBtnRef}
                                   onClick={(e)=>{e.stopPropagation();const r=matchStatsBtnRef.current?.getBoundingClientRect();setMatchStatsPos(r||null);setMatchStatsOpen(o=>!o);setGameMenuOpen(false);}}
                                   title="Prediction spread"
-                                  style={{background:matchStatsOpen?"rgba(163,230,53,0.12)":"none",
+                                  style={{order:-1, /* left of the chip, so the score sits centered (✏️ balances on the right) */
+                                    background:matchStatsOpen?"rgba(163,230,53,0.12)":"none",
                                     border:`1px solid ${matchStatsOpen?C.accent:"transparent"}`,borderRadius:5,
                                     cursor:"pointer",padding:"2px 4px",color:matchStatsOpen?C.accent:C.muted,
                                     fontSize:13,lineHeight:1,fontFamily:"inherit",display:"inline-flex",alignItems:"center",
