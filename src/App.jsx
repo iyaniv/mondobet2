@@ -1508,6 +1508,18 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
     const done = stageMatches.filter(m => results[m.n] != null).length;
     return { ...s, total: stageMatches.length, done };
   });
+  // Per-stage submitted-forms tally across every form in the admin feed —
+  // drives the count chips next to the Participants header. Same palette as
+  // renderStageBadges: green = everyone in, amber = current stage still
+  // collecting, red = past stage with stragglers, muted = not yet open.
+  const allForms = (tableData||[]).flatMap(u=>u.entries||[]);
+  const stageSubmitCounts = STAGES.map(s => ({
+    ...s,
+    submitted: allForms.filter(e => {
+      const ss = e.stages_submitted || {};
+      return !!(ss[s.n] ?? ss[String(s.n)]);
+    }).length,
+  }));
   // "Running" focus is derived, not stored: the stage whose games are actually
   // being played. Prefer a stage that's partway through (some results, not all);
   // otherwise the latest stage with any result. Null before the first result.
@@ -1746,8 +1758,31 @@ function AdminDashboard({ config, setConfig, matches, teams, results, participan
         <span style={{color:C.muted,fontSize:12,alignSelf:"center"}}>Awards +10 pts to everyone who picked correctly.</span>
       </div>
 
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",marginBottom:8}}>
         <h2 style={{color:C.accent,fontSize:16,margin:0}}>Participants ({statData.length})</h2>
+        {allForms.length>0&&(
+          <span style={{display:"inline-flex",gap:3,flexWrap:"wrap",alignItems:"center"}}>
+            <span style={{fontSize:10,color:C.muted,letterSpacing:"0.05em",textTransform:"uppercase",marginRight:2}}>submitted</span>
+            {stageSubmitCounts.map(s=>{
+              const total=allForms.length;
+              const full=s.submitted>=total;
+              const isFuture=s.n>currentStage;
+              let bg,fg,border;
+              if(full){bg="rgba(16,185,129,0.15)";fg=C.green;border="rgba(16,185,129,0.4)";}
+              else if(isFuture){bg="transparent";fg=C.muted;border=C.border;}
+              else if(s.n===currentStage){bg="rgba(245,158,11,0.10)";fg="#f59e0b";border="rgba(245,158,11,0.35)";}
+              else{bg="rgba(239,68,68,0.10)";fg=C.red;border="rgba(239,68,68,0.35)";}
+              return (
+                <span key={s.n} title={`Stage ${s.n} — ${s.name}: ${s.submitted}/${total} forms submitted`} style={{
+                  padding:"1px 5px",borderRadius:3,fontSize:10,fontWeight:700,fontFamily:"monospace",
+                  background:bg,color:fg,border:`1px solid ${border}`,whiteSpace:"nowrap",lineHeight:1.5,
+                }}>
+                  S{s.n} {s.submitted}/{total}
+                </span>
+              );
+            })}
+          </span>
+        )}
       </div>
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
