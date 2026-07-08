@@ -6425,9 +6425,11 @@ export default function App() {
     // auto/live game (spotlight_preds); a pinned/older game comes from the
     // on-demand matchPicks cache.
     const pickFor = (row)=> (matchPicks[selectedMatchN]?.[row.entry_id]) ?? row.spotlight_preds?.[selectedMatchN];
-    // Games offered in the dropdown: all matches, newest-relevant first
-    // (live, then by kickoff descending), resolved to real team codes.
+    // Games offered in the dropdown: closed + open stages only — future stages
+    // (not yet opened for betting) are placeholder matchups with no picks, so
+    // listing them is just noise. Sorted by kickoff, resolved to real team codes.
     const gameOptions = matches
+      .filter(m=>m.s<=(config.current_stage||1))
       .map(m=>({m, ko:(()=>{const d=new Date(m.t).getTime();return isNaN(d)?0:d;})(),
         a:resolveTeamDeep(m.a,results,matches), b:resolveTeamDeep(m.b,results,matches),
         live:isLiveM(m), ended:!!results[m.n], viewable:matchViewable(m)}))
