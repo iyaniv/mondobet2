@@ -4977,7 +4977,7 @@ export default function App() {
   useEffect(() => {
     if (!user) { tabInitForUserRef.current = null; return; }
     if (tabInitForUserRef.current === user.id) return;
-    if (user.is_admin) { setTab("results"); tabInitForUserRef.current = user.id; return; }
+    if (user.is_admin) { setTab("dashboard"); tabInitForUserRef.current = user.id; return; }
     const underway = config.round_state === "closed" || (config.current_stage || 1) > 1;
     setTab(underway ? "leaderboard" : "predictions");
     tabInitForUserRef.current = user.id;
