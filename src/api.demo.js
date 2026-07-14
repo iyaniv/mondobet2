@@ -971,11 +971,12 @@ export const api = {
     if (!eid) return [];
     const entry = S.entries[eid];
     const allPreds = Object.entries(S.predictions[eid]||{}).map(([n,p])=>({match_n:Number(n),score_a:p[0],score_b:p[1]}));
-    // Admin or own entry: all predictions always.
-    // Other user: all predictions except the current open stage while round is open.
+    // Own entry: all predictions always.
+    // Other user (admins included): all predictions except the current open
+    // stage while the round is open — those picks stay private until it closes.
     const viewingOwn = Number(uid) === caller.id;
     if (!caller.is_admin && !viewingOwn && !entry?.submitted_at) return [];
-    if (!caller.is_admin && !viewingOwn && S.config.round_state === "open") {
+    if (!viewingOwn && S.config.round_state === "open") {
       const openStage = S.config.current_stage || 1;
       return allPreds.filter(p => {
         const m = MATCHES.find(x => x.n === p.match_n);
@@ -991,7 +992,9 @@ export const api = {
     const caller = getUser();
     if (!caller) throw new Error("Not authenticated");
     const mn = Number(n);
-    if (!caller.is_admin && S.config.round_state === "open") {
+    // Open-stage picks stay private while the round is open — for everyone,
+    // admins included.
+    if (S.config.round_state === "open") {
       const m = MATCHES.find(x => x.n === mn);
       if (m && m.s === (S.config.current_stage || 1)) return {};
     }

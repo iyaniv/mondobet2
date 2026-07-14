@@ -207,9 +207,10 @@ async def user_predictions(
 
     all_preds = [PredictionOut(match_n=n, score_a=v[0], score_b=v[1]) for n, v in preds.items()]
 
-    # For non-admin viewing someone else: hide predictions for the current
-    # open stage while the round is still open (users are actively betting).
-    if not current_user.is_admin and not viewing_own:
+    # When viewing someone else: hide predictions for the current open stage
+    # while the round is still open (users are actively betting). This applies
+    # to admins too — an open stage's picks stay private until it closes.
+    if not viewing_own:
         cfg = await crud.get_config(db)
         if cfg.round_state == RoundStateEnum.open:
             open_stage = cfg.current_stage or 1
@@ -228,18 +229,17 @@ async def match_predictions(
     """Every submitted form's pick for one match — {entry_id: [score_a, score_b]}.
 
     Powers the leaderboard "Match picks" column when the user pins it to a
-    specific game. Same privacy rule as /user/{id}: non-admins can't see picks
-    for a match in the currently-open stage while the round is open (everyone's
-    still betting). Returns {} in that case; a played/closed-stage match is open
-    to all. Only fully-filled picks are included.
+    specific game. Same privacy rule as /user/{id}: nobody (admins included)
+    can see picks for a match in the currently-open stage while the round is
+    open (everyone's still betting). Returns {} in that case; a played/closed-stage
+    match is open to all. Only fully-filled picks are included.
     """
     if match_n not in MATCH_INDEX:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Match not found.")
 
-    if not current_user.is_admin:
-        cfg = await crud.get_config(db)
-        if cfg.round_state == RoundStateEnum.open and MATCH_INDEX[match_n].get("s") == (cfg.current_stage or 1):
-            return {}
+    cfg = await crud.get_config(db)
+    if cfg.round_state == RoundStateEnum.open and MATCH_INDEX[match_n].get("s") == (cfg.current_stage or 1):
+        return {}
 
     all_preds = await crud.get_all_predictions(db)          # {entry_id: {match_n: [a, b]}}
     all_entries = await crud.get_all_entries_by_user(db)    # {user_id: [entries]}
