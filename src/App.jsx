@@ -2697,18 +2697,29 @@ function KnockoutBracket({ matches, results, liveMatches={}, currentStage, tz })
                   color:isCurrent?C.accent:C.muted}}>
                   {s.name}
                 </div>
-                {/* Normal bracket cards */}
-                {bracketMs.map(m => slotCard(m, isFinalStage ? finalSlotPx : slotPx))}
-                {/* 3rd place — floating below, not connected to bracket lines */}
-                {thirdMatch && (
-                  <div style={{marginTop:4,padding:'0 4px'}}>
-                    <div style={{fontSize:12,fontWeight:700,color:C.muted,
-                      padding:'0 8px 4px',letterSpacing:'.06em',textTransform:'uppercase',
-                      display:'flex',alignItems:'center',gap:6}}>
-                      <span>🥉 3rd place</span>
-                    </div>
-                    {renderMatchup(thirdMatch)}
+                {/* Final stage: the Final keeps its full-height centred slot so
+                    the semifinal connector lines (which meet at the SF midpoint)
+                    still land on it. The 3rd-place card is absolutely positioned
+                    just below the Final's centre instead of floating at the very
+                    bottom of the column. It carries no bracket connectors. */}
+                {isFinalStage ? (
+                  <div style={{height:finalSlotPx,position:'relative',
+                    display:'flex',flexDirection:'column',justifyContent:'center'}}>
+                    {finalMatch && renderMatchup(finalMatch)}
+                    {thirdMatch && (
+                      <div style={{position:'absolute',left:0,right:0,
+                        top:'calc(50% + 78px)',padding:'0 4px'}}>
+                        <div style={{fontSize:12,fontWeight:700,color:C.muted,
+                          padding:'0 8px 4px',letterSpacing:'.06em',textTransform:'uppercase',
+                          display:'flex',alignItems:'center',gap:6}}>
+                          <span>🥉 3rd place</span>
+                        </div>
+                        {renderMatchup(thirdMatch)}
+                      </div>
+                    )}
                   </div>
+                ) : (
+                  bracketMs.map(m => slotCard(m, slotPx))
                 )}
               </div>
               {colIdx < knockoutStages.length - 1 && (
