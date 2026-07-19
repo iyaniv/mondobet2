@@ -210,6 +210,16 @@ function resolveTeamDeep(name, scoresMap, matchList, depth = 0) {
   return type === 'W' ? (w === 'a' ? teamA : teamB) : (w === 'a' ? teamB : teamA);
 }
 
+// True while `name` is still an unresolved bracket/group placeholder rather than
+// a real team. Mirrors the slot patterns resolveTeamDeep understands, so callers
+// can tell "the winner is decided" from "still TBD".
+function isSlotLabel(name) {
+  return /^(1st|2nd|3rd)\s+[A-L]$/.test(name)
+      || /^Best 3rd \(\d+\)$/.test(name)
+      || /^3rd [A-L](\/[A-L])+$/.test(name)
+      || /^[WL] M\d+$/.test(name);
+}
+
 // Wrap a match so its team labels are resolved (e.g. "1st A" → "Mexico").
 // Cheap object spread; safe to call on every render.
 function resolvedMatch(m, results, allMatches) {
@@ -4781,8 +4791,10 @@ export default function App() {
   // Simulate only resolves games of the in-play stage. You can only meaningfully
   // simulate the round being played now — future knockout matchups aren't known
   // yet, and leftover earlier-stage games belong to a round that's already moved
-  // on — so scope the unplayed-prediction set to the running stage.
-  const unplayedPredMatches = matches.filter(m=>m.s===runningStage&&!results[m.n]&&!liveMatches[m.n]&&simPreds?.[m.n]?.[0]!=null).sort((a,b)=>a.t<b.t?-1:a.t>b.t?1:a.n-b.n);
+  // on — so scope the unplayed-prediction set to the running stage. A game that
+  // has already kicked off (live) IS a known matchup, so it's included: the sim
+  // treats its predicted final score as the outcome (overriding the live score).
+  const unplayedPredMatches = matches.filter(m=>m.s===runningStage&&!results[m.n]&&simPreds?.[m.n]?.[0]!=null).sort((a,b)=>a.t<b.t?-1:a.t>b.t?1:a.n-b.n);
   // Simulate / Actual toggle is always available for a stable UI. When there
   // are no unplayed predictions the simulated leaderboard equals the actual
   // one, so flipping the toggle is just a no-op rather than the button
@@ -4796,8 +4808,16 @@ export default function App() {
     if(!simMode||!canSim){ setSimLb(null); return; }
     const override={};
     for(const m of simMatches){ const p=simPreds[m.n]; if(p?.[0]!=null&&p?.[1]!=null) override[m.n]=[p[0],p[1]]; }
+    // If the simulated (or already-decided) FINAL yields a determined winner,
+    // pass that champion so the +10 tournament-winner bonus applies in the sim.
+    let winnerOverride=null;
+    const finalMatch=matches.find(m=>m.g==="FIN");
+    if(finalMatch){
+      const champ=resolveTeamDeep("W M"+finalMatch.n,{...results,...override},matches);
+      if(champ&&!isSlotLabel(champ)) winnerOverride=champ;
+    }
     setSimLoading(true);
-    api.getSimulatedLeaderboard(override,null)
+    api.getSimulatedLeaderboard(override,winnerOverride)
       .then(rows=>setSimLb(rows)).catch(()=>setSimLb(null)).finally(()=>setSimLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[simMode,effectiveSimEntryId,simPreds,simLimit]);
@@ -7161,9 +7181,18 @@ export default function App() {
                         const g=(pred[0]===selScore[0]?1:0)+(pred[1]===selScore[1]?1:0);
                         return dir+(g===2?3:g===1?1:0);
                       };
+                      // If the game being simulated is the FINAL and the score
+                      // decides a winner, whoever picked that champion gains the
+                      // +10 bonus — net of any winner bonus they already hold.
+                      let simChamp=null;
+                      if(selMatch&&selMatch.g==="FIN"){
+                        const c=resolveTeamDeep("W M"+selMatch.n,{...results,[selMatch.n]:[_simA,_simB]},matches);
+                        if(c&&!isSlotLabel(c)) simChamp=c;
+                      }
+                      const bonusDelta=(r)=> simChamp ? ((r.winner_pick===simChamp?10:0)-(r.winner_bonus||0)) : 0;
                       const withSim = displayLb.map(r=>({
                         id:r.entry_id,
-                        simTotal:r.total - realPts(pickFor(r)) + simPts(pickFor(r)),
+                        simTotal:r.total - realPts(pickFor(r)) + simPts(pickFor(r)) + bonusDelta(r),
                       }));
                       const sorted=[...withSim].sort((a,b)=>b.simTotal-a.simTotal);
                       const sortedRankMap=new Map(sorted.map((s,idx)=>[s.id,idx]));

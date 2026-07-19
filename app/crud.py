@@ -580,7 +580,10 @@ async def get_leaderboard(
     if sim_results:
         for n, v in sim_results.items():
             mn = int(n)
-            if mn in all_results or mn in live_map:
+            # A finished match is fixed and never overridden. A live (running)
+            # match, however, IS overridable: the sim treats the caller's
+            # predicted final score as the outcome, replacing the live score.
+            if mn in all_results:
                 continue
             if v and len(v) >= 2 and v[0] is not None and v[1] is not None:
                 sim_results_map[mn] = [int(v[0]), int(v[1])]
